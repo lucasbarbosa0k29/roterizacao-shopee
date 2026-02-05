@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
 import { getHistory, saveHistory, updateHistory } from "./lib/history";
@@ -139,7 +139,7 @@ function makeId(prefix = "grp") {
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
 }
 
-export default function Home() {
+function HomeInner() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RowItem[]>([]);
@@ -1840,3 +1840,10 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
       </main>
     );
     }
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
+  );
+}
