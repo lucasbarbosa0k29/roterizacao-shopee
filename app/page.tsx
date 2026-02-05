@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
+import { getHistory, saveHistory, updateHistory } from "./lib/history";
+import { useSearchParams } from "next/navigation";
 
 const AparecidaArcgisMap = dynamic(
   () => import("./components/AparecidaArcgisMap"),
@@ -142,9 +144,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RowItem[]>([]);
   const [view, setView] = useState<"upload" | "results">("upload");
-
+ const [historyId, setHistoryId] = useState<string | null>(null);
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
-
+const searchParams = useSearchParams();
+const hid = searchParams.get("history");
   // grupos manuais
   const [manualGroups, setManualGroups] = useState<Record<string, number[]>>({});
 
@@ -155,7 +158,56 @@ export default function Home() {
   // modo agrupar manual (selecionar)
   const [groupMode, setGroupMode] = useState(false);
   const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set());
+useEffect(() => {
+  if (!hid) return;
 
+  const saved = getHistory(hid);
+  if (!saved) return;
+
+  setHistoryId(saved.id);
+  setFile(null);
+  setRows(saved.rows || []);
+  setManualEdits(saved.manualEdits || {});
+  setManualGroups(saved.manualGroups || {});
+  setAutoGrouped(!!saved.autoGrouped);
+  setAutoBreakIds(new Set((saved.autoBreakIds || []).map(String)));
+  setGroupMode(!!saved.groupMode);
+  setSelectedIdxs(new Set(saved.selectedIdxs || []));
+  setView("results");
+
+  // ✅ limpa a URL sem resetar o state
+  window.history.replaceState({}, "", window.location.pathname);
+}, [hid]);
+useEffect(() => {
+ if (!historyId || hid) return;
+
+  const t = setTimeout(() => {
+    updateHistory(historyId, {
+      rows,
+      manualEdits,
+      manualGroups,
+      autoGrouped,
+      autoBreakIds: Array.from(autoBreakIds),
+      groupMode,
+      selectedIdxs: Array.from(selectedIdxs),
+      view,
+      name: file?.name || "Planilha",
+    });
+  }, 400);
+
+  return () => clearTimeout(t);
+}, [
+  historyId,
+  rows,
+  manualEdits,
+  manualGroups,
+  autoGrouped,
+  autoBreakIds,
+  groupMode,
+  selectedIdxs,
+  view,
+  file,
+]);
   // menu do botão direito
   const [ctx, setCtx] = useState<{ open: boolean; x: number; y: number; groupId: string | null }>({
     open: false,
@@ -518,6 +570,26 @@ useEffect(() => {
       // ✅ AGORA rows vem completos (status, lat, lng, quadra, lote…)
       setRows(dataProcess.rows || []);
       setView("results");
+      // ✅ salva no histórico (expira em 24h pelo history.ts)
+const id =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : String(Date.now());
+setHistoryId(id);
+saveHistory({
+  id,
+  name: file?.name || "Planilha sem nome",
+  savedAt: Date.now(),
+
+  rows: dataProcess.rows || [],
+  manualEdits,
+  manualGroups,
+  autoGrouped,
+  autoBreakIds: Array.from(autoBreakIds),
+  groupMode,
+selectedIdxs: Array.from(selectedIdxs),
+view: "results",
+});
     } finally {
       setLoading(false);
     }
@@ -816,21 +888,7 @@ useEffect(() => {
       return null;
     }
   }
-  const H = (typeof window !== "undefined") ? (window as any).H : null;
-if (!H) return;
-if (!H?.data?.geojson?.Reader) {
-  console.log("[overlay] H.data.geojson.Reader não carregado (verifique o script heremaps data)");
-  return;
-}
-
-const reader = new H.data.geojson.Reader(undefined as any, {
-  disableLegacyMode: true,
-  style: () => ({
-    strokeColor: "rgba(0, 128, 255, 0.9)",
-    lineWidth: 2,
-    fillColor: "rgba(0, 128, 255, 0.25)",
-  }),
-});
+  
 
 
     function runHereSearch(forceQ?: string) {
@@ -981,7 +1039,7 @@ if (!H) return;
     useEffect(() => {
       if (!isModalOpen || !mapRef.current) return;
 
-     const H = typeof window !== "undefined" ? (window as any).H : null;
+   const H = (window as any).H;
 if (!H) return;
 
 
@@ -1133,22 +1191,64 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
     return (
       <main className="min-h-screen bg-slate-100">
         <div className="mx-auto max-w-6xl px-4 py-6">
-          {view === "upload" && (
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow w-full max-w-xl">
-              <h1 className="text-xl font-bold mb-4">Importar Rota Shopee</h1>
-              <div className="border-2 border-dashed rounded p-6 text-center mb-4">
-                <input type="file" accept=".xlsx,.csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                <p className="text-sm text-gray-500 mt-2">Selecione a planilha da Shopee</p>
-              </div>
-              <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-                Buscar
-              </button>
-              {loading && <p className="mt-4 text-center text-sm text-gray-600">Processando...</p>}
-            </form>
-          )}
+     {view === "upload" && rows.length === 0 && (
+  <form onSubmit={handleSubmit} className="w-full">
 
-          {view === "results" && (
-            <div className="w-full">
+    <h1 className="text-2xl font-bold text-gray-900 mb-6">
+      Importação De Dados
+    </h1>
+
+    <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="flex items-stretch gap-4">
+
+        {/* Caixa grande tracejada */}
+        <label className="flex-1 cursor-pointer">
+          <input
+            type="file"
+            accept=".xlsx,.csv"
+            className="hidden"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+
+          <div className="h-full flex items-center gap-4 rounded-xl border-2 border-dashed border-gray-300 bg-white px-6 py-6">
+            {/* Ícone */}
+            <div className="h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-200">
+              <span className="text-2xl">⬆️</span>
+            </div>
+
+            {/* Textos */}
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900">
+                Selecionar Planilha
+              </div>
+              <div className="text-sm text-gray-500 truncate">
+                {file ? file.name : "Nenhum arquivo escolhido"}
+              </div>
+            </div>
+          </div>
+        </label>
+
+        {/* Botão Buscar grande */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-48 rounded-xl bg-blue-600 text-white font-semibold text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? "Processando..." : "Buscar"}
+        </button>
+
+      </div>
+    </div>
+
+    {loading && (
+      <p className="mt-4 text-sm text-gray-600">
+        Processando...
+      </p>
+    )}
+  </form>
+)}
+          {view === "results" && rows.length > 0 && (
+  <div className="w-full">
               <div className="mb-4 flex items-center justify-between gap-2">
                 <div className="text-sm">
                   Total: <b>{rows.length}</b> • Exibindo: <b>{groupedRows.length}</b>

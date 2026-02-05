@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
+import Sidebar from "./components/Sidebar";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -24,7 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html
+      lang="pt-BR"
+      className="dark"
+      suppressHydrationWarning
+    >
       <head>
         {/* CSS do HERE UI */}
         <link
@@ -33,8 +39,16 @@ export default function RootLayout({
         />
       </head>
 
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* HERE Maps (v3.1) - ordem recomendada */}
+      <body
+        className={`
+          ${geistSans.variable}
+          ${geistMono.variable}
+          antialiased
+          bg-slate-100 text-slate-900
+          dark:bg-slate-900 dark:text-slate-100
+        `}
+      >
+        {/* HERE Maps (v3.1) */}
         <Script
           src="https://js.api.here.com/v3/3.1/mapsjs-core.js"
           strategy="beforeInteractive"
@@ -56,7 +70,16 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
-        {children}
+        {/* LAYOUT PRINCIPAL */}
+        <div className="flex min-h-screen bg-slate-100 dark:bg-slate-900">
+          {/* SIDEBAR */}
+          <Sidebar />
+
+          {/* CONTEÚDO */}
+          <main className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
