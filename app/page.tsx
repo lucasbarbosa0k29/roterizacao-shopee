@@ -1190,122 +1190,145 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
     if (!mounted) return null;
     return (
       <main className="min-h-screen bg-slate-100">
-        <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="w-full px-6 py-6">
      {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
+        Importação de Dados
+      </h1>
+      <p className="text-sm text-slate-600 mb-6">
+        Selecione a planilha da Shopee para iniciar o processamento.
+      </p>
 
-    <h1 className="text-2xl font-bold text-gray-900 mb-6">
-      Importação De Dados
-    </h1>
+      <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* INPUT PLANILHA */}
+          <label className="flex-1 cursor-pointer rounded-2xl border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition p-5">
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
 
-    <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-stretch gap-4">
-
-        {/* Caixa grande tracejada */}
-        <label className="flex-1 cursor-pointer">
-          <input
-            type="file"
-            accept=".xlsx,.csv"
-            className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-
-          <div className="h-full flex items-center gap-4 rounded-xl border-2 border-dashed border-gray-300 bg-white px-6 py-6">
-            {/* Ícone */}
-            <div className="h-12 w-12 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-200">
-              <span className="text-2xl">⬆️</span>
-            </div>
-
-            {/* Textos */}
-            <div className="min-w-0">
-              <div className="font-semibold text-gray-900">
-                Selecionar Planilha
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-600/10 flex items-center justify-center text-xl">
+                ⬆️
               </div>
-              <div className="text-sm text-gray-500 truncate">
-                {file ? file.name : "Nenhum arquivo escolhido"}
+
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900">
+                  Selecionar Planilha
+                </div>
+                <div className="text-sm text-slate-600 truncate">
+                  {file ? file.name : "Nenhum arquivo escolhido"}
+                </div>
               </div>
             </div>
-          </div>
-        </label>
+          </label>
 
-        {/* Botão Buscar grande */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-48 rounded-xl bg-blue-600 text-white font-semibold text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? "Processando..." : "Buscar"}
-        </button>
+          {/* BOTÃO BUSCAR */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="h-[84px] md:w-[180px] rounded-2xl bg-blue-600 text-white font-semibold text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Processando..." : "Buscar"}
+          </button>
+        </div>
 
+        {loading && (
+          <p className="mt-4 text-sm text-slate-500">
+            Processando...
+          </p>
+        )}
       </div>
     </div>
-
-    {loading && (
-      <p className="mt-4 text-sm text-gray-600">
-        Processando...
-      </p>
-    )}
   </form>
 )}
           {view === "results" && rows.length > 0 && (
   <div className="w-full">
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <div className="text-sm">
-                  Total: <b>{rows.length}</b> • Exibindo: <b>{groupedRows.length}</b>
-                </div>
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+  <div className="text-sm text-slate-600">
+    Total: <b className="text-slate-900">{rows.length}</b> • Exibindo:{" "}
+    <b className="text-slate-900">{groupedRows.length}</b>
+  </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAutoGrouped((v) => !v)}
-                    className={`px-3 py-2 rounded text-sm border ${autoGrouped ? "bg-indigo-600 text-white border-indigo-600" : "bg-white"
-                      }`}
-                  >
-                    Auto Agrupar
-                  </button>
+  <div className="flex items-center gap-2">
+    <button
+      type="button"
+      onClick={() => setAutoGrouped((v) => !v)}
+      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+        autoGrouped
+          ? "bg-indigo-600 text-white border-indigo-600"
+          : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+      }`}
+    >
+      Auto Agrupar
+    </button>
 
-                  <button
-                    type="button"
-                    onClick={openExportReview}
-                    className="px-3 py-2 rounded text-sm bg-emerald-600 text-white hover:bg-emerald-700"
-                  >
-                    Exportar Circuit
-                  </button>
+    <button
+      type="button"
+      onClick={openExportReview}
+      className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
+    >
+      Exportar
+    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFile(null);
-                      setRows([]);
-                      setManualEdits({});
-                      setManualGroups({});
-                      setAutoGrouped(false);
-                      setAutoBreakIds(new Set());
-                      setGroupMode(false);
-                      setSelectedIdxs(new Set());
-                      setIsExportOpen(false);
-                      setExportDraft([]);
-                      setView("upload");
-                    }}
-                    className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                  >
-                    Importar outra planilha
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow">
-                <div className="overflow-auto">
-                  <table className="min-w-full text-sm text-gray-900 bg-white">
-                    <thead className="bg-slate-200 text-slate-800">
-                      <tr>
-                        <th className="border p-2 w-[110px]">Status</th>
-                        <th className="border p-2 w-[140px]">Sequence</th>
-                        <th className="border p-2">Destination Address</th>
-                        <th className="border p-2 w-[180px]">Bairro</th>
-                        <th className="border p-2 w-[140px]">City</th>
-                        <th className="border p-2 w-[170px]">Ação</th>
-                      </tr>
-                    </thead>
+    <button
+      type="button"
+      onClick={() => {
+        setFile(null);
+        setRows([]);
+        setManualEdits({});
+        setManualGroups({});
+        setAutoGrouped(false);
+        setAutoBreakIds(new Set());
+        setGroupMode(false);
+        setSelectedIdxs(new Set());
+        setIsExportOpen(false);
+        setExportDraft([]);
+        setView("upload");
+      }}
+      className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition"
+    >
+      Importar outra planilha
+    </button>
+  </div>
+</div>
+             <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-4">
+  <div className="w-full overflow-x-auto">
+   <table className="w-full text-sm text-slate-900 table-fixed">
+      <thead className="bg-slate-100 text-slate-700">
+       <tr className="border-b border-slate-200">
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[120px]">
+    Status
+  </th>
+
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[120px]">
+    Sequence
+  </th>
+
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide min-w-[360px]">
+    Destination Address
+  </th>
+
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[200px]">
+    Bairro
+  </th>
+
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[160px]">
+    City
+  </th>
+
+  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[140px]">
+    Ação
+  </th>
+</tr>
+      </thead>
+
+      <tbody className="[&>tr:nth-child(even)]:bg-slate-50"></tbody>
 
                     <tbody>
                       {groupedRows.map((g) => {
@@ -1314,13 +1337,13 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 
                         return (
                           <tr
-                            key={g.id}
-                            className={
-                              "hover:bg-slate-200 " +
-                              (g.idxs.some((i) => manualEdits[i]?.confirmed)
-                                ? "bg-green-100"
-                                : "odd:bg-white even:bg-slate-100")
-                            }
+  key={g.id}
+  className={
+  "border-b border-slate-200 hover:bg-slate-50 transition-colors " +
+  (g.idxs.some((i) => manualEdits[i]?.confirmed)
+    ? "bg-green-100"
+    : "odd:bg-white even:bg-slate-50")
+}
                             onContextMenu={(e) => {
                               if (!isGrouped) return;
                               e.preventDefault();
@@ -1328,12 +1351,12 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                             }}
                             title={isGrouped ? "Botão direito para desagrupar" : ""}
                           >
-                            <td className="border p-2">
+                            <td className="px-4 py-4 align-top">
                               <span
                                 className={
                                   "px-2 py-1 rounded text-xs " +
                                   (g.status === "CONFIRMADO" || g.status === "OK"
-                                    ? "bg-green-100 text-green-800"
+  ? "bg-green-100 text-green-900"
                                     : g.status === "PARCIAL"
                                       ? "bg-yellow-100 text-yellow-800"
                                       : g.status === "MANUAL"
@@ -1345,10 +1368,12 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                               </span>
                             </td>
 
-                            <td className="border p-2 font-medium">{g.sequenceText}</td>
+                            <td className="px-4 py-4 align-top font-medium">{g.sequenceText}</td>
 
-                            <td className="border p-2">
-                              {g.addressDisplay}
+                           <td className="px-4 py-4 align-top whitespace-nowrap overflow-hidden text-ellipsis max-w-[520px]">
+                              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">
+  {g.addressDisplay}
+</span>
                               {isGrouped && (
                                 <div className="text-xs text-slate-600 mt-1">
                                   Agrupado ({g.idxs.length})
@@ -1356,10 +1381,10 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                               )}
                             </td>
 
-                            <td className="border p-2">{g.bairro}</td>
-                            <td className="border p-2">{g.city}</td>
+                           <td className="px-4 py-4 align-top">{g.bairro}</td>
+                            <td className="px-4 py-4 align-top">{g.city}</td>
 
-                            <td className="border p-2">
+                            <td className="px-4 py-4 align-top">
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
@@ -1403,25 +1428,33 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                     </tbody>
                   </table>
 
-                  {groupMode && (
-                    <div className="sticky bottom-0 border-t bg-white p-3 flex items-center justify-between gap-3">
-                      <div className="text-sm">
-                        <b>{selectedIdxs.size}</b> Selecionados
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={cancelGroupMode} className="px-3 py-2 rounded text-sm border bg-white">
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={unifySelected}
-                          className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700"
-                        >
-                          Unificar
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                 {groupMode && (
+  <div className="fixed bottom-5 left-[260px] right-6 z-[9999]">
+    <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white/90 backdrop-blur shadow-lg px-4 py-3 flex items-center justify-between gap-3">
+      <div className="text-sm text-slate-700">
+        <b>{selectedIdxs.size}</b> Selecionados
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={cancelGroupMode}
+          className="px-3 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          onClick={unifySelected}
+          className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+        >
+          Unificar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
                 </div>
               </div>
 

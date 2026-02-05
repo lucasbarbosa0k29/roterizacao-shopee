@@ -26,29 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="pt-BR"
-      className="dark"
-      suppressHydrationWarning
-    >
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        {/* CSS do HERE UI */}
         <link
           rel="stylesheet"
           href="https://js.api.here.com/v3/3.1/mapsjs-ui.css"
         />
       </head>
 
-      <body
-        className={`
-          ${geistSans.variable}
-          ${geistMono.variable}
-          antialiased
-          bg-slate-100 text-slate-900
-          dark:bg-slate-900 dark:text-slate-100
-        `}
-      >
-        {/* HERE Maps (v3.1) */}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Script
           src="https://js.api.here.com/v3/3.1/mapsjs-core.js"
           strategy="beforeInteractive"
@@ -70,13 +56,13 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
-        {/* LAYOUT PRINCIPAL */}
-        <div className="flex min-h-screen bg-slate-100 dark:bg-slate-900">
-          {/* SIDEBAR */}
-          <Sidebar />
+        {/* Sidebar fixo + main com scroll */}
+        <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
+          <aside className="fixed left-0 top-0 h-screen w-[260px] z-50">
+            <Sidebar />
+          </aside>
 
-          {/* CONTEÚDO */}
-          <main className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900">
+          <main className="ml-[260px] h-screen overflow-y-auto">
             {children}
           </main>
         </div>
