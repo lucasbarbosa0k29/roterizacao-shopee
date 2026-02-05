@@ -158,6 +158,7 @@ const hid = searchParams.get("history");
   // modo agrupar manual (selecionar)
   const [groupMode, setGroupMode] = useState(false);
   const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set());
+  const [mergeTargetGroupId, setMergeTargetGroupId] = useState<string | null>(null);
 useEffect(() => {
   if (!hid) return;
 
@@ -674,10 +675,20 @@ view: "results",
   }
 
   // ===== agrupamento manual =====
-  function enterGroupModeWithFirst(idx: number) {
-    setGroupMode(true);
-    setSelectedIdxs(new Set([idx]));
+ function enterGroupModeWithFirst(idx: number, targetGroupId?: string) {
+  setGroupMode(true);
+
+  // ✅ se você clicou em "Adicionar" num grupo manual, ele vira o alvo
+  if (targetGroupId) {
+    setMergeTargetGroupId(targetGroupId);
+    setSelectedIdxs(new Set()); // começa vazio, você vai selecionar os itens a adicionar
+    return;
   }
+
+  // ✅ se for um item solto, o comportamento antigo continua
+  setMergeTargetGroupId(null);
+  setSelectedIdxs(new Set([idx]));
+}
 
   function toggleSelectIdx(idx: number) {
     setSelectedIdxs((prev) => {
@@ -689,27 +700,75 @@ view: "results",
   }
 
   function cancelGroupMode() {
-    setGroupMode(false);
-    setSelectedIdxs(new Set());
-  }
+  setGroupMode(false);
+  setSelectedIdxs(new Set());
+  setMergeTargetGroupId(null);
+}
 
   function unifySelected() {
-    const idxs = Array.from(selectedIdxs).sort((a, b) => a - b);
-    if (idxs.length < 2) return alert("Selecione pelo menos 2 linhas.");
+  const selected = Array.from(selectedIdxs).sort((a, b) => a - b);
 
-    const nextGroups: Record<string, number[]> = {};
-    for (const [gid, gIdxs] of Object.entries(manualGroups)) {
-      const filtered = gIdxs.filter((x) => !idxs.includes(x));
-      if (filtered.length >= 2) nextGroups[gid] = filtered;
+  if (selected.length < 1) {
+    alert("Selecione pelo menos 1 linha.");
+    return;
+  }
+
+  // Descobre quais grupos manuais estão envolvidos na seleção
+  const involvedGroups: string[] = [];
+  for (const [gid, idxs] of Object.entries(manualGroups)) {
+    if (idxs.some((i) => selected.includes(i))) involvedGroups.push(gid);
+  }
+
+  const nextGroups: Record<string, number[]> = { ...manualGroups };
+
+  // Função auxiliar: remove um índice de todos grupos
+  const removeFromAllGroups = (idx: number) => {
+    for (const gid of Object.keys(nextGroups)) {
+      nextGroups[gid] = nextGroups[gid].filter((x) => x !== idx);
+    }
+  };
+
+  // ✅ CASO A: existe 1+ grupo já selecionado -> destino = primeiro grupo selecionado
+  if (involvedGroups.length >= 1) {
+    const target = involvedGroups[0];
+
+    // Junta tudo no grupo alvo:
+    // 1) pega tudo que já está no alvo
+    const targetSet = new Set(nextGroups[target] ?? []);
+
+    // 2) move todos índices selecionados (sejam soltos ou de outros grupos) pro alvo
+    for (const idx of selected) {
+      removeFromAllGroups(idx);
+      targetSet.add(idx);
     }
 
-    const newId = makeId("manual");
-    nextGroups[newId] = idxs;
-    setManualGroups(nextGroups);
+    // 3) se tinha outros grupos envolvidos, também migra tudo deles pro alvo e apaga os vazios
+    for (const gid of involvedGroups.slice(1)) {
+      for (const idx of nextGroups[gid] ?? []) targetSet.add(idx);
+      delete nextGroups[gid];
+    }
 
-    setGroupMode(false);
+    nextGroups[target] = Array.from(targetSet).sort((a, b) => a - b);
+
+    setManualGroups(nextGroups);
     setSelectedIdxs(new Set());
+    setGroupMode(false);
+    return;
   }
+
+  // ✅ CASO B: não selecionou nenhum grupo existente -> criar grupo novo
+  if (selected.length < 2) {
+    alert("Selecione pelo menos 2 linhas para criar um grupo.");
+    return;
+  }
+
+  const newId = makeId("manual");
+  nextGroups[newId] = selected;
+
+  setManualGroups(nextGroups);
+  setSelectedIdxs(new Set());
+  setGroupMode(false);
+}
 
   // ===== desagrupar via botão direito =====
   function ungroup(groupId: string) {
@@ -1395,31 +1454,43 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                                   📍
                                 </button>
 
-                                {!groupMode && !isGrouped && (
+                               {!groupMode && !isGrouped && (
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="px-2 py-1 rounded bg-white border hover:bg-slate-50 text-xs"
+                                    className="w-8 h-8 flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition"
                                     title="Agrupar manualmente"
                                   >
                                     +
                                   </button>
                                 )}
 
-                                {groupMode && !isGrouped && (
-                                  <label className="text-xs flex items-center gap-2 select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedIdxs.has(baseIdx)}
-                                      onChange={() => toggleSelectIdx(baseIdx)}
-                                    />
-                                    Selecionar
-                                  </label>
-                                )}
+                             {groupMode && (
+  <label className="text-xs flex items-center gap-2 select-none cursor-pointer">
+    <input
+      type="checkbox"
+      checked={selectedIdxs.has(baseIdx)}
+      onChange={() => toggleSelectIdx(baseIdx)}
+      className="accent-red-600 cursor-pointer"
+    />
+    Selecionar
+  </label>
+)}
 
-                                {isGrouped && (
-                                  <span className="text-xs text-slate-500">Botão direito</span>
-                                )}
+  {isGrouped && g.id.startsWith("manual_") && (
+  <button
+    type="button"
+    onClick={() => {
+      // entra no modo unificar e já seleciona esta linha
+      if (!groupMode) setGroupMode(true);
+      toggleSelectIdx(baseIdx);
+    }}
+    className="px-2 py-1 rounded bg-white border hover:bg-slate-50 text-xs"
+    title="Adicionar mais linhas neste grupo"
+  >
+    +
+  </button>
+)}
                               </div>
                             </td>
                           </tr>
