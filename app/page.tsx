@@ -1694,250 +1694,208 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
               )}
 
               {/* Modal mapa */}
-              {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                  <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-200">
-                    <div className="p-4 border-b flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm text-slate-700 font-medium">Correção Manual</div>
-                        <div className="text-sm text-gray-500">Busque, clique no mapa e confirme.</div>
-                      </div>
+{isModalOpen && (
+  <div className="fixed inset-0 z-[9999] bg-black/30">
+    <div className="absolute inset-0 bg-white">
+      {/* TOP BAR (igual print) */}
+      <div className="absolute left-0 right-0 top-0 z-20 h-[64px] border-b bg-white/95 backdrop-blur">
+        <div className="h-full px-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
+              📍
+            </div>
 
-                      <div className="text-sm">
-                        <span className="text-gray-500 mr-2">CEP:</span>
-                        <input
-                          value={modalCep}
-                          onChange={(e) => setModalCep(e.target.value)}
-                          className="border rounded px-2 py-1 text-sm w-[130px]"
-                          placeholder="00000-000"
-                        />
-                      </div>
-                    </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-slate-500">ORIGINAL</div>
+              <div className="text-sm font-semibold text-slate-900 truncate">
+  {modalOriginal}
+  {(pickedCep || modalCep) && ` - ${pickedCep || modalCep}`}
+</div>
+            </div>
+          </div>
 
-                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-3">
-                        <div className="rounded border p-3">
-                          <div className="text-xs text-gray-500 mb-1">ORIGINAL</div>
-                          <div className="text-sm">{modalOriginal}</div>
-                        </div>
+          <div className="hidden md:block text-right min-w-0">
+            <div className="text-[11px] font-semibold text-emerald-600">NORMALIZADO</div>
+            <div className="text-xs font-semibold text-slate-700 truncate">
+              {modalValue || ""}
+            </div>
+          </div>
 
-                        <div className="rounded border p-3 bg-green-50">
-                          <div className="text-xs text-gray-500 mb-1">BUSCA</div>
+          <button
+            type="button"
+            onClick={closeManualModal}
+            className="w-10 h-10 rounded-xl border bg-white hover:bg-slate-50"
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
 
-                          <div ref={searchBoxWrapRef} className="relative">
-                            <input
-                              value={modalValue}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setModalValue(v);
-                                setSuggestOpen(true);
-                                setSuggestActive(-1);
-                                scheduleSuggest(v);
-                              }}
-                              onFocus={() => {
-                                setSuggestOpen(true);
-                                scheduleSuggest(modalValue);
-                              }}
-                              onKeyDown={(e) => {
-                                if (!suggestOpen) {
-                                  if (e.key === "ArrowDown" && suggestItems.length) {
-                                    setSuggestOpen(true);
-                                    setSuggestActive(0);
-                                  }
-                                  return;
-                                }
+      {/* MAPA FULLSCREEN (abaixo da topbar) */}
+     <div className="absolute inset-0 pt-[64px] arcgis-modal">
+        {useArcgisInModal ? (
+          <AparecidaArcgisMap
+            center={pinLatLng}
+            onPick={({ lat, lng }) => {
+              setPinLatLng({ lat, lng });
+              setPickedLabel("");
+              buscarQuadraLote(lat, lng);
+            }}
+          />
+        ) : (
+          <div ref={mapRef} className="w-full h-full bg-white" />
+        )}
+      </div>
 
-                                if (e.key === "Escape") {
-                                  setSuggestOpen(false);
-                                  setSuggestActive(-1);
-                                  return;
-                                }
+      {/* CARD "BUSCA E CAPTURA" (flutuante igual print) */}
+      <div className="absolute left-4 top-[80px] z-30 w-[420px] max-w-[calc(100vw-32px)]">
+        <div className="rounded-2xl border bg-white/95 backdrop-blur shadow-lg p-3">
+          <div className="text-[11px] font-semibold text-emerald-700 mb-2">
+            BUSCA E CAPTURA
+          </div>
 
-                                if (e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                  setSuggestActive((cur) =>
-                                    Math.min((cur < 0 ? 0 : cur + 1), suggestItems.length - 1)
-                                  );
-                                  return;
-                                }
+          {/* INPUT de busca (mantém sua lógica atual) */}
+          <div ref={searchBoxWrapRef} className="relative">
+            <input
+              value={modalValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                setModalValue(v);
+                setSuggestOpen(true);
+                setSuggestActive(-1);
+                scheduleSuggest(v);
+              }}
+              onFocus={() => {
+                setSuggestOpen(true);
+                scheduleSuggest(modalValue);
+              }}
+              onKeyDown={(e) => {
+                if (!suggestOpen) {
+                  if (e.key === "ArrowDown" && suggestItems.length) {
+                    setSuggestOpen(true);
+                    setSuggestActive(0);
+                  }
+                  return;
+                }
 
-                                if (e.key === "ArrowUp") {
-                                  e.preventDefault();
-                                  setSuggestActive((cur) =>
-                                    Math.max((cur < 0 ? 0 : cur - 1), 0)
-                                  );
-                                  return;
-                                }
+                if (e.key === "Escape") {
+                  setSuggestOpen(false);
+                  setSuggestActive(-1);
+                  return;
+                }
 
-                                if (e.key === "Enter") {
-                                  if (suggestItems.length && suggestActive >= 0 && suggestItems[suggestActive]) {
-                                    e.preventDefault();
-                                    selectSuggestItem(suggestItems[suggestActive]);
-                                    return;
-                                  }
-                                  setSuggestOpen(false);
-                                  setSuggestActive(-1);
-                                  runHereSearch();
-                                }
-                              }}
-                              className="w-full border rounded px-3 py-2 text-sm bg-white"
-                              placeholder="Digite rua..."
-                            />
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSuggestActive((cur) =>
+                    Math.min((cur < 0 ? 0 : cur + 1), suggestItems.length - 1)
+                  );
+                }
 
-                            {suggestOpen && (suggestLoading || suggestItems.length > 0 || modalValue.trim().length >= 2) && (
-                              <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9999]">
-                                <div className="bg-white border rounded-lg shadow-lg overflow-hidden">
-                                  {suggestLoading && (
-                                    <div className="px-3 py-2 text-xs text-slate-600 border-b">Buscando sugestões…</div>
-                                  )}
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSuggestActive((cur) => Math.max((cur <= 0 ? 0 : cur - 1), 0));
+                }
 
-                                  {suggestItems.length === 0 && !suggestLoading && modalValue.trim().length >= 2 && (
-                                    <div className="px-3 py-2 text-xs text-slate-600">Nenhuma sugestão</div>
-                                  )}
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (suggestActive >= 0 && suggestItems[suggestActive]) {
+                    selectSuggestItem(suggestItems[suggestActive]);
+                  }
+                }
+              }}
+              placeholder="Buscar ou Lat/Lng..."
+              className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+            />
 
-                                  {suggestItems.length > 0 && (
-                                    <ul className="max-h-56 overflow-auto">
-                                      {suggestItems.map((it, i) => {
-                                        const label = it?.address?.label || it?.title || "";
-                                        const sub =
-                                          [
-                                            it?.address?.district || "",
-                                            it?.address?.city || "",
-                                            it?.address?.state || "",
-                                            it?.address?.postalCode || "",
-                                          ]
-                                            .filter(Boolean)
-                                            .join(" • ") || "";
+            {/* LISTA DE SUGESTÕES (mantém sua lógica atual) */}
+            {suggestOpen && suggestItems.length > 0 && (
+              <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border bg-white shadow-lg">
+                {suggestItems.map((it, idx) => (
+                  <button
+                    key={`${it.id ?? idx}`}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestItem(it)}
+                    className={[
+                      "w-full text-left px-3 py-2 text-sm hover:bg-slate-50",
+                      idx === suggestActive ? "bg-slate-50" : "",
+                    ].join(" ")}
+                  >
+                    {it.address?.label || it.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-                                        const active = i === suggestActive;
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => scheduleSuggest(modalValue)}
+              className="flex-1 rounded-xl bg-emerald-600 text-white text-sm font-semibold py-2 hover:bg-emerald-700"
+            >
+              Buscar
+            </button>
 
-                                        return (
-                                          <li key={(it.id || "") + "_" + i}>
-                                            <button
-                                              type="button"
-                                              className={
-                                                "w-full text-left px-3 py-2 hover:bg-slate-100 " +
-                                                (active ? "bg-slate-100" : "")
-                                              }
-                                              onMouseEnter={() => setSuggestActive(i)}
-                                              onMouseDown={(e) => e.preventDefault()}
-                                              onClick={() => selectSuggestItem(it)}
-                                            >
-                                              <div className="text-sm text-slate-900 truncate">{label}</div>
-                                              {sub && <div className="text-xs text-slate-600 truncate">{sub}</div>}
-                                            </button>
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+            <button
+              type="button"
+              onClick={confirmManualModal}
+              className="flex-1 rounded-xl bg-emerald-600 text-white text-sm font-semibold py-2 hover:bg-emerald-700 flex items-center justify-center gap-2"
+              title="Confirmar"
+            >
+              CONFIRMAR <span>✓</span>
+            </button>
+          </div>
 
-                          <div className="mt-2 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSuggestOpen(false);
-                                setSuggestActive(-1);
-                                runHereSearch();
-                              }}
-                              className="flex-1 rounded bg-green-600 text-white py-2 text-sm hover:bg-green-700"
-                            >
-                              Buscar
-                            </button>
+          {/* “GPS CAPTURADO” (mantém seus dados atuais) */}
+          <div className="mt-3 rounded-xl border bg-white px-3 py-2 text-xs text-slate-700 flex items-center justify-between gap-2">
+            <div className="truncate">
+              <span className="font-semibold">GPS:</span>{" "}
+              {pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "-"}
+              {pickedCep ? `  • CEP: ${pickedCep}` : ""}
+              {pickedQuadra ? `  • Quadra: ${pickedQuadra}` : ""}
+              {pickedLote ? `  • Lote: ${pickedLote}` : ""}
+            </div>
 
-                            <button
-                              type="button"
-                              onClick={confirmManualModal}
-                              className="flex-1 rounded bg-blue-600 text-white py-2 text-sm hover:bg-blue-700"
-                            >
-                              Confirmar
-                            </button>
-                          </div>
+            <button
+              type="button"
+              onClick={() => {
+                const txt =
+                  pinLatLng
+                    ? `${pinLatLng.lat}, ${pinLatLng.lng}`
+                    : "";
+                if (txt) navigator.clipboard?.writeText(txt);
+              }}
+              className="shrink-0 px-3 py-1 rounded-lg border bg-white hover:bg-slate-50"
+            >
+              Copiar
+            </button>
+          </div>
+        </div>
+      </div>
 
-                          <div className="mt-2 text-xs text-slate-700 bg-white border rounded p-2 flex items-center justify-between gap-2">
-                            <div className="truncate">
-                              <b>Coords:</b>{" "}
-                              {pinLatLng ? `${pinLatLng.lat.toFixed(6)}, ${pinLatLng.lng.toFixed(6)}` : "-"}
-                              {"  "}•{"  "}
-                              <b>CEP:</b> {pickedCep || modalCep || "-"}
-                              {"  "}•{"  "}
-                              <b>Quadra:</b> {pickedQuadra || "-"}
-                              {"  "}•{"  "}
-                              <b>Lote:</b> {pickedLote || "-"}
-                            </div>
+      {/* BOTÕES inferiores (se quiser manter como estava) */}
+      <div className="absolute right-4 bottom-4 z-30 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={closeManualModal}
+          className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+        >
+          Cancelar
+        </button>
 
-                            <button
-                              type="button"
-                              className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300"
-                              onClick={() => {
-                                if (!pinLatLng) return;
-                                const txt = `${pinLatLng.lat.toFixed(6)}, ${pinLatLng.lng.toFixed(6)}`;
-                                navigator.clipboard.writeText(txt);
-                              }}
-                            >
-                              Copiar
-                            </button>
-                          </div>
-
-                          {pickedLabel && (
-                            <div className="text-xs text-slate-600 mt-2">
-                              <b>Endereço encontrado:</b> {pickedLabel}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* MAPA */}
-                      <div className="rounded border overflow-hidden">
-                        <div className="px-3 py-2 text-xs text-gray-500 border-b">
-                          Mapa ({useArcgisInModal ? "ArcGIS" : "HERE"})
-                        </div>
-
-                        {useArcgisInModal ? (
-                          <AparecidaArcgisMap
-                            center={pinLatLng}
-                            onPick={({ lat, lng }) => {
-                              // 1) move o pin
-                              setPinLatLng({ lat, lng });
-
-                              // 2) limpa label (ArcGIS não retorna label)
-                              setPickedLabel("");
-
-                              // 3) busca quadra/lote pelo seu backend
-                              buscarQuadraLote(lat, lng);
-                            }}
-                          />
-                        ) : (
-                          <div ref={mapRef} className="w-full h-[420px] bg-white" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* BOTÕES */}
-                    <div className="p-4 border-t flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={closeManualModal}
-                        className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                      >
-                        Cancelar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={confirmManualModal}
-                        className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm"
-                      >
-                        Confirmar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+        <button
+          type="button"
+          onClick={confirmManualModal}
+          className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
+        >
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
             </div>
           )}
         </div>   {/* fecha mx-auto max-w-6xl px-4 py-6 */}

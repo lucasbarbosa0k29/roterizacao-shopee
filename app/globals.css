@@ -51,3 +51,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+.arcgis-modal .esri-ui-bottom-left,
+.arcgis-modal .esri-ui-bottom-right,
+.arcgis-modal .esri-search {
+  display: none !important;
+}
