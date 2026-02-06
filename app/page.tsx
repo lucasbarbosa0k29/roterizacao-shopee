@@ -1397,11 +1397,14 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                         return (
                           <tr
   key={g.id}
-  className={
-  "border-b border-slate-200 hover:bg-slate-50 transition-colors " +
-  (g.idxs.some((i) => manualEdits[i]?.confirmed)
-    ? "bg-green-100"
-    : "odd:bg-white even:bg-slate-50")
+className={
+  `border-b border-slate-200 transition-colors
+   ${groupMode && selectedIdxs.has(baseIdx)
+     ? "bg-slate-200"
+     : g.idxs.some((i) => manualEdits[i]?.confirmed)
+       ? "bg-green-100 hover:bg-green-200"
+       : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
+   }`
 }
                             onContextMenu={(e) => {
                               if (!isGrouped) return;
@@ -1412,19 +1415,19 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                           >
                             <td className="px-4 py-4 align-top">
                               <span
-                                className={
-                                  "px-2 py-1 rounded text-xs " +
-                                  (g.status === "CONFIRMADO" || g.status === "OK"
-  ? "bg-green-100 text-green-900"
-                                    : g.status === "PARCIAL"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : g.status === "MANUAL"
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-red-100 text-red-800")
-                                }
-                              >
-                                {g.status}
-                              </span>
+  className={
+    "px-2 py-1 rounded text-xs transition-colors " +
+    (g.status === "CONFIRMADO" || g.status === "OK"
+      ? "bg-green-100 text-green-900 hover:bg-green-200"
+      : g.status === "PARCIAL"
+      ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+      : g.status === "MANUAL"
+      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+      : "bg-red-100 text-red-800 hover:bg-red-200")
+  }
+>
+  {g.status}
+</span>
                             </td>
 
                             <td className="px-4 py-4 align-top font-medium">{g.sequenceText}</td>
