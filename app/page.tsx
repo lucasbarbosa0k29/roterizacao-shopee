@@ -11,7 +11,7 @@ const AparecidaArcgisMap = dynamic(
   { ssr: false }
 );
 
-type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO";
+type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "REVISAO";
 
 type RowItem = {
   sequence?: any;
@@ -39,6 +39,7 @@ type ManualEdit = {
   lote?: string;
   notes?: string;
   confirmed?: boolean;
+  review?: boolean;
 };
 
 type GroupedRow = {
@@ -58,6 +59,8 @@ type GroupedRow = {
 
 type ExportDraftRow = {
   groupId: string;
+  baseIdx: number; // ✅ referência da linha real no rows/manualEdits
+
   sequence: string;
   addressRef: string; // coluna endereço (ref)
   addressOriginal: string;
@@ -335,14 +338,30 @@ useEffect(() => {
     return String(rows[i]?.original || "");
   }
 
-  function getRowStatus(i: number): Status {
-    const manual = manualEdits[i];
+ function getRowStatus(i: number): Status {
+  const manual = manualEdits[i];
 
-    if (manual?.confirmed) return "CONFIRMADO"; // ✅ verde
-    if (manual) return "MANUAL"; // manual não confirmado
+  // ✅ confirmado continua confirmado (mesmo com review)
+  if (manual?.confirmed) return "CONFIRMADO";
 
-    return (rows[i]?.status || "NAO_ENCONTRADO") as Status;
-  }
+  // ✅ "MANUAL" só quando tiver edição de verdade (review sozinho não conta)
+  const hasManualData = !!(
+    manual &&
+    (
+      (manual.address && manual.address.trim()) ||
+      typeof manual.lat === "number" ||
+      typeof manual.lng === "number" ||
+      (manual.quadra && manual.quadra.trim()) ||
+      (manual.lote && manual.lote.trim()) ||
+      (manual.notes && manual.notes.trim())
+    )
+  );
+
+  if (hasManualData) return "MANUAL";
+
+  // ✅ mantém o status original (OK / PARCIAL / NAO_ENCONTRADO)
+  return (rows[i]?.status || "NAO_ENCONTRADO") as Status;
+}
 
   function getRowQuadra(i: number) {
     const manual = String(manualEdits[i]?.quadra || "").trim();
@@ -606,6 +625,8 @@ view: "results",
 
       return {
         groupId: g.id,
+        baseIdx,
+
         sequence: g.sequenceText,
 
         // endereço que vai no CSV (se tiver manual, usa manual; senão original)
@@ -782,7 +803,33 @@ view: "results",
       setManualGroups(next);
     }
   }
+function signalReview(groupId: string) {
+  const g = groupedRows.find((x) => x.id === groupId)
+  if (!g) return
 
+  setManualEdits((prev) => {
+    const next = { ...prev }
+    for (const idx of g.idxs) {
+      const cur = next[idx] || ({} as any)
+      next[idx] = { ...cur, review: true }
+    }
+    return next
+  })
+}
+
+function clearReview(groupId: string) {
+  const g = groupedRows.find((x) => x.id === groupId)
+  if (!g) return
+
+  setManualEdits((prev) => {
+    const next = { ...prev }
+    for (const idx of g.idxs) {
+      if (!next[idx]) continue
+      next[idx] = { ...next[idx], review: false }
+    }
+    return next
+  })
+}
   // ===== modal mapa =====
   function openManualModalForIdx(idx: number) {
     const original = String(rows[idx]?.original || "");
@@ -1390,29 +1437,32 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
       <tbody className="[&>tr:nth-child(even)]:bg-slate-50"></tbody>
 
                     <tbody>
-                      {groupedRows.map((g) => {
+{groupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
                         const baseIdx = g.idxs[0];
 
+                        // ✅ se qualquer item do grupo estiver em revisão, pinta o TEXTO
+                        const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
+
                         return (
                           <tr
-  key={g.id}
-className={
-  `border-b border-slate-200 transition-colors
-   ${groupMode && selectedIdxs.has(baseIdx)
-     ? "bg-slate-200"
-     : g.idxs.some((i) => manualEdits[i]?.confirmed)
-       ? "bg-green-100 hover:bg-green-200"
-       : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
-   }`
-}
-                            onContextMenu={(e) => {
-                              if (!isGrouped) return;
-                              e.preventDefault();
-                              setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
-                            }}
-                            title={isGrouped ? "Botão direito para desagrupar" : ""}
-                          >
+                            key={g.id}
+                            className={
+                              `border-b border-slate-200 transition-colors
+                               ${hasReview ? "text-red-700" : ""}
+                               ${groupMode && selectedIdxs.has(baseIdx)
+                                 ? "bg-slate-200"
+                                 : g.idxs.some((i) => manualEdits[i]?.confirmed)
+                                   ? "bg-green-100 hover:bg-green-200"
+                                   : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
+                               }`
+                            }
+  onContextMenu={(e) => {
+    e.preventDefault();
+    setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
+  }}
+  title={"Botão direito: Revisão / Limpar Revisão"}
+>
                             <td className="px-4 py-4 align-top">
                               <span
   className={
@@ -1533,24 +1583,43 @@ className={
               </div>
 
               {/* Context menu */}
-              {ctx.open && ctx.groupId && (
-                <div
-                  style={{ position: "fixed", left: ctx.x, top: ctx.y, zIndex: 9999 }}
-                  className="bg-white border shadow-lg rounded-md overflow-hidden text-sm"
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  <button
-                    className="px-4 py-2 hover:bg-slate-100 w-full text-left"
-                    onClick={() => {
-                      ungroup(ctx.groupId!);
-                      setCtx({ open: false, x: 0, y: 0, groupId: null });
-                    }}
-                  >
-                    Desagrupar
-                  </button>
-                </div>
-              )}
+{ctx.open && ctx.groupId && (
+  <div
+    style={{ position: "fixed", left: ctx.x, top: ctx.y, zIndex: 9999 }}
+    className="bg-white border shadow-lg rounded-md overflow-hidden text-sm"
+    onMouseDown={(e) => e.stopPropagation()}
+  >
+    <button
+      className="px-4 py-2 hover:bg-slate-100 w-full text-left"
+      onClick={() => {
+        ungroup(ctx.groupId!);
+        setCtx({ open: false, x: 0, y: 0, groupId: null });
+      }}
+    >
+      Desagrupar
+    </button>
 
+    <button
+      className="px-4 py-2 hover:bg-slate-100 w-full text-left text-red-600"
+      onClick={() => {
+        signalReview(ctx.groupId!);
+        setCtx({ open: false, x: 0, y: 0, groupId: null });
+      }}
+    >
+      Sinalizar Revisão
+    </button>
+
+    <button
+      className="px-4 py-2 hover:bg-slate-100 w-full text-left"
+      onClick={() => {
+        clearReview(ctx.groupId!);
+        setCtx({ open: false, x: 0, y: 0, groupId: null });
+      }}
+    >
+      Limpar Revisão
+    </button>
+  </div>
+)}
               {/* Export review modal */}
               {isExportOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1641,7 +1710,15 @@ className={
                               const lngStr = typeof r.lng === "number" ? r.lng.toFixed(6) : "--";
 
                               return (
-                                <tr key={r.groupId ?? idx} className="odd:bg-white even:bg-slate-50">
+                                <tr
+  key={r.groupId ?? idx}
+  className={
+  "border-b transition-colors " +
+  (manualEdits[r.baseIdx]?.review
+    ? "text-red-600"
+    : "odd:bg-white even:bg-slate-50")
+}
+>
                                   <td className="p-3 border-b text-slate-700">{latStr}</td>
                                   <td className="p-3 border-b text-slate-700">{lngStr}</td>
 
