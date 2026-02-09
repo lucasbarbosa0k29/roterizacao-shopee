@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@arcgis/core/assets/esri/themes/light/main.css";
 
 /* ===============================
    VARIÁVEIS DE TEMA
@@ -20,7 +21,8 @@ html.dark {
 /* ===============================
    BASE GLOBAL
 ================================ */
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -31,7 +33,9 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Layout base do app */
+/* ===============================
+   LAYOUT BASE DO APP
+================================ */
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -45,14 +49,85 @@ body {
   padding: 24px;
 }
 
-/* Helpers opcionais */
+/* ===============================
+   HELPERS VISUAIS
+================================ */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+
+/* ===============================
+   ✅ ARC-GIS NO MODAL
+   Objetivo:
+   - esconder UI inferior
+   - manter popup em “janela flutuante”
+   - impedir “gaveta”/dock embaixo
+   - evitar “flash” por resize/layout
+================================ */
+
+/* 0) IMPORTANTE: garante que o container do modal dá altura pro ArcGIS */
+.arcgis-modal {
+  overflow: hidden !important;
+  /* se o seu modal for "position: fixed", isso ajuda muito */
+  contain: layout paint size style;
+}
+
+/* 0.1) O div do map precisa ter altura real */
+.arcgis-modal .esri-view,
+.arcgis-modal .esri-view-root,
+.arcgis-modal .esri-view-surface,
+.arcgis-modal .esri-display-object,
+.arcgis-modal canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 1) Esconde os controles inferiores */
 .arcgis-modal .esri-ui-bottom-left,
-.arcgis-modal .esri-ui-bottom-right,
+.arcgis-modal .esri-ui-bottom-right {
+  display: none !important;
+}
+
+/* 2) Se você usa Search custom fora, esconda o Search padrão do ArcGIS */
 .arcgis-modal .esri-search {
   display: none !important;
+}
+
+/* 3) NÃO mate o popup. Só impede virar “gaveta” */
+.arcgis-modal .esri-popup--is-docked {
+  width: auto !important;
+  max-width: min(520px, calc(100vw - 40px)) !important;
+  max-height: 70vh !important;
+
+  /* força como janela no canto */
+  left: auto !important;
+  right: 16px !important;
+  bottom: auto !important;
+  top: 88px !important;
+}
+
+/* 4) Popup flutuante: aparência de “janela” */
+.arcgis-modal .esri-popup__main-container {
+  max-height: 70vh !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+/* 5) Conteúdo interno rolável */
+.arcgis-modal .esri-popup__content {
+  max-height: calc(70vh - 80px) !important;
+  overflow: auto !important;
+}
+
+/* 6) Remove faixa de ações do popup (opcional) */
+.arcgis-modal .esri-popup__inline-actions-container {
+  display: none !important;
+}
+
+/* 7) Evita que o ArcGIS “empurre” layout com containers */
+.arcgis-modal .esri-view-root,
+.arcgis-modal .esri-view-surface {
+  overflow: hidden !important;
 }

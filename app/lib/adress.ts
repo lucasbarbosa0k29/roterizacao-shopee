@@ -1,6 +1,8 @@
 // src/lib/address.ts
+// (ou app/lib/address.ts – use o caminho que você já usa)
+
 const SMALL_WORDS = new Set([
-  "DE","DA","DO","DAS","DOS","E"
+  "DE", "DA", "DO", "DAS", "DOS", "E",
 ]);
 
 function stripAccents(s: string) {
@@ -11,7 +13,11 @@ function cleanupSpaces(s: string) {
   return s.replace(/\s+/g, " ").trim();
 }
 
-// Converte "VINTE E CINCO" -> "25" (até 99 já resolve 99% dos casos de ruas)
+// ===============================
+// CONVERSÃO NÚMEROS POR EXTENSO
+// ===============================
+
+// Converte "VINTE E CINCO" -> "25"
 function wordsToNumberPT(words: string): number | null {
   const w = words
     .toUpperCase()
@@ -19,22 +25,24 @@ function wordsToNumberPT(words: string): number | null {
     .filter(Boolean);
 
   const units: Record<string, number> = {
-    "ZERO":0,"UM":1,"UMA":1,"DOIS":2,"DUAS":2,"TRES":3,"QUATRO":4,"CINCO":5,
-    "SEIS":6,"SETE":7,"OITO":8,"NOVE":9
-  };
-  const teens: Record<string, number> = {
-    "DEZ":10,"ONZE":11,"DOZE":12,"TREZE":13,"QUATORZE":14,"CATORZE":14,
-    "QUINZE":15,"DEZESSEIS":16,"DEZESSETE":17,"DEZOITO":18,"DEZENOVE":19
-  };
-  const tens: Record<string, number> = {
-    "VINTE":20,"TRINTA":30,"QUARENTA":40,"CINQUENTA":50,
-    "SESSENTA":60,"SETENTA":70,"OITENTA":80,"NOVENTA":90
+    "ZERO": 0, "UM": 1, "UMA": 1, "DOIS": 2, "DUAS": 2,
+    "TRES": 3, "QUATRO": 4, "CINCO": 5, "SEIS": 6,
+    "SETE": 7, "OITO": 8, "NOVE": 9,
   };
 
-  // tenta padrões:
-  // "VINTE E CINCO" = 20 + 5
-  // "VINTE CINCO" (sem o E) também
-  // "DEZESSETE" etc
+  const teens: Record<string, number> = {
+    "DEZ": 10, "ONZE": 11, "DOZE": 12, "TREZE": 13,
+    "QUATORZE": 14, "CATORZE": 14, "QUINZE": 15,
+    "DEZESSEIS": 16, "DEZESSETE": 17,
+    "DEZOITO": 18, "DEZENOVE": 19,
+  };
+
+  const tens: Record<string, number> = {
+    "VINTE": 20, "TRINTA": 30, "QUARENTA": 40,
+    "CINQUENTA": 50, "SESSENTA": 60,
+    "SETENTA": 70, "OITENTA": 80, "NOVENTA": 90,
+  };
+
   if (w.length === 1) {
     if (w[0] in units) return units[w[0]];
     if (w[0] in teens) return teens[w[0]];
@@ -43,55 +51,50 @@ function wordsToNumberPT(words: string): number | null {
   }
 
   if (w.length === 2) {
-    // "VINTE CINCO"
-    if (w[0] in tens && w[1] in units) return tens[w[0]] + units[w[1]];
+    if (w[0] in tens && w[1] in units) {
+      return tens[w[0]] + units[w[1]];
+    }
     return null;
   }
 
   if (w.length === 3) {
-    // "VINTE E CINCO"
-    if (w[0] in tens && w[1] === "E" && w[2] in units) return tens[w[0]] + units[w[2]];
+    if (w[0] in tens && w[1] === "E" && w[2] in units) {
+      return tens[w[0]] + units[w[2]];
+    }
     return null;
   }
 
   return null;
 }
 
+// ===============================
+// NORMALIZA LOGRADOURO
+// ===============================
+
 function normalizeRuaNumeroLetra(s: string) {
-  // objetivo: fazer "RUA VINTE E CINCO - E" virar "RUA 25 E"
-  // sem mexer no original, só pra busca.
-  let t = stripAccents(s.toUpperCase());
+  let t = stripAccents(String(s).toUpperCase());
 
-  // troca hífen/underscore por espaço pra facilitar
   t = t.replace(/[-_]/g, " ");
-
-  // remove pontuação pesada, mas mantém letras/números
   t = t.replace(/[^\w\s]/g, " ");
-
   t = cleanupSpaces(t);
 
-  // se tiver algo tipo "RUA VINTE E CINCO E"
-  // vamos tentar achar um bloco de número por extenso e converter
-  // (bem simples, mas já resolve muito)
   const tokens = t.split(" ");
 
-  // varre e tenta converter janelas de 3, 2, 1 palavras
   for (let i = 0; i < tokens.length; i++) {
-    // janela 3
-    const w3 = tokens.slice(i, i+3).join(" ");
+    const w3 = tokens.slice(i, i + 3).join(" ");
     const n3 = wordsToNumberPT(w3);
     if (n3 !== null) {
       tokens.splice(i, 3, String(n3));
       break;
     }
-    // janela 2
-    const w2 = tokens.slice(i, i+2).join(" ");
+
+    const w2 = tokens.slice(i, i + 2).join(" ");
     const n2 = wordsToNumberPT(w2);
     if (n2 !== null) {
       tokens.splice(i, 2, String(n2));
       break;
     }
-    // janela 1
+
     const w1 = tokens[i];
     const n1 = wordsToNumberPT(w1);
     if (n1 !== null) {
@@ -100,12 +103,54 @@ function normalizeRuaNumeroLetra(s: string) {
     }
   }
 
-  // remove palavras muito pequenas “soltas” tipo DE/DA/DO
-  const cleaned = tokens.filter(tok => !(SMALL_WORDS.has(tok) && tok.length <= 3));
+  const cleaned = tokens.filter(
+    (tok) => !(SMALL_WORDS.has(tok) && tok.length <= 3)
+  );
 
   return cleanupSpaces(cleaned.join(" "));
 }
 
+// ===============================
+// EXTRAÇÃO QUADRA / LOTE
+// ===============================
+
+export function extractQuadraLote(raw: string): {
+  quadra: string;
+  lote: string;
+  cleaned: string;
+} {
+  const text = String(raw || " ");
+
+  const RE_QUADRA = /\b(?:Q|QD|QUADRA)\s*[:\-]?\s*0*([0-9]{1,4}[A-Z]?)\b/gi;
+  const RE_LOTE = /\b(?:L|LT|LOTE)\s*[:\-]?\s*0*([0-9]{1,4}[A-Z]?)\b/gi;
+
+  let quadra = "";
+  let lote = "";
+
+  let m: RegExpExecArray | null;
+
+  while ((m = RE_QUADRA.exec(text)) !== null) {
+    quadra = String(m[1] || "").trim();
+  }
+
+  while ((m = RE_LOTE.exec(text)) !== null) {
+    lote = String(m[1] || "").trim();
+  }
+
+  const cleaned = text
+    .replace(RE_QUADRA, " ")
+    .replace(RE_LOTE, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return { quadra, lote, cleaned };
+}
+
+// ===============================
+// FUNÇÃO PRINCIPAL DE BUSCA
+// ===============================
+
 export function buildSearchAddress(original: string) {
-  return normalizeRuaNumeroLetra(original);
+  const { cleaned } = extractQuadraLote(original);
+  return normalizeRuaNumeroLetra(cleaned);
 }

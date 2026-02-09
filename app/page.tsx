@@ -1774,8 +1774,13 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
               )}
 
               {/* Modal mapa */}
-{isModalOpen && (
-  <div className="fixed inset-0 z-[9999] bg-black/30">
+<div
+  className={`
+    fixed inset-0 z-[9999] bg-black/30
+    transition-opacity duration-200
+    ${isModalOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
+  `}
+>
     <div className="absolute inset-0 bg-white">
       {/* TOP BAR (igual print) */}
       <div className="absolute left-0 right-0 top-0 z-20 h-[64px] border-b bg-white/95 backdrop-blur">
@@ -1813,7 +1818,7 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
       </div>
 
       {/* MAPA FULLSCREEN (abaixo da topbar) */}
-     <div className="absolute inset-0 pt-[64px] arcgis-modal">
+    <div className="absolute inset-0 pt-[64px] overflow-hidden arcgis-modal">
         {useArcgisInModal ? (
           <AparecidaArcgisMap
             center={pinLatLng}
@@ -1834,6 +1839,7 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
           <div className="text-[11px] font-semibold text-emerald-700 mb-2">
             BUSCA E CAPTURA
           </div>
+        
 
           {/* INPUT de busca (mantém sua lógica atual) */}
           <div ref={searchBoxWrapRef} className="relative">
@@ -1975,7 +1981,6 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
       </div>
     </div>
   </div>
-)}
             </div>
           )}
         </div>   {/* fecha mx-auto max-w-6xl px-4 py-6 */}

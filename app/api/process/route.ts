@@ -94,6 +94,67 @@ function extractByRegex(raw: string) {
 
   return { rua, quadra, lote };
 }
+// ✅ Regex SMART: pega Q/L em vários formatos (Q40 L27, QD40LT27, QUADRA 40 LOTE 27, etc)
+function normalizeQLValue(v: string) {
+  let t = String(v || "").toUpperCase().trim();
+
+  // remove espaços e símbolos no começo/fim
+  t = t.replace(/^[\s\-:]+|[\s\-:]+$/g, "");
+
+  // remove zeros à esquerda só quando for número puro (ex: 040 -> 40)
+  if (/^\d+$/.test(t)) t = String(Number(t));
+
+  // limita a caracteres seguros
+  t = t.replace(/[^A-Z0-9\-]/g, "");
+  return t;
+}
+
+function extractQuadraLoteSmart(raw: string) {
+  const up = String(raw || "").toUpperCase();
+
+  let quadra = "";
+  let lote = "";
+
+  // 1) formatos explícitos: QUADRA/QD/Q + valor
+  // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
+  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)\b/);
+  if (qMatch) quadra = normalizeQLValue(qMatch[1]);
+
+  // 2) formatos explícitos: LOTE/LT/L + valor
+  // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
+  const lMatch = up.match(/\b(?:LOTE|LT|L)\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)\b/);
+  if (lMatch) lote = normalizeQLValue(lMatch[1]);
+
+  // 3) grudado tipo "QD40LT27" ou "Q40L27"
+  if (!quadra || !lote) {
+    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\s*(?:LOTE|LT|L)\.?\s*0*([A-Z0-9]{1,6})\b/);
+    if (glued) {
+      if (!quadra) quadra = normalizeQLValue(glued[1]);
+      if (!lote) lote = normalizeQLValue(glued[2]);
+    }
+  }
+
+  // 4) ordem invertida: "L27 Q40"
+  if (!quadra || !lote) {
+    const inv = up.match(/\b(?:LOTE|LT|L)\.?\s*0*([A-Z0-9]{1,6})\s*(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\b/);
+    if (inv) {
+      if (!lote) lote = normalizeQLValue(inv[1]);
+      if (!quadra) quadra = normalizeQLValue(inv[2]);
+    }
+  }
+
+  // 5) fallback bem conservador para "40/27" ou "40-27"
+  // Só aceita se existir alguma palavra de contexto QD/QUADRA/LT/LOTE no texto
+  if ((!quadra || !lote) && /\b(QD|QUADRA|LT|LOTE)\b/.test(up)) {
+    const pair = up.match(/\b(\d{1,3})\s*[\/\-]\s*(\d{1,3})\b/);
+    if (pair) {
+      if (!quadra) quadra = normalizeQLValue(pair[1]);
+      if (!lote) lote = normalizeQLValue(pair[2]);
+    }
+  }
+
+  return { quadra, lote };
+}
 
 // ✅ SUA REGRA DE STATUS
 function calcStatusLucas(n: { rua?: string; quadra?: string; lote?: string; bairro?: string }) {
@@ -221,7 +282,6 @@ function streetVariants(rua: string) {
   const variants = new Set<string>();
   variants.add(base);
 
-  // exemplo: "Rua 25-e" / "Rua 25 - E" / "Rua 25E"
   const m = base.match(/\b(\d{1,3})\s*[-]?\s*([A-Za-z])\b/);
   if (m) {
     const num = Number(m[1]);
@@ -373,32 +433,6 @@ async function hereGet(url: string) {
   return { ok: res.ok, data };
 }
 
-function scoreHereItem(it: any, want: { cep?: string; city?: string; bairro?: string; rua?: string }) {
-  const a = it?.address || {};
-  const label = String(a?.label || it?.title || "").toUpperCase();
-
-  const cepWant = normalizeCep(want.cep || "");
-  const cepGot = normalizeCep(a?.postalCode || "");
-
-  const cityWant = String(want.city || "").trim().toUpperCase();
-  const cityGot = String(a?.city || "").trim().toUpperCase();
-
-  const bairroWant = String(want.bairro || "").trim().toUpperCase();
-  const bairroGot = String(a?.district || a?.subdistrict || "").trim().toUpperCase();
-
-  const ruaWant = String(want.rua || "").trim().toUpperCase();
-  const streetGot = String(a?.street || "").trim().toUpperCase();
-
-  let s = 0;
-  if (cepWant && cepGot && cepWant === cepGot) s += 80;
-  if (cityWant && cityGot && cityGot.includes(cityWant)) s += 30;
-  if (bairroWant && bairroGot && (bairroGot.includes(bairroWant) || bairroWant.includes(bairroGot))) s += 15;
-  if (ruaWant && streetGot && (streetGot.includes(ruaWant) || ruaWant.includes(streetGot))) s += 25;
-  if (ruaWant && label.includes(ruaWant)) s += 10;
-
-  return s;
-}
-
 function getHereKey() {
   return (process.env.HERE_API_KEY || process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
 }
@@ -467,6 +501,162 @@ async function hereDiscover(q: string, at: string) {
   return { found: true as const, best: items[0], all: items };
 }
 
+// ====== NOVO SCORE MELHORADO (NÃO ACEITA O 1º) ======
+function scoreHereItemSmart(
+  it: any,
+  want: { cep?: string; city?: string; bairro?: string; rua?: string; quadra?: string; lote?: string },
+) {
+  const a = it?.address || {};
+  const label = String(a?.label || it?.title || "").toUpperCase();
+  const resultType = String(it?.resultType || "").toLowerCase();
+
+  const cepWant = normalizeCep(want.cep || "");
+  const cepGot = normalizeCep(a?.postalCode || "");
+
+  const cityWant = String(want.city || "").trim().toUpperCase();
+  const cityGot = String(a?.city || "").trim().toUpperCase();
+
+  const bairroWant = String(want.bairro || "").trim().toUpperCase();
+  const bairroGot = String(a?.district || a?.subdistrict || "").trim().toUpperCase();
+
+  const ruaWant = String(want.rua || "").trim().toUpperCase();
+  const streetGot = String(a?.street || "").trim().toUpperCase();
+
+  const qWant = String(want.quadra || "").trim().toUpperCase();
+  const lWant = String(want.lote || "").trim().toUpperCase();
+
+  let s = 0;
+
+  // preferência do tipo
+  if (resultType === "housenumber") s += 60;
+  else if (resultType === "street") s += 40;
+  else if (resultType === "place") s += 15;
+
+  // rua / label
+  if (ruaWant && streetGot && (streetGot.includes(ruaWant) || ruaWant.includes(streetGot))) s += 35;
+  if (ruaWant && label.includes(ruaWant)) s += 15;
+
+  // cep / city / bairro
+  if (cepWant && cepGot && cepWant === cepGot) s += 90;
+  if (cityWant && cityGot && (cityGot.includes(cityWant) || cityWant.includes(cityGot))) s += 35;
+  if (bairroWant && bairroGot && (bairroGot.includes(bairroWant) || bairroWant.includes(bairroGot))) s += 18;
+
+  // quadra/lote (quando o HERE devolve no label - acontece às vezes)
+  if (qWant) {
+    const okQ =
+      label.includes(`QUADRA ${qWant}`) ||
+      label.includes(`QD ${qWant}`) ||
+      label.includes(`Q ${qWant}`) ||
+      label.includes(`Q${qWant}`);
+    if (okQ) s += 45;
+  }
+  if (lWant) {
+    const okL =
+      label.includes(`LOTE ${lWant}`) ||
+      label.includes(`LT ${lWant}`) ||
+      label.includes(`L ${lWant}`) ||
+      label.includes(`L${lWant}`);
+    if (okL) s += 45;
+  }
+
+  // penaliza itens sem position
+  if (!it?.position?.lat || !it?.position?.lng) s -= 999;
+
+  return s;
+}
+
+function dedupeKeyForHere(it: any) {
+  const a = it?.address || {};
+  const label = String(a?.label || it?.title || "").trim();
+  const lat = it?.position?.lat ?? "";
+  const lng = it?.position?.lng ?? "";
+  return `${label}::${lat},${lng}`;
+}
+
+function clusterPoints(
+  points: Array<{ lat: number; lng: number }>,
+  maxDistanceMeters = 120,
+) {
+  if (points.length < 2) return { ok: false, center: null };
+
+  // converte metros aproximados para graus
+  const toDeg = (m: number) => m / 111_320;
+
+  const center = {
+    lat: points.reduce((s, p) => s + p.lat, 0) / points.length,
+    lng: points.reduce((s, p) => s + p.lng, 0) / points.length,
+  };
+
+  const maxDeg = toDeg(maxDistanceMeters);
+
+  const allNear = points.every(
+    p =>
+      Math.abs(p.lat - center.lat) <= maxDeg &&
+      Math.abs(p.lng - center.lng) <= maxDeg,
+  );
+
+  return {
+    ok: allNear,
+    center: allNear ? center : null,
+  };
+}
+function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371000;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+
+  const s =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function sameText(a: string, b: string) {
+  const x = String(a || "").trim().toUpperCase();
+  const y = String(b || "").trim().toUpperCase();
+  return !!x && !!y && x === y;
+}
+
+function scoreArcgisLotMatch(
+  arc: any,
+  want: { quadra?: string; lote?: string; bairro?: string },
+) {
+  // arc = retorno do /api/aparecida/lot
+  if (!arc || !arc.found) return -50;
+
+  const aq = String(arc.quadra || "").trim();
+  const al = String(arc.lote || "").trim();
+  const ab = String(arc.bairro || "").trim();
+
+  const wq = String(want.quadra || "").trim();
+  const wl = String(want.lote || "").trim();
+  const wb = String(want.bairro || "").trim();
+
+  let s = 200; // achou um lote já é MUITO bom
+
+  if (wq && aq) s += sameText(wq, aq) ? 250 : -120;
+  if (wl && al) s += sameText(wl, al) ? 250 : -120;
+
+  if (wb && ab) s += (ab.toUpperCase().includes(wb.toUpperCase()) || wb.toUpperCase().includes(ab.toUpperCase())) ? 30 : 0;
+
+  return s;
+}
+
+function maxPairDistanceMeters(points: Array<{ lat: number; lng: number }>) {
+  let max = 0;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const d = haversineMeters(points[i], points[j]);
+      if (d > max) max = d;
+    }
+  }
+  return max;
+}
 function buildHereQueryVariants(args: {
   rua: string;
   numero: string;
@@ -596,9 +786,12 @@ async function processOne(row: InputRow, baseOrigin: string) {
   // 1.1) fallback regex se Gemini falhar
   const rx = extractByRegex(addressRaw);
 
-  const finalRua = (g.normalized.rua || rx.rua || "").trim();
-  const finalQuadra = (g.normalized.quadra || rx.quadra || "").trim();
-  const finalLote = (g.normalized.lote || rx.lote || "").trim();
+ const finalRua = (g.normalized.rua || rx.rua || "").trim();
+
+const smartQL = extractQuadraLoteSmart(addressRaw);
+
+const finalQuadra = (g.normalized.quadra || smartQL.quadra || rx.quadra || "").trim();
+const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
   const obsCleanRaw = String(g.normalized.observacao || "")
     .trim()
@@ -636,8 +829,6 @@ async function processOne(row: InputRow, baseOrigin: string) {
   let lat: number | null = null;
   let lng: number | null = null;
 
-  let bestItem: any = null;
-
   // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
   const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
 
@@ -655,69 +846,205 @@ async function processOne(row: InputRow, baseOrigin: string) {
     normalizedLine,
   });
 
+  // ✅ NOVO: coleta candidatos de TODAS queries e escolhe o melhor no final
+  const want = {
+    cep: normalized.cep || cepIn,
+    city: normalized.cidade || cityIn,
+    bairro: normalized.bairro || bairroIn,
+    rua: normalized.rua,
+    quadra: normalized.quadra,
+    lote: normalized.lote,
+  };
+
+  const seen = new Map<string, any>();
+  const scored: Array<{ it: any; score: number; from: string; kind: "geocode" | "discover" }> = [];
+
   for (const qTry of queries) {
     const g1 = await hereGeocode(qTry, at);
-    if (g1.found && Array.isArray(g1.all) && g1.all.length) {
-      const scored = g1.all
-        .map((it: any) => ({
-          it,
-          score: scoreHereItem(it, {
-            cep: normalized.cep || cepIn,
-            city: normalized.cidade || cityIn,
-            bairro: normalized.bairro || bairroIn,
-            rua: normalized.rua,
-          }),
-        }))
-        .sort((a: any, b: any) => b.score - a.score);
-
-      bestItem = scored[0]?.it || g1.best;
-      if (bestItem) break;
+    if (Array.isArray(g1.all) && g1.all.length) {
+      for (const it of g1.all) {
+        const key = dedupeKeyForHere(it);
+        if (seen.has(key)) continue;
+        seen.set(key, it);
+        const sc = scoreHereItemSmart(it, want);
+        scored.push({ it, score: sc, from: qTry, kind: "geocode" });
+      }
     }
 
     const d1 = await hereDiscover(qTry, at);
-    if (d1.found && Array.isArray(d1.all) && d1.all.length) {
-      const scored = d1.all
-        .map((it: any) => ({
-          it,
-          score: scoreHereItem(it, {
-            cep: normalized.cep || cepIn,
-            city: normalized.cidade || cityIn,
-            bairro: normalized.bairro || bairroIn,
-            rua: normalized.rua,
-          }),
-        }))
-        .sort((a: any, b: any) => b.score - a.score);
-
-      bestItem = scored[0]?.it || d1.best;
-      if (bestItem) break;
+    if (Array.isArray(d1.all) && d1.all.length) {
+      for (const it of d1.all) {
+        const key = dedupeKeyForHere(it);
+        if (seen.has(key)) continue;
+        seen.set(key, it);
+        const sc = scoreHereItemSmart(it, want);
+        scored.push({ it, score: sc, from: qTry, kind: "discover" });
+      }
     }
   }
 
-  lat = bestItem?.position?.lat ?? null;
-  lng = bestItem?.position?.lng ?? null;
+scored.sort((a, b) => b.score - a.score);
+// 🔒 variáveis precisam existir no escopo inteiro
+let enriched: any[] = [];
+let bestArcgisFromTop: any = null;
 
-  // 4) Aparecida: usa seu mapa real (ArcGIS) pra quadra/lote/bairro (só se tiver lat/lng)
-  let quadraAuto = normalized.quadra || "";
-  let loteAuto = normalized.lote || "";
-  let bairroAuto = normalized.bairro || bairroIn || "";
+// melhor candidato inicial (HERE puro)
+let bestItem = scored[0]?.it || null;
+let bestHereScore = scored[0]?.score ?? -999;
 
-  let arcgisLot: any = null;
-  if (isAparecida && lat != null && lng != null) {
+// ✅ PASSO 3 — Aparecida: re-rank TOP 3 do HERE usando ArcGIS
+if (isAparecida && scored.length) {
+  const topK = 3;
+  const top = scored.slice(0, topK);
+
+  const wantArc = {
+    quadra: normalized.quadra,
+    lote: normalized.lote,
+    bairro: normalized.bairro || bairroIn,
+  };
+
+  enriched = await Promise.all(
+    top.map(async (x) => {
+      const pos = x.it?.position;
+      if (!pos?.lat || !pos?.lng) {
+        return { ...x, arc: null, arcScore: -999, total: x.score - 999 };
+      }
+
+      const arc = await getAparecidaLotFromArcgis(baseOrigin, pos.lat, pos.lng);
+      const arcScore = scoreArcgisLotMatch(arc, wantArc);
+
+      return { ...x, arc, arcScore, total: x.score + arcScore };
+    }),
+  );
+
+  enriched.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+
+  if (enriched[0]?.it) {
+    bestItem = enriched[0].it;
+    bestArcgisFromTop = enriched[0].arc || null;
+    bestHereScore = enriched[0].score ?? bestHereScore;
+  }
+}
+
+// coordenada final SEMPRE do bestItem
+lat = bestItem?.position?.lat ?? null;
+lng = bestItem?.position?.lng ?? null;
+
+const bestScore = bestHereScore;
+
+let decisionReason: string = "OK_CONFIDENT";
+
+const MIN_SCORE = 90;
+
+if (bestScore < MIN_SCORE) {
+  lat = null;
+  lng = null;
+  decisionReason = "LOW_SCORE";
+}
+
+// ✅ PASSO 2.5: mede “espalhamento” dos melhores candidatos
+// Se estiver muito espalhado, HERE não entendeu bem → vira PARCIAL
+const topN = 3;
+
+// 🔒 enriched SEMPRE existe (array), mesmo vazio
+const spreadSource =
+  isAparecida && Array.isArray(enriched) && enriched.length
+    ? enriched
+    : scored;
+
+const pts = spreadSource
+  .slice(0, topN)
+  .map((x: any) => x?.it?.position)
+  .filter(
+    (p: any): p is { lat: number; lng: number } =>
+      p &&
+      typeof p.lat === "number" &&
+      typeof p.lng === "number"
+  );
+
+const hereSpreadMeters =
+  pts.length >= 2 ? maxPairDistanceMeters(pts) : 0;
+
+const hereUncertain = hereSpreadMeters > 250; // ajuste aqui (250m)
+
+ // 4) Aparecida: usa seu mapa real (ArcGIS) pra quadra/lote/bairro (só se tiver lat/lng)
+let quadraAuto = normalized.quadra || "";
+let loteAuto = normalized.lote || "";
+let bairroAuto = normalized.bairro || bairroIn || "";
+
+// ✅ usa o ArcGIS do PASSO 3 (top3) quando tiver.
+// se não tiver, faz 1 chamada usando o lat/lng final.
+let arcgisLot: any = null;
+
+if (isAparecida && lat != null && lng != null) {
+  // bestArcgisFromTop vem do PASSO 3 (top 3 do HERE)
+  arcgisLot =
+    (typeof bestArcgisFromTop !== "undefined" && bestArcgisFromTop) ? bestArcgisFromTop : null;
+
+  // fallback: se o PASSO 3 não trouxe ArcGIS, busca 1x no ponto final
+  if (!arcgisLot) {
     arcgisLot = await getAparecidaLotFromArcgis(baseOrigin, lat, lng);
-    if (arcgisLot?.found) {
-      if (String(arcgisLot.quadra || "").trim()) quadraAuto = String(arcgisLot.quadra).trim();
-      if (String(arcgisLot.lote || "").trim()) loteAuto = String(arcgisLot.lote).trim();
-      if (String(arcgisLot.bairro || "").trim()) bairroAuto = String(arcgisLot.bairro).trim();
-    }
   }
+
+  if (arcgisLot?.found) {
+    if (String(arcgisLot.quadra || "").trim()) quadraAuto = String(arcgisLot.quadra).trim();
+    if (String(arcgisLot.lote || "").trim()) loteAuto = String(arcgisLot.lote).trim();
+    if (String(arcgisLot.bairro || "").trim()) bairroAuto = String(arcgisLot.bairro).trim();
+  }
+}
 
   // 5) Status final (regra do Lucas)
-  const status = calcStatusLucas({
-    rua: normalized.rua,
-    quadra: quadraAuto,
-    lote: loteAuto,
-    bairro: bairroAuto,
-  });
+let status = calcStatusLucas({
+  rua: normalized.rua,
+  quadra: quadraAuto,
+  lote: loteAuto,
+  bairro: bairroAuto,
+});
+if (
+  status === "OK" &&
+  (!normalized.rua || !quadraAuto || !loteAuto || lat == null || lng == null)
+) {
+  status = "PARCIAL";
+}
+
+// ✅ se não tem lat/lng, NÃO deixa como OK (vira PARCIAL)
+if (status === "OK" && (lat == null || lng == null)) {
+  status = "PARCIAL";
+  decisionReason = "NO_COORD";
+}
+// ✅ conflito entre Q/L do texto vs ArcGIS => vira PARCIAL (sem status novo)
+const wantQ = String(normalized.quadra || "").trim();
+const wantL = String(normalized.lote || "").trim();
+
+const conflictQL =
+  (wantQ && quadraAuto && wantQ !== quadraAuto) ||
+  (wantL && loteAuto && wantL !== loteAuto);
+
+if (conflictQL) {
+  status = "PARCIAL";
+  lat = null;
+  lng = null;
+  decisionReason = "QL_CONFLICT";
+}
+// ✅ se HERE está “espalhado”, não deixa virar OK automático
+if (hereUncertain) {
+  status = "PARCIAL";
+  decisionReason = "HERE_SPREAD";
+}
+// 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
+if (status === "OK") {
+  const missingCore =
+    !normalized.rua ||
+    !quadraAuto ||
+    !loteAuto ||
+    lat == null ||
+    lng == null;
+
+  if (missingCore) {
+    status = "PARCIAL";
+    decisionReason = "MISSING_CORE";
+  }
+}
 
   return {
     sequence: row?.sequence ?? "",
@@ -735,6 +1062,8 @@ async function processOne(row: InputRow, baseOrigin: string) {
     lat,
     lng,
 
+      decisionReason,
+
     model: g.model,
     usedGemini: g.usedGemini,
 
@@ -744,8 +1073,16 @@ async function processOne(row: InputRow, baseOrigin: string) {
 
     // debug
     raw: g.raw,
-    hereBest: bestItem,
+    hereBest: scored[0]?.it || null,
     arcgisLotUsed: arcgisLot || null,
+   hereRankTop5: scored.slice(0, 5).map((x: any) => ({
+      score: x.score,
+      label: x.it?.address?.label || x.it?.title || "",
+      resultType: x.it?.resultType || "",
+      from: x.from,
+      kind: x.kind,
+      pos: x.it?.position || null,
+    })),
   };
 }
 
