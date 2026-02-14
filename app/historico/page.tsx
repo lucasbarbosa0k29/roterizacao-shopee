@@ -3,38 +3,35 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  listHistory,
-  deleteHistory,
-  clearHistory,
-  type SavedHistory,
-} from "../lib/history";
+  listHistoryDb,
+  deleteHistoryDb,
+  clearHistoryDb,
+  type DbHistoryListItem,
+} from "../lib/history-db";
 
-type HistoryItem = {
-  id: string;
-  name: string;
-  savedAt: number;
-  rowsCount: number;
-};
+type HistoryItem = DbHistoryListItem;
 
 export default function HistoricoPage() {
   const router = useRouter();
   const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  function refresh() {
-    const data = listHistory().map((h: SavedHistory) => ({
-      id: h.id,
-      name: h.name,
-      savedAt: h.savedAt,
-      rowsCount: Array.isArray(h.rows) ? h.rows.length : 0,
-    }));
-    setItems(data);
+  async function refresh() {
+    try {
+      setLoading(true);
+      const data = await listHistoryDb();
+      setItems(data);
+    } catch (e: any) {
+      alert(e?.message || "Erro ao carregar histórico.");
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openFromHistory(it: HistoryItem) {
-    // ✅ O JEITO CERTO:
-    // Vai para a Home passando o history na URL
-    // A Home (page.tsx) vai ler ?history=... e restaurar com getHistory(historyId)
-    router.push(`/?history=${encodeURIComponent(it.id)}`);
+    // ✅ VOLTA PRA TELA PRINCIPAL (HOME) e carrega o job pelo banco
+    router.push(`/?job=${encodeURIComponent(it.id)}`);
   }
 
   useEffect(() => {
@@ -46,7 +43,7 @@ export default function HistoricoPage() {
       <div className="mx-auto max-w-6xl px-4 py-6">
         <h1 className="text-2xl font-bold mb-1">Histórico de importação</h1>
         <p className="text-sm text-slate-600 mb-6">
-          Planilhas salvas por até 24 horas.
+          Histórico por usuário (salvo no banco).
         </p>
 
         <div className="flex items-center gap-2 mb-4">
@@ -60,9 +57,15 @@ export default function HistoricoPage() {
 
           <button
             type="button"
-            onClick={() => {
-              clearHistory();
-              refresh();
+            onClick={async () => {
+              const ok = confirm("Limpar TODO o histórico do usuário?");
+              if (!ok) return;
+              try {
+                await clearHistoryDb();
+                await refresh();
+              } catch (e: any) {
+                alert(e?.message || "Erro ao limpar.");
+              }
             }}
             className="px-3 py-2 rounded-md border bg-white hover:bg-slate-50 text-sm"
           >
@@ -70,7 +73,11 @@ export default function HistoricoPage() {
           </button>
         </div>
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-lg shadow p-6 text-slate-700">
+            Carregando...
+          </div>
+        ) : items.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-slate-700">
             Nenhuma planilha no histórico ainda.
           </div>
@@ -84,7 +91,7 @@ export default function HistoricoPage() {
                 <div>
                   <div className="font-medium text-slate-900">{it.name}</div>
                   <div className="text-sm text-slate-600">
-                    {new Date(it.savedAt).toLocaleString()} • {it.rowsCount} linhas
+                    {new Date(it.savedAt).toLocaleString("pt-BR")}
                   </div>
                 </div>
 
@@ -99,9 +106,15 @@ export default function HistoricoPage() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      deleteHistory(it.id);
-                      refresh();
+                    onClick={async () => {
+                      const ok = confirm("Apagar este item do histórico?");
+                      if (!ok) return;
+                      try {
+                        await deleteHistoryDb(it.id);
+                        await refresh();
+                      } catch (e: any) {
+                        alert(e?.message || "Erro ao apagar.");
+                      }
                     }}
                     className="px-3 py-2 rounded-md border text-sm bg-white hover:bg-slate-50"
                   >

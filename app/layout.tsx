@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 
 import Sidebar from "./components/Sidebar";
+import Providers from "./providers";
+import AppShell from "./components/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +36,10 @@ export default function RootLayout({
         />
       </head>
 
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {/* HERE MAPS */}
         <Script
           src="https://js.api.here.com/v3/3.1/mapsjs-core.js"
           strategy="beforeInteractive"
@@ -56,16 +61,12 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
-        {/* Sidebar fixo + main com scroll */}
-        <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
-          <aside className="fixed left-0 top-0 h-screen w-[260px] z-50">
-            <Sidebar />
-          </aside>
-
-          <main className="ml-[260px] h-screen overflow-y-auto">
+        {/* PROVIDERS GLOBAIS */}
+        <Providers>
+          <AppShell>
             {children}
-          </main>
-        </div>
+          </AppShell>
+        </Providers>
       </body>
     </html>
   );

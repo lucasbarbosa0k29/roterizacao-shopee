@@ -1,5 +1,7 @@
 // app/api/process/route.ts
 import { NextResponse } from "next/server";
+import { prisma } from "@/app/lib/prisma";
+
 
 export const runtime = "nodejs";
 
@@ -1061,7 +1063,7 @@ if (status === "OK") {
     status,
     lat,
     lng,
-
+ 
       decisionReason,
 
     model: g.model,
@@ -1088,12 +1090,37 @@ if (status === "OK") {
 
 // ===== HANDLER (BATCH) =====
 export async function POST(req: Request) {
+  let jobId = "";
+
   try {
     const body = await req.json().catch(() => ({} as any));
 
     const rowsIn: InputRow[] = Array.isArray(body?.rows) ? body.rows : [];
     if (!rowsIn.length) {
       return NextResponse.json({ error: "Envie { rows: [...] }" }, { status: 400 });
+    }
+
+    jobId = String(body?.jobId || "").trim();
+
+    // ✅ Se não vier jobId, avisa no console (isso explica admin não atualizar)
+    if (!jobId) {
+      console.warn("⚠️ /api/process chamado SEM jobId — progresso não será salvo no banco.");
+    }
+
+    // ✅ Se veio jobId, marca PROCESSING e zera progresso
+    if (jobId) {
+      await prisma.importJob.update({
+        where: { id: jobId },
+        data: {
+          status: "PROCESSING",
+          startedAt: new Date(),
+          finishedAt: null,
+          totalStops: rowsIn.length,
+          processedStops: 0,
+          errorMessage: null,
+          errorStack: null,
+        },
+      });
     }
 
     const baseOrigin = new URL(req.url).origin;
@@ -1105,15 +1132,89 @@ export async function POST(req: Request) {
     async function worker() {
       while (index < rowsIn.length) {
         const i = index++;
-        results[i] = await processOne(rowsIn[i], baseOrigin);
+        try {
+          results[i] = await processOne(rowsIn[i], baseOrigin);
+        } catch (e: any) {
+          results[i] = {
+            sequence: rowsIn[i]?.sequence ?? "",
+            bairro: rowsIn[i]?.bairro ?? "",
+            city: rowsIn[i]?.city ?? "",
+            cep: rowsIn[i]?.cep ?? "",
+            original: String(rowsIn[i]?.original || ""),
+            normalized: null,
+            normalizedLine: "",
+            status: "FAILED",
+            lat: null,
+            lng: null,
+            model: "",
+            usedGemini: false,
+            notesAuto: "",
+            quadraAuto: "",
+            loteAuto: "",
+            error: e?.message || "Erro ao processar linha",
+          };
+        } finally {
+          // ✅ SÓ AQUI incrementa (uma vez por linha)
+          if (jobId) {
+            await prisma.importJob.update({
+              where: { id: jobId },
+              data: {
+                processedStops: { increment: 1 },
+                status: "PROCESSING",
+              },
+            });
+          }
+        }
       }
     }
 
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
+   // ✅ no final, marca DONE e salva resultado completo
+if (jobId) {
+  await prisma.importJob.update({
+    where: { id: jobId },
+    data: {
+      status: "DONE",
+      finishedAt: new Date(),
+      processedStops: rowsIn.length,
+
+      // 🔥 SALVA O RESULTADO FINAL NO BANCO
+   resultJson: {
+  version: 1,
+  rows: results,
+  manualEdits: {},
+  manualGroups: {},
+  autoGrouped: false,
+  autoBreakIds: [],
+  groupMode: false,
+  selectedIdxs: [],
+  view: "results",
+  name: null,
+  updatedAtMs: Date.now(),
+},
+      resultSavedAt: new Date(),
+    },
+  });
+}
+
+
     return NextResponse.json({ total: results.length, rows: results });
   } catch (err: any) {
     console.error("Erro /api/process:", err);
+
+    if (jobId) {
+      await prisma.importJob.update({
+        where: { id: jobId },
+        data: {
+          status: "FAILED",
+          errorMessage: err?.message || "Erro desconhecido",
+          errorStack: String(err?.stack || ""),
+          finishedAt: new Date(),
+        },
+      });
+    }
+
     return NextResponse.json({ error: "Erro interno em /api/process" }, { status: 500 });
   }
 }

@@ -3,8 +3,8 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
-import { getHistory, saveHistory, updateHistory } from "./lib/history";
 import { useSearchParams } from "next/navigation";
+import { updateHistoryDb } from "./lib/history-db";
 
 const AparecidaArcgisMap = dynamic(
   () => import("./components/AparecidaArcgisMap"),
@@ -148,9 +148,65 @@ function HomeInner() {
   const [rows, setRows] = useState<RowItem[]>([]);
   const [view, setView] = useState<"upload" | "results">("upload");
  const [historyId, setHistoryId] = useState<string | null>(null);
+ const [historyName, setHistoryName] = useState<string>("Planilha");
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
 const searchParams = useSearchParams();
-const hid = searchParams.get("history");
+const jobId = searchParams.get("job");
+useEffect(() => {
+  if (!jobId) return;
+
+  (async () => {
+    try {
+      const res = await fetch(`/api/history/${encodeURIComponent(jobId)}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || "Erro ao abrir histórico.");
+        return;
+      }
+
+      const job = data?.job;
+      const payload = job?.resultJson;
+
+      // aceita: array direto OU objeto { rows, ... }
+      const loadedRows = Array.isArray(payload) ? payload : payload?.rows;
+
+      if (!Array.isArray(loadedRows) || loadedRows.length === 0) {
+        alert("Histórico sem rows salvos (resultJson vazio).");
+        return;
+      }
+
+    setFile(null);
+setRows(loadedRows);
+
+// ✅ restaura estados salvos do histórico (payload envelope)
+const p = payload && typeof payload === "object" ? payload : null;
+
+setManualEdits(p?.manualEdits ?? {});
+setManualGroups(p?.manualGroups ?? {});
+setAutoGrouped(!!p?.autoGrouped);
+setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
+setGroupMode(!!p?.groupMode);
+setSelectedIdxs(new Set(p?.selectedIdxs ?? []));
+
+// ✅ restaura view corretamente
+setView((p?.view === "upload" || p?.view === "results") ? p.view : "results");
+
+// ✅ restaura nome salvo
+setHistoryName(typeof p?.name === "string" ? p.name : "Planilha");
+
+setHistoryId(job.id);
+      // limpa URL sem resetar state
+      window.history.replaceState({}, "", window.location.pathname);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao abrir histórico.");
+    }
+  })();
+}, [jobId]);
   // grupos manuais
   const [manualGroups, setManualGroups] = useState<Record<string, number[]>>({});
 
@@ -162,42 +218,25 @@ const hid = searchParams.get("history");
   const [groupMode, setGroupMode] = useState(false);
   const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set());
   const [mergeTargetGroupId, setMergeTargetGroupId] = useState<string | null>(null);
+
+
 useEffect(() => {
-  if (!hid) return;
-
-  const saved = getHistory(hid);
-  if (!saved) return;
-
-  setHistoryId(saved.id);
-  setFile(null);
-  setRows(saved.rows || []);
-  setManualEdits(saved.manualEdits || {});
-  setManualGroups(saved.manualGroups || {});
-  setAutoGrouped(!!saved.autoGrouped);
-  setAutoBreakIds(new Set((saved.autoBreakIds || []).map(String)));
-  setGroupMode(!!saved.groupMode);
-  setSelectedIdxs(new Set(saved.selectedIdxs || []));
-  setView("results");
-
-  // ✅ limpa a URL sem resetar o state
-  window.history.replaceState({}, "", window.location.pathname);
-}, [hid]);
-useEffect(() => {
- if (!historyId || hid) return;
-
+if (!historyId) return;
+// ✅ não salva histórico vazio
+if (!rows || rows.length === 0) return;
   const t = setTimeout(() => {
-    updateHistory(historyId, {
-      rows,
-      manualEdits,
-      manualGroups,
-      autoGrouped,
-      autoBreakIds: Array.from(autoBreakIds),
-      groupMode,
-      selectedIdxs: Array.from(selectedIdxs),
-      view,
-      name: file?.name || "Planilha",
-    });
-  }, 400);
+ updateHistoryDb(historyId, {
+  rows,
+  manualEdits,
+  manualGroups,
+  autoGrouped,
+  autoBreakIds: Array.from(autoBreakIds),
+  groupMode,
+  selectedIdxs: Array.from(selectedIdxs),
+  view,
+  name: historyName || file?.name || "Planilha",
+}).catch(() => {});
+}, 400);
 
   return () => clearTimeout(t);
 }, [
@@ -327,9 +366,11 @@ useEffect(() => {
   }, [suggestOpen]);
 
   // ✅ Destination Address deve ser 100% fiel ao Excel
-  function getShownAddress(i: number) {
-    return String(rows[i]?.original || "");
-  }
+ function getShownAddress(i: number) {
+  const manual = manualEdits[i];
+  if (manual?.address && manual.address.trim()) return manual.address;
+  return String(rows[i]?.original || "");
+}
 
   // ✅ Para export: se tiver manual, usa manual; senão usa o original do Excel
   function getExportAddress(i: number) {
@@ -572,44 +613,60 @@ useEffect(() => {
         alert("Import veio vazio (rows). Verifique a planilha/colunas.");
         return;
       }
-      // 2) PROCESSA (Gemini + HERE + ArcGIS)
-      const resProcess = await fetch("/api/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rows: dataImport.rows,
-        }),
-      });
-      const dataProcess = await resProcess.json();
+     // 2) PROCESSA (Gemini + HERE + ArcGIS)
+// ✅ pega o jobId que veio do /api/import (ajusta automático pra vários formatos)
+const jobId =
+  dataImport?.jobId ||
+  dataImport?.job?.id ||
+  dataImport?.importJobId ||
+  dataImport?.importJob?.id ||
+  "";
+setHistoryId(jobId);
+// (opcional) pra você ver no console do navegador se veio mesmo
+if (!jobId) {
+  console.warn("⚠️ jobId não veio do /api/import. Admin não vai mostrar progresso.");
+}
 
-      if (!resProcess.ok) {
-        alert(dataProcess?.error || "Erro no processamento");
-        return;
-      }
+const resProcess = await fetch("/api/process", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    rows: dataImport.rows,
+    jobId, // ✅ ESSA É A PARTE QUE FAZ O ADMIN ATUALIZAR
+  }),
+});
+
+const dataProcess = await resProcess.json();
+
+if (!resProcess.ok) {
+  alert(dataProcess?.error || "Erro no processamento");
+  return;
+}
+
 
       // ✅ AGORA rows vem completos (status, lat, lng, quadra, lote…)
       setRows(dataProcess.rows || []);
       setView("results");
       // ✅ salva no histórico (expira em 24h pelo history.ts)
-const id =
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : String(Date.now());
-setHistoryId(id);
-saveHistory({
-  id,
-  name: file?.name || "Planilha sem nome",
-  savedAt: Date.now(),
 
-  rows: dataProcess.rows || [],
-  manualEdits,
-  manualGroups,
-  autoGrouped,
-  autoBreakIds: Array.from(autoBreakIds),
-  groupMode,
-selectedIdxs: Array.from(selectedIdxs),
-view: "results",
-});
+// ✅ salva no BANCO no job atual (usa jobId local)
+if (jobId) {
+  if (!Array.isArray(dataProcess?.rows) || dataProcess.rows.length === 0) {
+    console.warn("⚠️ Não salvou no histórico porque veio rows vazio do /api/process");
+  } else {
+    updateHistoryDb(jobId, {
+      rows: dataProcess.rows,
+      manualEdits,
+      manualGroups,
+      autoGrouped,
+      autoBreakIds: Array.from(autoBreakIds),
+      groupMode,
+      selectedIdxs: Array.from(selectedIdxs),
+      view: "results",
+      name: file?.name || "Planilha sem nome",
+    }).catch(() => {});
+  }
+}
     } finally {
       setLoading(false);
     }
@@ -727,64 +784,60 @@ view: "results",
 }
 
   function unifySelected() {
-  const selected = Array.from(selectedIdxs).sort((a, b) => a - b);
+  const idxs = Array.from(selectedIdxs).sort((a, b) => a - b);
 
-  if (selected.length < 1) {
+  if (idxs.length < 1) {
     alert("Selecione pelo menos 1 linha.");
     return;
   }
 
-  // Descobre quais grupos manuais estão envolvidos na seleção
-  const involvedGroups: string[] = [];
-  for (const [gid, idxs] of Object.entries(manualGroups)) {
-    if (idxs.some((i) => selected.includes(i))) involvedGroups.push(gid);
-  }
+  // garante objeto
+  const currentManual = manualGroups || {};
+  const nextGroups: Record<string, number[]> = JSON.parse(JSON.stringify(currentManual));
 
-  const nextGroups: Record<string, number[]> = { ...manualGroups };
-
-  // Função auxiliar: remove um índice de todos grupos
-  const removeFromAllGroups = (idx: number) => {
+  // remove idx de todos os grupos manuais
+  const removeFromAllGroups = (idxx: number) => {
     for (const gid of Object.keys(nextGroups)) {
-      nextGroups[gid] = nextGroups[gid].filter((x) => x !== idx);
+      nextGroups[gid] = (nextGroups[gid] || []).filter((x) => x !== idxx);
+      if (nextGroups[gid].length === 0) delete nextGroups[gid];
     }
   };
 
-  // ✅ CASO A: existe 1+ grupo já selecionado -> destino = primeiro grupo selecionado
-  if (involvedGroups.length >= 1) {
-    const target = involvedGroups[0];
+  // ✅ Se você clicou em "Adicionar mais linhas neste grupo"
+  if (mergeTargetGroupId) {
+    const target = mergeTargetGroupId;
 
-    // Junta tudo no grupo alvo:
-    // 1) pega tudo que já está no alvo
-    const targetSet = new Set(nextGroups[target] ?? []);
-
-    // 2) move todos índices selecionados (sejam soltos ou de outros grupos) pro alvo
-    for (const idx of selected) {
-      removeFromAllGroups(idx);
-      targetSet.add(idx);
+    // se o grupo alvo veio do auto_ e ainda não existe nos manuais, materializa ele
+    if (!nextGroups[target]) {
+      const autoGroup = groupedRows.find((g) => g.id === target);
+      nextGroups[target] = autoGroup ? autoGroup.idxs.slice() : [];
     }
 
-    // 3) se tinha outros grupos envolvidos, também migra tudo deles pro alvo e apaga os vazios
-    for (const gid of involvedGroups.slice(1)) {
-      for (const idx of nextGroups[gid] ?? []) targetSet.add(idx);
-      delete nextGroups[gid];
+    for (const idxx of idxs) {
+      removeFromAllGroups(idxx);
+      if (!nextGroups[target].includes(idxx)) nextGroups[target].push(idxx);
     }
 
-    nextGroups[target] = Array.from(targetSet).sort((a, b) => a - b);
+    nextGroups[target].sort((a, b) => a - b);
 
     setManualGroups(nextGroups);
     setSelectedIdxs(new Set());
+    setMergeTargetGroupId(null);
     setGroupMode(false);
     return;
   }
 
-  // ✅ CASO B: não selecionou nenhum grupo existente -> criar grupo novo
-  if (selected.length < 2) {
-    alert("Selecione pelo menos 2 linhas para criar um grupo.");
+  // fluxo normal: criar um novo grupo manual juntando 2+ itens
+  if (idxs.length < 2) {
+    alert("Selecione pelo menos 2 linhas para unificar.");
     return;
   }
 
-  const newId = makeId("manual");
-  nextGroups[newId] = selected;
+  // remove os selecionados de qualquer grupo anterior antes de criar o novo
+  for (const idxx of idxs) removeFromAllGroups(idxx);
+
+  const newId = "manual_" + Date.now();
+  nextGroups[newId] = idxs.slice().sort((a, b) => a - b);
 
   setManualGroups(nextGroups);
   setSelectedIdxs(new Set());
@@ -793,10 +846,10 @@ view: "results",
 
   // ===== desagrupar via botão direito =====
   function ungroup(groupId: string) {
-    if (groupId.startsWith("auto_")) {
-      setAutoBreakIds((prev) => new Set(prev).add(groupId));
-      return;
-    }
+    if (groupId.startsWith("auto_") && !manualGroups[groupId]) {
+  setAutoBreakIds((prev) => new Set(prev).add(groupId));
+  return;
+}
     if (manualGroups[groupId]) {
       const next = { ...manualGroups };
       delete next[groupId];
@@ -1364,7 +1417,10 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
   <div className="flex items-center gap-2">
     <button
       type="button"
-      onClick={() => setAutoGrouped((v) => !v)}
+     onClick={() => {
+  setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
+  setAutoGrouped((v) => !v);
+}}
       className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
         autoGrouped
           ? "bg-indigo-600 text-white border-indigo-600"
@@ -1385,18 +1441,22 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
     <button
       type="button"
       onClick={() => {
-        setFile(null);
-        setRows([]);
-        setManualEdits({});
-        setManualGroups({});
-        setAutoGrouped(false);
-        setAutoBreakIds(new Set());
-        setGroupMode(false);
-        setSelectedIdxs(new Set());
-        setIsExportOpen(false);
-        setExportDraft([]);
-        setView("upload");
-      }}
+  setFile(null);
+  setRows([]);
+  setManualEdits({});
+  setManualGroups({});
+  setAutoGrouped(false);
+  setAutoBreakIds(new Set());
+  setGroupMode(false);
+  setSelectedIdxs(new Set());
+  setIsExportOpen(false);
+  setExportDraft([]);
+  setView("upload");
+
+  setHistoryName("Planilha");
+  setHistoryId(null);
+}}
+
       className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition"
     >
       Importar outra planilha
@@ -1434,29 +1494,47 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 </tr>
       </thead>
 
-      <tbody className="[&>tr:nth-child(even)]:bg-slate-50"></tbody>
+     
 
                     <tbody>
 {groupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
                         const baseIdx = g.idxs[0];
+                        const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
 
                         // ✅ se qualquer item do grupo estiver em revisão, pinta o TEXTO
                         const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
 
                         return (
-                          <tr
-                            key={g.id}
-                            className={
-                              `border-b border-slate-200 transition-colors
-                               ${hasReview ? "text-red-700" : ""}
-                               ${groupMode && selectedIdxs.has(baseIdx)
-                                 ? "bg-slate-200"
-                                 : g.idxs.some((i) => manualEdits[i]?.confirmed)
-                                   ? "bg-green-100 hover:bg-green-200"
-                                   : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
-                               }`
-                            }
+                         <tr
+  key={g.id}
+  className={
+    `border-b border-slate-200 transition-colors
+     ${hasReview ? "text-red-700" : ""}
+     ${
+       groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
+         ? "bg-slate-200"
+         : g.idxs.some((i) => manualEdits[i]?.confirmed)
+         ? "bg-green-100 hover:bg-green-200"
+         : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
+     }`
+  }
+  onClick={() => {
+    if (!groupMode) return;
+
+    setSelectedIdxs((prev) => {
+      const next = new Set(prev);
+      const allSelected = idxsToToggle.every((i) => next.has(i));
+
+      if (allSelected) {
+        idxsToToggle.forEach((i) => next.delete(i));
+      } else {
+        idxsToToggle.forEach((i) => next.add(i));
+      }
+
+      return next;
+    });
+  }}
   onContextMenu={(e) => {
     e.preventDefault();
     setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
@@ -1498,20 +1576,29 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 
                             <td className="px-4 py-4 align-top">
                               <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openManualModalForIdx(baseIdx)}
-                                  className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 text-xs"
-                                  title="Mapa / Correção"
-                                >
-                                  📍
-                                </button>
+{!groupMode && (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      openManualModalForIdx(baseIdx);
+    }}
+    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+    title="Mapa / Correção"
+  >
+    {/* ícone do mapa (o seu svg atual pode ficar aqui dentro) */}
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M12 21s-7.5-2.7-7.5-11a7.5 7.5 0 1 1 15 0c0 8.3-7.5 11-7.5 11z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+      <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
+    </svg>
+  </button>
+)}
 
                                {!groupMode && !isGrouped && (
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="w-8 h-8 flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 transition"
+                                    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
                                     title="Agrupar manualmente"
                                   >
                                     +
@@ -1520,28 +1607,35 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 
                              {groupMode && (
   <label className="text-xs flex items-center gap-2 select-none cursor-pointer">
-    <input
-      type="checkbox"
-      checked={selectedIdxs.has(baseIdx)}
-      onChange={() => toggleSelectIdx(baseIdx)}
-      className="accent-red-600 cursor-pointer"
-    />
+  <input
+  type="checkbox"
+  checked={selectedIdxs.has(baseIdx)}
+  onClick={(e) => e.stopPropagation()}
+  onChange={() => toggleSelectIdx(baseIdx)}
+  className="accent-red-600 cursor-pointer"
+/>
     Selecionar
   </label>
 )}
 
-  {isGrouped && g.id.startsWith("manual_") && (
+  {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_")) && (
   <button
     type="button"
-    onClick={() => {
-      // entra no modo unificar e já seleciona esta linha
-      if (!groupMode) setGroupMode(true);
-      toggleSelectIdx(baseIdx);
-    }}
-    className="px-2 py-1 rounded bg-white border hover:bg-slate-50 text-xs"
+    onClick={(e) => {
+  e.stopPropagation();
+  if (!groupMode) setGroupMode(true);
+
+  // ✅ define qual grupo vai receber as linhas
+  setMergeTargetGroupId(g.id);
+
+  // ✅ deixa VISUALMENTE marcado que você está mexendo nesse grupo
+  // (seleciona todos do grupo como base)
+  setSelectedIdxs(new Set(g.idxs));
+}}
+    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
     title="Adicionar mais linhas neste grupo"
   >
-    +
+ <span className="text-xl leading-none font-medium">+</span>
   </button>
 )}
                               </div>
@@ -1918,7 +2012,7 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => scheduleSuggest(modalValue)}
+              onClick={() => runHereSearch(modalValue)}
               className="flex-1 rounded-xl bg-emerald-600 text-white text-sm font-semibold py-2 hover:bg-emerald-700"
             >
               Buscar

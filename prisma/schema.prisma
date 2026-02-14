@@ -1,0 +1,74 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  importJobs ImportJob[]
+
+  @@index([role])
+  @@index([active])
+  @@index([createdAt])
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model ImportJob {
+  id             String       @id @default(cuid())
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  originalName   String?
+  storedName     String?
+  status         ImportStatus @default(PENDING)
+
+  totalStops     Int          @default(0)
+  processedStops Int          @default(0)
+
+  errorMessage   String?
+  errorStack     String?
+
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  // ✅ salva o resultado final do processamento (linhas/endereços)
+  resultJson     Json?
+  resultSavedAt  DateTime?
+
+  // ✅ NOVO: salva o "estado da tela" (confirmado/revisão, agrupamentos, seleções etc.)
+  workspaceJson  Json?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([resultSavedAt])
+
+  @@unique([userId, storedName])
+}
