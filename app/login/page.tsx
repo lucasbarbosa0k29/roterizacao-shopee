@@ -1,5 +1,6 @@
-export const dynamic = "force-dynamic";
 "use client";
+
+export const dynamic = "force-dynamic";
 
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -22,7 +23,7 @@ export default function LoginPage() {
 
     const res = await signIn("credentials", {
       redirect: false,
-      email,
+      email: email.trim().toLowerCase(),
       password,
       callbackUrl,
     });
@@ -41,7 +42,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-          {/* Ícone laranja (somente o símbolo de cima) */}
+          {/* Ícone laranja */}
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500 shadow-md">
             <span className="text-xl font-extrabold text-white">RT</span>
           </div>
@@ -65,6 +66,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                required
               />
             </div>
 
@@ -79,6 +81,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                required
               />
             </div>
 
