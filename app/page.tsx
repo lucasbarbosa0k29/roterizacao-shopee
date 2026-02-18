@@ -32,7 +32,7 @@ type RowItem = {
 };
 
 type ManualEdit = {
-  address: string;
+  address?: string; // ✅ opcional (não vamos mais gravar endereço no manual)
   lat?: number;
   lng?: number;
   quadra?: string;
@@ -934,7 +934,6 @@ function clearReview(groupId: string) {
       ...prev,
       [modalIdx]: {
         ...prev[modalIdx],
-        address: modalValue,
         lat: pinLatLng?.lat,
         lng: pinLatLng?.lng,
         quadra: pickedQuadra || prev[modalIdx]?.quadra || "",
@@ -989,7 +988,6 @@ function clearReview(groupId: string) {
         ...prev,
         [modalIdx]: {
           ...prev[modalIdx],
-          address: prev[modalIdx]?.address || getShownAddress(modalIdx),
           lat: pinLatLng?.lat,
           lng: pinLatLng?.lng,
           quadra: q,
