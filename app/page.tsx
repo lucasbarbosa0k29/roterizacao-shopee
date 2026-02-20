@@ -767,7 +767,17 @@ if (jobId) {
   setMergeTargetGroupId(null);
   setSelectedIdxs(new Set([idx]));
 }
+function toggleSelectMany(idxs: number[]) {
+  setSelectedIdxs((prev) => {
+    const next = new Set(prev);
+    const allSelected = idxs.every((i) => next.has(i));
 
+    if (allSelected) idxs.forEach((i) => next.delete(i));
+    else idxs.forEach((i) => next.add(i));
+
+    return next;
+  });
+}
   function toggleSelectIdx(idx: number) {
     setSelectedIdxs((prev) => {
       const next = new Set(prev);
@@ -1517,22 +1527,10 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
          : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
      }`
   }
-  onClick={() => {
-    if (!groupMode) return;
-
-    setSelectedIdxs((prev) => {
-      const next = new Set(prev);
-      const allSelected = idxsToToggle.every((i) => next.has(i));
-
-      if (allSelected) {
-        idxsToToggle.forEach((i) => next.delete(i));
-      } else {
-        idxsToToggle.forEach((i) => next.add(i));
-      }
-
-      return next;
-    });
-  }}
+onClick={() => {
+  if (!groupMode) return;
+  toggleSelectMany(idxsToToggle);
+}}
   onContextMenu={(e) => {
     e.preventDefault();
     setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
@@ -1605,11 +1603,11 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 
                              {groupMode && (
   <label className="text-xs flex items-center gap-2 select-none cursor-pointer">
-  <input
+<input
   type="checkbox"
-  checked={selectedIdxs.has(baseIdx)}
-  onClick={(e) => e.stopPropagation()}
-  onChange={() => toggleSelectIdx(baseIdx)}
+  checked={idxsToToggle.every((i) => selectedIdxs.has(i))}
+  onClick={(e) => e.stopPropagation()} // não dispara clique da linha
+  onChange={() => toggleSelectMany(idxsToToggle)}
   className="accent-red-600 cursor-pointer"
 />
     Selecionar
