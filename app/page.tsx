@@ -979,41 +979,68 @@ async function confirmManualModal() {
     });
 
     // 2) ✅ Salva na AddressMemory SEMPRE (mesmo se não mexeu no pino)
-    //    - salva 1 vez por chave (address+city), mesmo se o grupo tiver repetidos
-    try {
-      const seen = new Set<string>();
+//    - para APT/PRÉDIO: salva também uma "versão base" sem complemento (apto/bloco/etc)
+//    - salva sequencialmente (mais estável no Render)
+try {
+  // snapshot estável das linhas do grupo (evita pegar rows desatualizado)
+  const snapshot = idxsToApply
+    .map((idx) => rows[idx])
+    .filter(Boolean) as Array<{ original?: string; city?: string }>;
 
-      await Promise.all(
-        idxsToApply.map(async (idx) => {
-          const r = rows[idx];
-          if (!r) return;
+  const seen = new Set<string>();
 
-          const address = String(r.original || "").trim();
-          const city = String(r.city || "").trim();
+  function makeBaseAddress(addr: string) {
+    // remove complementos típicos de apt/prédio, mantendo o endereço principal
+    // exemplos: "Apto 701", "AP 1401D", "Apartamento 001 D", "Bloco B", "Torre 2", etc
+    return addr
+      .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+      .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+      .replace(/\b(TORRE)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+      .replace(/\b(EDIFICIO|EDIF\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+      .replace(/\b(CONDOMINIO|COND\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+      .replace(/\b(RESIDENCIAL|RES\.)\b\s*[-:]?\s*[^,]+/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 
-          if (!address) return;
+  async function saveMemory(address: string, city: string) {
+    const dedupeKey = `${address}||${city}`.toUpperCase();
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
 
-          const dedupeKey = `${address}||${city}`.toUpperCase();
-          if (seen.has(dedupeKey)) return;
-          seen.add(dedupeKey);
+    await fetch("/api/address-memory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address,
+        city,
+        lat: coord!.lat,
+lng: coord!.lng,
+        createdBy: null,
+      }),
+    });
+  }
 
-          await fetch("/api/address-memory", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              address,
-              city,
-              lat: coord.lat,
-              lng: coord.lng,
-              createdBy: null,
-            }),
-          });
-        })
-      );
-    } catch (e) {
-      console.warn("Falha ao salvar AddressMemory:", e);
-      // não bloqueia o usuário
+  for (const r of snapshot) {
+    const fullAddress = String(r.original || "").trim();
+    const city = String(r.city || "").trim();
+
+    if (!fullAddress) continue;
+
+    // (A) salva completo
+    await saveMemory(fullAddress, city);
+
+    // (B) se tiver cara de apt/prédio, salva também o "base"
+    //     (mesmo se não tiver, salvar base igual ao completo não atrapalha, mas evita duplicar)
+    const base = makeBaseAddress(fullAddress);
+    if (base && base.length >= 6 && base.toUpperCase() !== fullAddress.toUpperCase()) {
+      await saveMemory(base, city);
     }
+  }
+} catch (e) {
+  console.warn("Falha ao salvar AddressMemory:", e);
+  // não bloqueia o usuário
+}
 
     setIsModalOpen(false);
 setModalIdx(null);

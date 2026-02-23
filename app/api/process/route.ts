@@ -764,36 +764,9 @@ async function processOne(row: InputRow, baseOrigin: string) {
     };
   }
 
-  // ✅ regra: apartamento/edifício => NÃO BUSCAR (status CONDOMINIO)
-  // (mas se tiver quadra/lote, pode buscar normal)
-  const aptLike = isApartmentLike(addressRaw);
-  const hasQL = hasQuadraLoteText(addressRaw);
-  if (aptLike && !hasQL) {
-    return {
-      sequence: row?.sequence ?? "",
-      bairro: bairroIn,
-      city: cityIn,
-      cep: cepIn,
-      original: addressRaw,
-      normalized: null,
-      normalizedLine: addressRaw,
-      status: "CONDOMINIO",
-      lat: null,
-      lng: null,
-      model: "",
-      usedGemini: false,
-      notesAuto: "Apartamento/Edifício (não buscar automático)",
-      quadraAuto: "",
-      loteAuto: "",
-      raw: null,
-      hereBest: null,
-      arcgisLotUsed: null,
-    };
-  }
-// ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva
+  // ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva (ANTES do CONDOMINIO)
   const cityForKey = (cityIn || "").trim();
   const memoryKey = normalizeKey(`${addressRaw} ${cityForKey}`);
-  console.log("MEMORY_KEY:", memoryKey);
 
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
 
@@ -813,9 +786,113 @@ async function processOne(row: InputRow, baseOrigin: string) {
       });
     }
   } catch (e) {
-    // não quebra o processamento por causa da memória
     console.warn("AddressMemory lookup failed:", e);
   }
+
+  // ✅ regra: apartamento/edifício => NÃO BUSCAR no HERE
+  // MAS: se já existir memória, usa memória e volta OK (porque já foi confirmado antes)
+  const aptLike = isApartmentLike(addressRaw);
+  const hasQL = hasQuadraLoteText(addressRaw);
+
+  if (aptLike && !hasQL) {
+    if (memoryHit) {
+      return {
+        sequence: row?.sequence ?? "",
+        bairro: bairroIn,
+        city: cityIn,
+        cep: cepIn,
+        original: addressRaw,
+        normalized: null,
+        normalizedLine: addressRaw,
+        status: "OK",
+        lat: memoryHit.lat,
+        lng: memoryHit.lng,
+        model: "",
+        usedGemini: false,
+        notesAuto: "Condomínio/APTO (usando memória salva)",
+        quadraAuto: "",
+        loteAuto: "",
+        raw: null,
+        hereBest: null,
+        arcgisLotUsed: null,
+        decisionReason: "MEMORY_HIT_CONDOMINIO",
+      };
+    }
+
+    return {
+      sequence: row?.sequence ?? "",
+      bairro: bairroIn,
+      city: cityIn,
+      cep: cepIn,
+      original: addressRaw,
+      normalized: null,
+      normalizedLine: addressRaw,
+      status: "CONDOMINIO",
+      lat: null,
+      lng: null,
+      model: "",
+      usedGemini: false,
+      notesAuto: "Apartamento/Edifício (não buscar automático)",
+      quadraAuto: "",
+      loteAuto: "",
+      raw: null,
+      hereBest: null,
+      arcgisLotUsed: null,
+      decisionReason: "CONDOMINIO_NO_SEARCH",
+    };
+  }
+
+  // ✅ Se for apt/prédio e NÃO tiver quadra/lote, não chama HERE.
+  //    - Se tiver memória, devolve OK com lat/lng
+  //    - Se NÃO tiver memória, devolve CONDOMINIO (sem lat/lng)
+  if (aptLike && !hasQL) {
+    if (memoryHit) {
+      return {
+        sequence: row?.sequence ?? "",
+        bairro: bairroIn,
+        city: cityIn,
+        cep: cepIn,
+        original: addressRaw,
+        normalized: null,
+        normalizedLine: addressRaw,
+        status: "OK",
+        lat: memoryHit.lat,
+        lng: memoryHit.lng,
+        model: "",
+        usedGemini: false,
+        notesAuto: "Apartamento/Edifício (memória global)",
+        quadraAuto: "",
+        loteAuto: "",
+        raw: null,
+        hereBest: null,
+        arcgisLotUsed: null,
+        decisionReason: "MEMORY_HIT",
+      };
+    }
+
+    return {
+      sequence: row?.sequence ?? "",
+      bairro: bairroIn,
+      city: cityIn,
+      cep: cepIn,
+      original: addressRaw,
+      normalized: null,
+      normalizedLine: addressRaw,
+      status: "CONDOMINIO",
+      lat: null,
+      lng: null,
+      model: "",
+      usedGemini: false,
+      notesAuto: "Apartamento/Edifício (não buscar automático)",
+      quadraAuto: "",
+      loteAuto: "",
+      raw: null,
+      hereBest: null,
+      arcgisLotUsed: null,
+      decisionReason: "CONDOMINIO_NO_LOOKUP",
+    };
+  }
+
   // 1) Gemini
   const g = await geminiNormalize({ address: addressRaw, bairro: bairroIn, city: cityIn, cep: cepIn });
 
@@ -1029,21 +1106,26 @@ if (isAparecida && lat != null && lng != null) {
 }
 
   // 5) Status final (regra do Lucas)
-let status = calcStatusLucas({
-  rua: normalized.rua,
-  quadra: quadraAuto,
-  lote: loteAuto,
-  bairro: bairroAuto,
-});
-if (
-  status === "OK" &&
-  (!normalized.rua || !quadraAuto || !loteAuto || lat == null || lng == null)
-) {
+  let status = calcStatusLucas({
+    rua: normalized.rua,
+    quadra: quadraAuto,
+    lote: loteAuto,
+    bairro: bairroAuto,
+  });
+
+  // ✅ Se for apt/prédio e já tiver coordenada, considera OK
+  if (aptLike && lat != null && lng != null) {
+    status = "OK";
+  }
+
+// ✅ Para endereços normais: se faltar algo, rebaixa para PARCIAL
+if (!aptLike && status === "OK" && (!normalized.rua || !quadraAuto || !loteAuto || lat == null || lng == null)) {
   status = "PARCIAL";
 }
 
 // ✅ se não tem lat/lng, NÃO deixa como OK (vira PARCIAL)
-if (status === "OK" && (lat == null || lng == null)) {
+// (mas para apt/prédio a gente aceita OK só se tiver coord)
+if (!aptLike && status === "OK" && (lat == null || lng == null)) {
   status = "PARCIAL";
   decisionReason = "NO_COORD";
 }
