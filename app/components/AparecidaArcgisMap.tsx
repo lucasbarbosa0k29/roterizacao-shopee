@@ -33,6 +33,35 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     if (mapInitialized) {
       if (divRef.current && sharedView) {
         sharedView.container = divRef.current;
+
+        // ✅ quando reabre o modal, centraliza no pino atual (evita abrir no "endereço anterior")
+        if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
+          const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
+
+          // evita repetição inútil
+          if (key !== lastExternalCenterKey) {
+            lastExternalCenterKey = key;
+
+            // evita bloqueio por clique anterior
+            suppressNextCenterGoTo = false;
+
+            // garante que o view está pronto antes do goTo
+            Promise.resolve(sharedView.when?.()).then(() => {
+              try {
+                sharedView.goTo(
+                  { center: [center.lng, center.lat], zoom: 18 },
+                  { animate: false }
+                );
+              } catch {}
+
+              // atualiza o marker
+              setMarker(center.lat, center.lng);
+            });
+          } else {
+            // mesmo key, mas garante marker
+            setMarker(center.lat, center.lng);
+          }
+        }
       }
       return;
     }
@@ -106,9 +135,20 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
       if (center) {
         lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
+
+        // ✅ garante abrir já no pino + zoom correto
+        try {
+          await sharedView.when?.();
+          await sharedView.goTo(
+            { center: [center.lng, center.lat], zoom: 18 },
+            { animate: false }
+          );
+        } catch {}
+
         setMarker(center.lat, center.lng);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // =========================
@@ -123,13 +163,17 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     }
 
     const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
-    if (key === lastExternalCenterKey) return;
+    if (key === lastExternalCenterKey) {
+      // mesmo ponto, mas garante marker
+      setMarker(center.lat, center.lng);
+      return;
+    }
 
     lastExternalCenterKey = key;
 
     try {
       sharedView.goTo(
-        { center: [center.lng, center.lat] },
+        { center: [center.lng, center.lat], zoom: 18 },
         { animate: false }
       );
     } catch {}
@@ -170,10 +214,7 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     if (!sharedView || !sharedMarker) return;
 
     try {
-      sharedView.goTo(
-        { target: sharedMarker.geometry },
-        { animate: true }
-      );
+      sharedView.goTo({ target: sharedMarker.geometry, zoom: 18 }, { animate: true });
     } catch {}
   }
 

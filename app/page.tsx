@@ -981,8 +981,8 @@ async function confirmManualModal() {
     // 2) ✅ Salva na AddressMemory SEMPRE (mesmo se não mexeu no pino)
 //    - para APT/PRÉDIO: salva também uma "versão base" sem complemento (apto/bloco/etc)
 //    - salva sequencialmente (mais estável no Render)
+// 2) ✅ Salva na AddressMemory EM BACKGROUND (não trava UI)
 try {
-  // snapshot estável das linhas do grupo (evita pegar rows desatualizado)
   const snapshot = idxsToApply
     .map((idx) => rows[idx])
     .filter(Boolean) as Array<{ original?: string; city?: string }>;
@@ -990,8 +990,6 @@ try {
   const seen = new Set<string>();
 
   function makeBaseAddress(addr: string) {
-    // remove complementos típicos de apt/prédio, mantendo o endereço principal
-    // exemplos: "Apto 701", "AP 1401D", "Apartamento 001 D", "Bloco B", "Torre 2", etc
     return addr
       .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
       .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
@@ -1003,43 +1001,43 @@ try {
       .trim();
   }
 
-  async function saveMemory(address: string, city: string) {
-    const dedupeKey = `${address}||${city}`.toUpperCase();
-    if (seen.has(dedupeKey)) return;
-    seen.add(dedupeKey);
+  function save(address: string, city: string) {
+    const key = `${address}||${city}`.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
 
-    await fetch("/api/address-memory", {
+    return fetch("/api/address-memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      keepalive: true,
       body: JSON.stringify({
         address,
         city,
-        lat: coord!.lat,
+       lat: coord!.lat,
 lng: coord!.lng,
         createdBy: null,
       }),
-    });
+    }).catch(() => null);
   }
+
+  const tasks: Array<Promise<any> | undefined> = [];
 
   for (const r of snapshot) {
-    const fullAddress = String(r.original || "").trim();
+    const full = String(r.original || "").trim();
     const city = String(r.city || "").trim();
+    if (!full) continue;
 
-    if (!fullAddress) continue;
+    tasks.push(save(full, city));
 
-    // (A) salva completo
-    await saveMemory(fullAddress, city);
-
-    // (B) se tiver cara de apt/prédio, salva também o "base"
-    //     (mesmo se não tiver, salvar base igual ao completo não atrapalha, mas evita duplicar)
-    const base = makeBaseAddress(fullAddress);
-    if (base && base.length >= 6 && base.toUpperCase() !== fullAddress.toUpperCase()) {
-      await saveMemory(base, city);
+    const base = makeBaseAddress(full);
+    if (base && base.length >= 6 && base.toUpperCase() !== full.toUpperCase()) {
+      tasks.push(save(base, city));
     }
   }
+
+  void Promise.allSettled(tasks.filter(Boolean) as Promise<any>[]);
 } catch (e) {
   console.warn("Falha ao salvar AddressMemory:", e);
-  // não bloqueia o usuário
 }
 
     setIsModalOpen(false);

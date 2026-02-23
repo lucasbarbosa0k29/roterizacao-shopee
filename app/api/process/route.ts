@@ -1088,7 +1088,7 @@ let bairroAuto = normalized.bairro || bairroIn || "";
 // se não tiver, faz 1 chamada usando o lat/lng final.
 let arcgisLot: any = null;
 
-if (isAparecida && lat != null && lng != null) {
+if (isAparecida && lat != null && lng != null && !memoryHit) {
   // bestArcgisFromTop vem do PASSO 3 (top 3 do HERE)
   arcgisLot =
     (typeof bestArcgisFromTop !== "undefined" && bestArcgisFromTop) ? bestArcgisFromTop : null;
