@@ -937,50 +937,86 @@ function clearReview(groupId: string) {
     setSuggestActive(-1);
   }
 
-  async function confirmManualModal() {
-    if (modalIdx === null) return;
+async function confirmManualModal() {
+    if (modalIdx == null) return;
 
-    setManualEdits((prev) => ({
-      ...prev,
-      [modalIdx]: {
-        ...prev[modalIdx],
-        lat: pinLatLng?.lat,
-        lng: pinLatLng?.lng,
-        quadra: pickedQuadra || prev[modalIdx]?.quadra || "",
-        lote: pickedLote || prev[modalIdx]?.lote || "",
-        confirmed: true, // ✅ AQUI
-      },
-    }));
-// ✅ SALVA NA MEMÓRIA GLOBAL (pra próxima planilha já cair no mesmo ponto)
-    try {
-      const row = rows[modalIdx];
+    // ✅ coord final: se não mexeu no pino, usa a coord atual da linha
+    const row = rows[modalIdx];
+    const coord =
+      pinLatLng && typeof pinLatLng.lat === "number" && typeof pinLatLng.lng === "number"
+        ? pinLatLng
+        : row && typeof row.lat === "number" && typeof row.lng === "number"
+          ? { lat: row.lat, lng: row.lng }
+          : null;
 
-const m = {
-  lat: pinLatLng?.lat,
-  lng: pinLatLng?.lng,
-};
+    if (!coord) {
+      alert("Selecione uma coordenada válida no mapa.");
+      return;
+    }
 
-      if (row?.original && row?.city && m?.lat != null && m?.lng != null) {
-        await fetch("/api/address-memory", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            address: String(row.original || "").trim(),
-            city: String(row.city || "").trim(),
-            lat: Number(m.lat),
-            lng: Number(m.lng),
-            createdBy: null, // se quiser depois dá pra colocar email do usuário
-          }),
-        });
+    // ✅ Se a linha faz parte de um grupo (auto ou manual), aplica para o grupo inteiro
+    const group =
+      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(modalIdx)) || null;
+    const idxsToApply = group?.idxs?.length ? group.idxs : [modalIdx];
+
+    // 1) Atualiza estado local (linha + manualEdits) para TODOS do grupo
+    setManualEdits((prev) => {
+      const next = { ...prev };
+      for (const idx of idxsToApply) {
+        next[idx] = { lat: coord.lat, lng: coord.lng, confirmed: true };
       }
+      return next;
+    });
+
+    setRows((prev) => {
+      const next = [...prev];
+      for (const idx of idxsToApply) {
+        const r = next[idx];
+        if (!r) continue;
+        next[idx] = { ...r, lat: coord.lat, lng: coord.lng, status: "OK" };
+      }
+      return next;
+    });
+
+    // 2) ✅ Salva na AddressMemory SEMPRE (mesmo se não mexeu no pino)
+    //    - salva 1 vez por chave (address+city), mesmo se o grupo tiver repetidos
+    try {
+      const seen = new Set<string>();
+
+      await Promise.all(
+        idxsToApply.map(async (idx) => {
+          const r = rows[idx];
+          if (!r) return;
+
+          const address = String(r.original || "").trim();
+          const city = String(r.city || "").trim();
+
+          if (!address) return;
+
+          const dedupeKey = `${address}||${city}`.toUpperCase();
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+
+          await fetch("/api/address-memory", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              address,
+              city,
+              lat: coord.lat,
+              lng: coord.lng,
+              createdBy: null,
+            }),
+          });
+        })
+      );
     } catch (e) {
       console.warn("Falha ao salvar AddressMemory:", e);
+      // não bloqueia o usuário
     }
+
     setIsModalOpen(false);
-    setModalIdx(null);
-    setSuggestOpen(false);
-    setSuggestItems([]);
-    setSuggestActive(-1);
+setModalIdx(null);
   }
 
   async function reverseGeocodeServer(lat: number, lng: number) {
