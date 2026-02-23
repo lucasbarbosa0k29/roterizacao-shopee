@@ -72,3 +72,29 @@ model ImportJob {
 
   @@unique([userId, storedName])
 }
+
+//
+// ✅ Memória GLOBAL de endereços (1 para todos os usuários)
+//
+model AddressMemory {
+  id        String   @id @default(cuid())
+
+  // chave normalizada do endereço (pra bater rápido e igual sempre)
+  key       String   @unique
+
+  // dados "final" que vamos reutilizar
+  label     String?
+  lat       Float
+  lng       Float
+
+  // quem salvou (só pra auditoria - mas a memória é global)
+  createdBy String?
+
+  // estatística (opcional, ajuda a ver o que mais usa)
+  hitCount  Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}

@@ -937,7 +937,7 @@ function clearReview(groupId: string) {
     setSuggestActive(-1);
   }
 
-  function confirmManualModal() {
+  async function confirmManualModal() {
     if (modalIdx === null) return;
 
     setManualEdits((prev) => ({
@@ -951,7 +951,31 @@ function clearReview(groupId: string) {
         confirmed: true, // ✅ AQUI
       },
     }));
+// ✅ SALVA NA MEMÓRIA GLOBAL (pra próxima planilha já cair no mesmo ponto)
+    try {
+      const row = rows[modalIdx];
 
+const m = {
+  lat: pinLatLng?.lat,
+  lng: pinLatLng?.lng,
+};
+
+      if (row?.original && row?.city && m?.lat != null && m?.lng != null) {
+        await fetch("/api/address-memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: String(row.original || "").trim(),
+            city: String(row.city || "").trim(),
+            lat: Number(m.lat),
+            lng: Number(m.lng),
+            createdBy: null, // se quiser depois dá pra colocar email do usuário
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn("Falha ao salvar AddressMemory:", e);
+    }
     setIsModalOpen(false);
     setModalIdx(null);
     setSuggestOpen(false);

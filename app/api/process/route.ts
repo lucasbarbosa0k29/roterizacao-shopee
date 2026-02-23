@@ -43,6 +43,15 @@ function cleanAddressForHere(s: string) {
   return t;
 }
 
+function normalizeKey(text: string) {
+  return String(text || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
 function stripQuadraLoteFromQuery(q: string) {
   let t = String(q || "");
@@ -781,7 +790,32 @@ async function processOne(row: InputRow, baseOrigin: string) {
       arcgisLotUsed: null,
     };
   }
+// ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva
+  const cityForKey = (cityIn || "").trim();
+  const memoryKey = normalizeKey(`${addressRaw} ${cityForKey}`);
+  console.log("MEMORY_KEY:", memoryKey);
 
+  let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
+
+  try {
+    const mem = await prisma.addressMemory.findUnique({
+      where: { key: memoryKey },
+      select: { lat: true, lng: true, label: true },
+    });
+
+    if (mem?.lat != null && mem?.lng != null) {
+      memoryHit = mem;
+
+      // incrementa contador de uso
+      await prisma.addressMemory.update({
+        where: { key: memoryKey },
+        data: { hitCount: { increment: 1 } },
+      });
+    }
+  } catch (e) {
+    // não quebra o processamento por causa da memória
+    console.warn("AddressMemory lookup failed:", e);
+  }
   // 1) Gemini
   const g = await geminiNormalize({ address: addressRaw, bairro: bairroIn, city: cityIn, cep: cepIn });
 
@@ -827,147 +861,146 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   const cityForDecision = normalized.cidade || cityIn || "";
   const isAparecida = isAparecidaCity(cityForDecision);
 
-  // 3) GEOLOCALIZAÇÃO: ✅ SEMPRE HERE (inclusive Aparecida)
-  let lat: number | null = null;
-  let lng: number | null = null;
+// 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
+  let lat: number | null = memoryHit?.lat ?? null;
+  let lng: number | null = memoryHit?.lng ?? null;
 
-  // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
-  const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
+  // 🔒 variáveis que vão ser usadas mais abaixo (mesmo se pular HERE)
+  let decisionReason: string = memoryHit ? "MEMORY_HIT" : "OK_CONFIDENT";
+  let bestHereScore = memoryHit ? 999 : -999;
 
-  const atByCep = normalized.cep ? await getAtByCep(normalized.cep, normalized.cidade || cityIn) : null;
-  const at = atByCep || atBase;
+  let enriched: any[] = [];
+  let bestArcgisFromTop: any = null;
 
-  const queries = buildHereQueryVariants({
-    rua: normalized.rua,
-    numero: normalized.numero,
-    bairro: normalized.bairro || bairroIn,
-    cidade: normalized.cidade || cityIn,
-    estado: normalized.estado || "GO",
-    cep: normalized.cep || cepIn,
-    original: addressRaw,
-    normalizedLine,
-  });
+  let hereUncertain = false;
 
-  // ✅ NOVO: coleta candidatos de TODAS queries e escolhe o melhor no final
-  const want = {
-    cep: normalized.cep || cepIn,
-    city: normalized.cidade || cityIn,
-    bairro: normalized.bairro || bairroIn,
-    rua: normalized.rua,
-    quadra: normalized.quadra,
-    lote: normalized.lote,
-  };
-
-  const seen = new Map<string, any>();
+  // ✅ Só roda HERE quando NÃO tiver memória
   const scored: Array<{ it: any; score: number; from: string; kind: "geocode" | "discover" }> = [];
 
-  for (const qTry of queries) {
-    const g1 = await hereGeocode(qTry, at);
-    if (Array.isArray(g1.all) && g1.all.length) {
-      for (const it of g1.all) {
-        const key = dedupeKeyForHere(it);
-        if (seen.has(key)) continue;
-        seen.set(key, it);
-        const sc = scoreHereItemSmart(it, want);
-        scored.push({ it, score: sc, from: qTry, kind: "geocode" });
+  if (!memoryHit) {
+    // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
+    const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
+
+    const atByCep = normalized.cep ? await getAtByCep(normalized.cep, normalized.cidade || cityIn) : null;
+    const at = atByCep || atBase;
+
+    const queries = buildHereQueryVariants({
+      rua: normalized.rua,
+      numero: normalized.numero,
+      bairro: normalized.bairro || bairroIn,
+      cidade: normalized.cidade || cityIn,
+      estado: normalized.estado || "GO",
+      cep: normalized.cep || cepIn,
+      original: addressRaw,
+      normalizedLine,
+    });
+
+    const want = {
+      cep: normalized.cep || cepIn,
+      city: normalized.cidade || cityIn,
+      bairro: normalized.bairro || bairroIn,
+      rua: normalized.rua,
+      quadra: normalized.quadra,
+      lote: normalized.lote,
+    };
+
+    const seen = new Map<string, any>();
+
+    // ✅ coleta candidatos de TODAS queries e escolhe o melhor no final
+    for (const qTry of queries) {
+      const g1 = await hereGeocode(qTry, at);
+      if (Array.isArray(g1.all) && g1.all.length) {
+        for (const it of g1.all) {
+          const key = dedupeKeyForHere(it);
+          if (seen.has(key)) continue;
+          seen.set(key, it);
+          const sc = scoreHereItemSmart(it, want);
+          scored.push({ it, score: sc, from: qTry, kind: "geocode" });
+        }
+      }
+
+      const d1 = await hereDiscover(qTry, at);
+      if (Array.isArray(d1.all) && d1.all.length) {
+        for (const it of d1.all) {
+          const key = dedupeKeyForHere(it);
+          if (seen.has(key)) continue;
+          seen.set(key, it);
+          const sc = scoreHereItemSmart(it, want);
+          scored.push({ it, score: sc, from: qTry, kind: "discover" });
+        }
       }
     }
 
-    const d1 = await hereDiscover(qTry, at);
-    if (Array.isArray(d1.all) && d1.all.length) {
-      for (const it of d1.all) {
-        const key = dedupeKeyForHere(it);
-        if (seen.has(key)) continue;
-        seen.set(key, it);
-        const sc = scoreHereItemSmart(it, want);
-        scored.push({ it, score: sc, from: qTry, kind: "discover" });
+    scored.sort((a, b) => b.score - a.score);
+
+    // melhor candidato inicial (HERE puro)
+    let bestItem = scored[0]?.it || null;
+    bestHereScore = scored[0]?.score ?? -999;
+
+    // ✅ Aparecida: re-rank TOP 3 do HERE usando ArcGIS
+    if (isAparecida && scored.length) {
+      const topK = 3;
+      const top = scored.slice(0, topK);
+
+      const wantArc = {
+        quadra: normalized.quadra,
+        lote: normalized.lote,
+        bairro: normalized.bairro || bairroIn,
+      };
+
+      enriched = await Promise.all(
+        top.map(async (x) => {
+          const pos = x.it?.position;
+          if (!pos?.lat || !pos?.lng) {
+            return { ...x, arc: null, arcScore: -999, total: x.score - 999 };
+          }
+
+          const arc = await getAparecidaLotFromArcgis(baseOrigin, pos.lat, pos.lng);
+          const arcScore = scoreArcgisLotMatch(arc, wantArc);
+
+          return { ...x, arc, arcScore, total: x.score + arcScore };
+        }),
+      );
+
+      enriched.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+
+      if (enriched[0]?.it) {
+        bestItem = enriched[0].it;
+        bestArcgisFromTop = enriched[0].arc || null;
+        bestHereScore = enriched[0].score ?? bestHereScore;
       }
     }
+
+    // coordenada final SEMPRE do bestItem
+    lat = bestItem?.position?.lat ?? null;
+    lng = bestItem?.position?.lng ?? null;
+
+    const MIN_SCORE = 90;
+    if (bestHereScore < MIN_SCORE) {
+      lat = null;
+      lng = null;
+      decisionReason = "LOW_SCORE";
+    }
+
+    // mede “espalhamento” dos melhores candidatos
+    const topN = 3;
+
+    const spreadSource =
+      isAparecida && Array.isArray(enriched) && enriched.length ? enriched : scored;
+
+    const pts = spreadSource
+      .slice(0, topN)
+      .map((x: any) => x?.it?.position)
+      .filter(
+        (p: any): p is { lat: number; lng: number } =>
+          p && typeof p.lat === "number" && typeof p.lng === "number",
+      );
+
+    const hereSpreadMeters = pts.length >= 2 ? maxPairDistanceMeters(pts) : 0;
+    hereUncertain = hereSpreadMeters > 250;
   }
 
-scored.sort((a, b) => b.score - a.score);
-// 🔒 variáveis precisam existir no escopo inteiro
-let enriched: any[] = [];
-let bestArcgisFromTop: any = null;
-
-// melhor candidato inicial (HERE puro)
-let bestItem = scored[0]?.it || null;
-let bestHereScore = scored[0]?.score ?? -999;
-
-// ✅ PASSO 3 — Aparecida: re-rank TOP 3 do HERE usando ArcGIS
-if (isAparecida && scored.length) {
-  const topK = 3;
-  const top = scored.slice(0, topK);
-
-  const wantArc = {
-    quadra: normalized.quadra,
-    lote: normalized.lote,
-    bairro: normalized.bairro || bairroIn,
-  };
-
-  enriched = await Promise.all(
-    top.map(async (x) => {
-      const pos = x.it?.position;
-      if (!pos?.lat || !pos?.lng) {
-        return { ...x, arc: null, arcScore: -999, total: x.score - 999 };
-      }
-
-      const arc = await getAparecidaLotFromArcgis(baseOrigin, pos.lat, pos.lng);
-      const arcScore = scoreArcgisLotMatch(arc, wantArc);
-
-      return { ...x, arc, arcScore, total: x.score + arcScore };
-    }),
-  );
-
-  enriched.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
-
-  if (enriched[0]?.it) {
-    bestItem = enriched[0].it;
-    bestArcgisFromTop = enriched[0].arc || null;
-    bestHereScore = enriched[0].score ?? bestHereScore;
-  }
-}
-
-// coordenada final SEMPRE do bestItem
-lat = bestItem?.position?.lat ?? null;
-lng = bestItem?.position?.lng ?? null;
-
-const bestScore = bestHereScore;
-
-let decisionReason: string = "OK_CONFIDENT";
-
-const MIN_SCORE = 90;
-
-if (bestScore < MIN_SCORE) {
-  lat = null;
-  lng = null;
-  decisionReason = "LOW_SCORE";
-}
-
-// ✅ PASSO 2.5: mede “espalhamento” dos melhores candidatos
-// Se estiver muito espalhado, HERE não entendeu bem → vira PARCIAL
-const topN = 3;
-
-// 🔒 enriched SEMPRE existe (array), mesmo vazio
-const spreadSource =
-  isAparecida && Array.isArray(enriched) && enriched.length
-    ? enriched
-    : scored;
-
-const pts = spreadSource
-  .slice(0, topN)
-  .map((x: any) => x?.it?.position)
-  .filter(
-    (p: any): p is { lat: number; lng: number } =>
-      p &&
-      typeof p.lat === "number" &&
-      typeof p.lng === "number"
-  );
-
-const hereSpreadMeters =
-  pts.length >= 2 ? maxPairDistanceMeters(pts) : 0;
-
-const hereUncertain = hereSpreadMeters > 250; // ajuste aqui (250m)
+  const bestScore = bestHereScore;
 
  // 4) Aparecida: usa seu mapa real (ArcGIS) pra quadra/lote/bairro (só se tiver lat/lng)
 let quadraAuto = normalized.quadra || "";
@@ -1047,7 +1080,29 @@ if (status === "OK") {
     decisionReason = "MISSING_CORE";
   }
 }
-
+// ✅ SALVAR NA MEMÓRIA GLOBAL (se válido)
+if (!memoryHit && lat != null && lng != null && status === "OK") {
+  try {
+    await prisma.addressMemory.upsert({
+      where: { key: memoryKey },
+      update: {
+        lat,
+        lng,
+        label: normalizedLine || addressRaw,
+        updatedAt: new Date(),
+      },
+      create: {
+        key: memoryKey,
+        lat,
+        lng,
+        label: normalizedLine || addressRaw,
+        createdBy: null,
+      },
+    });
+  } catch (e) {
+    console.warn("AddressMemory save failed:", e);
+  }
+}
   return {
     sequence: row?.sequence ?? "",
     bairro: bairroAuto,
