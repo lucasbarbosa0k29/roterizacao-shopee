@@ -593,6 +593,7 @@ useEffect(() => {
     setSelectedIdxs(new Set());
     setIsExportOpen(false);
     setExportDraft([]);
+    setHistoryName(file.name);
 
     try {
       const formData = new FormData();
@@ -745,7 +746,25 @@ if (jobId) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "circuit.csv";
+    // pega nome original do arquivo (prioridade: arquivo atual -> histórico -> fallback)
+const sourceName = (file?.name || historyName || "Planilha").trim();
+
+// remove extensão
+const baseName = sourceName.replace(/\.(xlsx|xls|csv)$/i, "").trim();
+
+// extrai data dd-mm-aaaa em qualquer lugar do nome (não só no começo)
+const dateMatch = baseName.match(/\b\d{2}-\d{2}-\d{4}\b/);
+const extractedDate = dateMatch ? dateMatch[0] : "";
+
+// remove a data do nome (onde estiver) pra sobrar só o nome da pessoa
+const personName = baseName
+  .replace(/\b\d{2}-\d{2}-\d{4}\b/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
+a.download = extractedDate
+  ? `${extractedDate} PlanilhaConfirmada - ${personName || "Planilha"}.csv`
+  : `PlanilhaConfirmada - ${personName || "Planilha"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 

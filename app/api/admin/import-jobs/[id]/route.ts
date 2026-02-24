@@ -16,7 +16,7 @@ async function requireAdmin(req: Request) {
 
 // ✅ Next 15/16: params pode vir como Promise
 async function getIdFromCtx(ctx: any) {
-  const params = await ctx?.params; // <- aqui é o ponto
+  const params = await ctx?.params;
   const id = String(params?.id || "").trim();
   return id;
 }

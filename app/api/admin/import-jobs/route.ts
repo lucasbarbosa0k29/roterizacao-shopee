@@ -15,6 +15,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // ✅ LIMPA AUTOMÁTICO: apaga tudo que tiver mais de 36 horas
+  try {
+    const cutoff = new Date(Date.now() - 36 * 60 * 60 * 1000);
+    await prisma.importJob.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+  } catch (e) {
+    // não quebra a listagem se der erro na limpeza
+    console.warn("ImportJob cleanup failed:", e);
+  }
+
   const jobs = await prisma.importJob.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
