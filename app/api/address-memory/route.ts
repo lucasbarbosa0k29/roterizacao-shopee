@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       select: { id: true, lat: true, lng: true, label: true },
     });
 
-    const THRESHOLD_METERS = 20;
+    const THRESHOLD_METERS = 3;
 
     if (!existing) {
       const saved = await prisma.addressMemory.create({
