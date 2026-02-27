@@ -1580,6 +1580,9 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
    <table className="w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-slate-100 text-slate-700">
        <tr className="border-b border-slate-200">
+         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[140px]">
+    Ação
+  </th>
   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[120px]">
     Status
   </th>
@@ -1600,9 +1603,7 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
     City
   </th>
 
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[140px]">
-    Ação
-  </th>
+ 
 </tr>
       </thead>
 
@@ -1621,6 +1622,7 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
                          <tr
   key={g.id}
   className={
+    
     `border-b border-slate-200 transition-colors
      ${hasReview ? "text-red-700" : ""}
      ${
@@ -1641,40 +1643,8 @@ onClick={() => {
   }}
   title={"Botão direito: Revisão / Limpar Revisão"}
 >
-                            <td className="px-4 py-4 align-top">
-                              <span
-  className={
-    "px-2 py-1 rounded text-xs transition-colors " +
-    (g.status === "CONFIRMADO" || g.status === "OK"
-      ? "bg-green-100 text-green-900 hover:bg-green-200"
-      : g.status === "PARCIAL"
-      ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-      : g.status === "MANUAL"
-      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-      : "bg-red-100 text-red-800 hover:bg-red-200")
-  }
->
-  {g.status}
-</span>
-                            </td>
 
-                            <td className="px-4 py-4 align-top font-medium">{g.sequenceText}</td>
-
-                           <td className="px-4 py-4 align-top whitespace-nowrap overflow-hidden text-ellipsis max-w-[520px]">
-                              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">
-  {g.addressDisplay}
-</span>
-                              {isGrouped && (
-                                <div className="text-xs text-slate-600 mt-1">
-                                  Agrupado ({g.idxs.length})
-                                </div>
-                              )}
-                            </td>
-
-                           <td className="px-4 py-4 align-top">{g.bairro}</td>
-                            <td className="px-4 py-4 align-top">{g.city}</td>
-
-                            <td className="px-4 py-4 align-top">
+<td className="px-4 py-4 align-top">
                               <div className="flex items-center gap-2">
 {!groupMode && (
   <button
@@ -1740,6 +1710,40 @@ onClick={() => {
 )}
                               </div>
                             </td>
+                            <td className="px-4 py-4 align-top">
+                              <span
+  className={
+    "px-2 py-1 rounded text-xs transition-colors " +
+    (g.status === "CONFIRMADO" || g.status === "OK"
+      ? "bg-green-100 text-green-900 hover:bg-green-200"
+      : g.status === "PARCIAL"
+      ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+      : g.status === "MANUAL"
+      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+      : "bg-red-100 text-red-800 hover:bg-red-200")
+  }
+>
+  {g.status}
+</span>
+                            </td>
+
+                            <td className="px-4 py-4 align-top font-medium">{g.sequenceText}</td>
+
+                           <td className="px-4 py-4 align-top whitespace-nowrap overflow-hidden text-ellipsis max-w-[520px]">
+                              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">
+  {g.addressDisplay}
+</span>
+                              {isGrouped && (
+                                <div className="text-xs text-slate-600 mt-1">
+                                  Agrupado ({g.idxs.length})
+                                </div>
+                              )}
+                            </td>
+
+                           <td className="px-4 py-4 align-top">{g.bairro}</td>
+                            <td className="px-4 py-4 align-top">{g.city}</td>
+
+                            
                           </tr>
                         );
                       })}
