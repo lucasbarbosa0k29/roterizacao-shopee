@@ -980,15 +980,16 @@ async function confirmManualModal() {
 
 const rowCity = String(row?.city || "").trim();
 
-// ✅ só busca quadra/lote se for Aparecida
+// ✅ dispara em segundo plano, sem travar o confirmar
 if (isAparecidaCity(rowCity)) {
-  await fetchQuadraLote(coord.lat, coord.lng);
+  fetchQuadraLote(coord.lat, coord.lng).catch(() => {});
 }
 
-await reverseGeocodeServer(coord.lat, coord.lng);
-    // ✅ Se a linha faz parte de um grupo (auto ou manual), aplica para o grupo inteiro
-    const group =
-      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(modalIdx)) || null;
+reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
+
+// ✅ Se a linha faz parte de um grupo...
+const group =
+  groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(modalIdx)) || null;
     const idxsToApply = group?.idxs?.length ? group.idxs : [modalIdx];
 
     // 1) Atualiza estado local (linha + manualEdits) para TODOS do grupo
@@ -1451,10 +1452,11 @@ if (!H) return;
 
       const initial = pinLatLng ? { lat: pinLatLng.lat, lng: pinLatLng.lng } : { lat: -16.8233, lng: -49.2439 };
 
-      const map = new H.Map(mapRef.current, layers.vector.normal.map, {
-        zoom: pinLatLng ? 17 : 16,
-        center: initial,
-      });
+     const map = new H.Map(mapRef.current, layers.vector.normal.map, {
+  zoom: pinLatLng ? 17 : 16,
+  center: initial,
+  pixelRatio: 1,
+});
 
       const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
 
@@ -1463,11 +1465,15 @@ ui.removeControl("mapsettings"); // <- remove o menu que costuma buggar
 ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
 
       hereMap.current = map;
-
+map.getViewModel().addEventListener("sync", () => {
+  map.getViewPort().resize();
+});
 
       // ✅ força o HERE Map calcular tamanho real (ESSENCIAL em modal)
       setTimeout(() => map.getViewPort().resize(), 50);
-      setTimeout(() => map.getViewPort().resize(), 150);
+setTimeout(() => map.getViewPort().resize(), 150);
+setTimeout(() => map.getViewPort().resize(), 400);
+setTimeout(() => map.getViewPort().resize(), 800);
 
   
 
