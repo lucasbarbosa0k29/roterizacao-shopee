@@ -306,6 +306,8 @@ useEffect(() => {
   const hereMap = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const searchRef = useRef<any>(null);
+  const reverseCacheRef = useRef<Map<string, any>>(new Map());
+  const quadraCacheRef = useRef<Map<string, any>>(new Map());
 
   // ===== overlay quadra/lote (polígonos) =====
 
@@ -342,6 +344,9 @@ useEffect(() => {
   const suggestAbortRef = useRef<AbortController | null>(null);
   const suggestTimerRef = useRef<any>(null);
   const searchBoxWrapRef = useRef<HTMLDivElement | null>(null);
+
+  // ✅ cache local pra não repetir busca HERE do mesmo texto
+  const geocodeCacheRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
     function onDown() {
@@ -969,10 +974,18 @@ async function confirmManualModal() {
           : null;
 
     if (!coord) {
-      alert("Selecione uma coordenada válida no mapa.");
-      return;
-    }
+  alert("Selecione uma coordenada válida no mapa.");
+  return;
+}
 
+const rowCity = String(row?.city || "").trim();
+
+// ✅ só busca quadra/lote se for Aparecida
+if (isAparecidaCity(rowCity)) {
+  await fetchQuadraLote(coord.lat, coord.lng);
+}
+
+await reverseGeocodeServer(coord.lat, coord.lng);
     // ✅ Se a linha faz parte de um grupo (auto ou manual), aplica para o grupo inteiro
     const group =
       groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(modalIdx)) || null;
@@ -1064,32 +1077,94 @@ setModalIdx(null);
   }
 
   async function reverseGeocodeServer(lat: number, lng: number) {
-    if (abortReverseRef.current) abortReverseRef.current.abort();
-    const ac = new AbortController();
-    abortReverseRef.current = ac;
+  // ✅ arredonda pra evitar chamadas repetidas em pontos quase iguais
+  const latKey = Number(lat).toFixed(6);
+  const lngKey = Number(lng).toFixed(6);
+  const cacheKey = `${latKey},${lngKey}`;
 
-    const res = await fetch(`/api/reverse?lat=${lat}&lng=${lng}`, { signal: ac.signal }).catch(() => null);
-    if (!res || !res.ok) return;
-    const data = await res.json().catch(() => null);
-    if (!data) return;
-
-    const label = data?.label || data?.address?.label || "";
-    const cepFound = data?.address?.cep || data?.address?.postalCode || "";
+  // ✅ usa cache se já buscou esse ponto
+  const cached = reverseCacheRef.current.get(cacheKey);
+  if (cached) {
+    const label = cached?.label || cached?.address?.label || "";
+    const cepFound = cached?.address?.cep || cached?.address?.postalCode || "";
 
     setPickedLabel(label);
     setPickedCep(cepFound);
     if (!modalCep && cepFound) setModalCep(cepFound);
+    return;
   }
 
+  if (abortReverseRef.current) abortReverseRef.current.abort();
+  const ac = new AbortController();
+  abortReverseRef.current = ac;
+
+  const res = await fetch(`/api/reverse?lat=${lat}&lng=${lng}`, {
+    signal: ac.signal,
+  }).catch(() => null);
+
+  if (!res || !res.ok) return;
+
+  const data = await res.json().catch(() => null);
+  if (!data) return;
+
+  // ✅ salva no cache
+  reverseCacheRef.current.set(cacheKey, data);
+
+  const label = data?.label || data?.address?.label || "";
+  const cepFound = data?.address?.cep || data?.address?.postalCode || "";
+
+  setPickedLabel(label);
+  setPickedCep(cepFound);
+  if (!modalCep && cepFound) setModalCep(cepFound);
+}
+
   async function fetchQuadraLote(lat: number, lng: number) {
+  try {
+    // ✅ arredonda pra evitar chamadas repetidas
+    const latKey = Number(lat).toFixed(5);
+    const lngKey = Number(lng).toFixed(5);
+    const cacheKey = `${latKey},${lngKey}`;
+
+    // ✅ usa cache se já tiver
+    const cached = quadraCacheRef.current.get(cacheKey);
+    if (cached) {
+      const q = String(cached?.quadra || "");
+      const l = String(cached?.lote || "");
+
+      setPickedQuadra(q);
+      setPickedLote(l);
+
+      if (modalIdx !== null) {
+        setManualEdits((prev) => ({
+          ...prev,
+          [modalIdx]: {
+            ...prev[modalIdx],
+            lat: pinLatLng?.lat,
+            lng: pinLatLng?.lng,
+            quadra: q,
+            lote: l,
+          },
+        }));
+      }
+
+      return;
+    }
+
     if (abortLotRef.current) abortLotRef.current.abort();
     const ac = new AbortController();
     abortLotRef.current = ac;
 
-    const res = await fetch(`/api/aparecida/lot?lat=${lat}&lng=${lng}`, { signal: ac.signal }).catch(() => null);
+    const res = await fetch(`/api/aparecida/lote?lat=${lat}&lng=${lng}`, {
+      signal: ac.signal,
+    });
+
     if (!res || !res.ok) return;
+
     const data = await res.json().catch(() => null);
     if (!data) return;
+
+    // ✅ salva no cache
+    quadraCacheRef.current.set(cacheKey, data);
 
     const q = String(data?.quadra || "");
     const l = String(data?.lote || "");
@@ -1109,7 +1184,10 @@ setModalIdx(null);
         },
       }));
     }
+  } catch (err) {
+    console.error("Erro ao buscar quadra/lote", err);
   }
+}
 
   // ===== overlay helpers =====
   function rectVal(r: any, fn: string, prop: string) {
@@ -1163,9 +1241,9 @@ setModalIdx(null);
 
 
     function runHereSearch(forceQ?: string) {
-     const H = typeof window !== "undefined" ? (window as any).H : null;
-if (!H) return;
-      if (!H || !searchRef.current || !hereMap.current) return;
+      const H = typeof window !== "undefined" ? (window as any).H : null;
+      if (!H) return;
+      if (!searchRef.current || !hereMap.current) return;
 
       const idx = modalIdx ?? 0;
       const city = String(rows?.[idx]?.city || "Goiânia");
@@ -1173,16 +1251,45 @@ if (!H) return;
       const cep = String(modalCep || "").trim();
 
       let q = (forceQ ?? modalValue).trim();
+      if (!q) return;
+
       if (cep && !q.includes(cep)) q = `${q}, ${cep}`;
       if (bairro && !q.toLowerCase().includes(bairro.toLowerCase())) q = `${q}, ${bairro}`;
       if (city && !q.toLowerCase().includes(city.toLowerCase())) q = `${q}, ${city}, GO`;
 
       const at = pinLatLng ? `${pinLatLng.lat},${pinLatLng.lng}` : "-16.8233,-49.2439";
+
+      // ✅ chave do cache
+      const cacheKey = `${q}__${at}`.toUpperCase();
+
+      // ✅ usa cache se já buscou isso antes
+      const cached = geocodeCacheRef.current.get(cacheKey);
+      if (cached?.position) {
+        const pos = cached.position;
+
+        setPinLatLng({ lat: pos.lat, lng: pos.lng });
+        hereMap.current.setCenter(pos);
+        hereMap.current.setZoom(17);
+        if (markerRef.current) markerRef.current.setGeometry(pos);
+
+        const label = cached?.address?.label || cached?.title || "";
+        const cepFound = cached?.address?.postalCode || "";
+        setPickedLabel(label);
+        setPickedCep(cepFound);
+        if (!modalCep && cepFound) setModalCep(cepFound);
+
+      //  fetchQuadraLote(pos.lat, pos.lng);
+        return;
+      }
+
       searchRef.current.geocode(
         { q, at, lang: "pt-BR" },
         async (res: any) => {
           const item = res?.items?.[0];
           if (!item?.position) return;
+
+          // ✅ salva no cache
+          geocodeCacheRef.current.set(cacheKey, item);
 
           const pos = item.position;
 
@@ -1190,122 +1297,134 @@ if (!H) return;
           hereMap.current.setCenter(pos);
           hereMap.current.setZoom(17);
           if (markerRef.current) markerRef.current.setGeometry(pos);
+
           const label = item?.address?.label || item?.title || "";
           const cepFound = item?.address?.postalCode || "";
           setPickedLabel(label);
           setPickedCep(cepFound);
           if (!modalCep && cepFound) setModalCep(cepFound);
 
-          fetchQuadraLote(pos.lat, pos.lng);
+         // fetchQuadraLote(pos.lat, pos.lng);
         },
-        () => { }
+        () => {}
       );
     }
 
-    async function fetchSuggest(qRaw: string) {
-      const apiKey = (process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
-      if (!apiKey) return;
+  async function fetchSuggest(qRaw: string) {
+  const apiKey = (process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
+  if (!apiKey) return;
 
-      if (qRaw.trim().length < 2) {
-        setSuggestItems([]);
-        setSuggestActive(-1);
-        return;
-      }
+  const qTrim = qRaw.trim();
 
-      if (suggestAbortRef.current) suggestAbortRef.current.abort();
-      const ac = new AbortController();
-      suggestAbortRef.current = ac;
+  // 🔒 bloqueia busca curta
+  if (qTrim.length < 4) {
+    setSuggestItems([]);
+    setSuggestActive(-1);
+    return;
+  }
 
-      try {
-        setSuggestLoading(true);
+  if (suggestAbortRef.current) suggestAbortRef.current.abort();
+  const ac = new AbortController();
+  suggestAbortRef.current = ac;
 
-        const idx = modalIdx ?? 0;
-        const city = String(rows?.[idx]?.city || "Goiânia");
-        const bairro = String(rows?.[idx]?.bairro || "");
+  try {
+    setSuggestLoading(true);
 
-        let q = qRaw.trim();
+    const idx = modalIdx ?? 0;
 
-        const at =
-          pinLatLng
-            ? `${pinLatLng.lat},${pinLatLng.lng}`
-            : rows?.[idx]?.lat && rows?.[idx]?.lng
-              ? `${rows[idx].lat},${rows[idx].lng}`
-              : "-16.8233,-49.2439";
+    const at =
+      pinLatLng
+        ? `${pinLatLng.lat},${pinLatLng.lng}`
+        : rows?.[idx]?.lat && rows?.[idx]?.lng
+        ? `${rows[idx].lat},${rows[idx].lng}`
+        : "-16.8233,-49.2439";
 
-        const url = new URL("https://autosuggest.search.hereapi.com/v1/autosuggest");
-        url.searchParams.set("q", q);
-        url.searchParams.set("at", at);
-        url.searchParams.set("lang", "pt-BR");
-        url.searchParams.set("limit", "6");
-        url.searchParams.set("in", "countryCode:BRA");
-        url.searchParams.set("apiKey", apiKey);
+    const url = new URL("https://autosuggest.search.hereapi.com/v1/autosuggest");
+    url.searchParams.set("q", qTrim);
+    url.searchParams.set("at", at);
+    url.searchParams.set("lang", "pt-BR");
+    url.searchParams.set("limit", "6");
+    url.searchParams.set("in", "countryCode:BRA");
+    url.searchParams.set("apiKey", apiKey);
 
-        const res = await fetch(url.toString(), { signal: ac.signal });
-        if (!res.ok) {
-          const txt = await res.text().catch(() => "");
-          setSuggestItems([]);
-          setSuggestActive(-1);
-          return;
-        }
-        const data = await res.json().catch(() => null);
+    const res = await fetch(url.toString(), { signal: ac.signal });
 
-        const items: HereSuggestItem[] = Array.isArray(data?.items)
-          ? data.items.filter((it: any) => {
-            const rt = String(it?.resultType || "");
-            if (rt === "categoryQuery" || rt === "chainQuery") return false;
-            return Boolean(it?.address?.label || it?.title);
-          })
-          : [];
-
-        setSuggestItems(items);
-        setSuggestActive(items.length ? 0 : -1);
-      } catch {
-        setSuggestItems([]);
-        setSuggestActive(-1);
-      } finally {
-        setSuggestLoading(false);
-      }
-    }
-
-    function scheduleSuggest(q: string) {
-      if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
-      suggestTimerRef.current = setTimeout(() => fetchSuggest(q), 250);
-    }
-
-    function selectSuggestItem(item: HereSuggestItem) {
-      const label = item?.address?.label || item?.title || "";
-      if (!label) return;
-
-      setModalValue(label);
-      setSuggestOpen(false);
+    if (!res.ok) {
       setSuggestItems([]);
       setSuggestActive(-1);
-
-      if (item.position?.lat && item.position?.lng) {
-        const pos = { lat: item.position.lat, lng: item.position.lng };
-        setPinLatLng(pos);
-
-        if (hereMap.current) {
-          hereMap.current.setCenter(pos);
-          hereMap.current.setZoom(17);
-        }
-        if (markerRef.current) markerRef.current.setGeometry(pos);
-
-        const cepFound = item?.address?.postalCode || "";
-        setPickedLabel(label);
-        if (cepFound) {
-          setPickedCep(cepFound);
-          if (!modalCep) setModalCep(cepFound);
-        }
-
-        reverseGeocodeServer(pos.lat, pos.lng);
-        fetchQuadraLote(pos.lat, pos.lng);
-        return;
-      }
-
-      runHereSearch(label);
+      return;
     }
 
+    const data = await res.json().catch(() => null);
+
+    const items: HereSuggestItem[] = Array.isArray(data?.items)
+      ? data.items.filter((it: any) => {
+          const rt = String(it?.resultType || "");
+          if (rt === "categoryQuery" || rt === "chainQuery") return false;
+          return Boolean(it?.address?.label || it?.title);
+        })
+      : [];
+
+    setSuggestItems(items);
+    setSuggestActive(items.length ? 0 : -1);
+  } catch {
+    setSuggestItems([]);
+    setSuggestActive(-1);
+  } finally {
+    setSuggestLoading(false);
+  }
+}
+
+   function scheduleSuggest(q: string) {
+  if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+
+  const qTrim = q.trim();
+
+  // 🔒 NÃO chama API com texto pequeno
+  if (qTrim.length < 4) {
+    setSuggestItems([]);
+    setSuggestActive(-1);
+    return;
+  }
+
+  // ⏳ aumenta tempo pra reduzir chamadas
+  suggestTimerRef.current = setTimeout(() => {
+    fetchSuggest(qTrim);
+  }, 700);
+}
+
+    function selectSuggestItem(item: HereSuggestItem) {
+  const label = item?.address?.label || item?.title || "";
+  if (!label) return;
+
+  setModalValue(label);
+  setSuggestOpen(false);
+  setSuggestItems([]);
+  setSuggestActive(-1);
+
+  if (item.position?.lat && item.position?.lng) {
+    const pos = { lat: item.position.lat, lng: item.position.lng };
+    setPinLatLng(pos);
+
+    if (hereMap.current) {
+      hereMap.current.setCenter(pos);
+      hereMap.current.setZoom(17);
+    }
+    if (markerRef.current) markerRef.current.setGeometry(pos);
+
+    const cepFound = item?.address?.postalCode || "";
+    setPickedLabel(label);
+    if (cepFound) {
+      setPickedCep(cepFound);
+      if (!modalCep) setModalCep(cepFound);
+    }
+
+    // ❌ não chama mais automaticamente aqui
+    return;
+  }
+
+  runHereSearch(label);
+}
     // ===== cria mapa 1 vez =====
     useEffect(() => {
       if (!isModalOpen || !mapRef.current) return;
@@ -1357,47 +1476,39 @@ ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
       markerRef.current = marker;
 
       const onTap = (evt: any) => {
-        try {
-          const now = Date.now();
+  try {
+    const now = Date.now();
 
-          // 🔒 proteção contra evento incompleto
-          const pointer = evt?.currentPointer || evt?.pointer;
-          if (!pointer) return;
+    // 🔒 proteção contra evento incompleto
+    const pointer = evt?.currentPointer || evt?.pointer;
+    if (!pointer) return;
 
-          const geo = map.screenToGeo(pointer.viewportX, pointer.viewportY);
-          if (!geo || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lng)) return;
+    const geo = map.screenToGeo(pointer.viewportX, pointer.viewportY);
+    if (!geo || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lng)) return;
 
-          const last = clickGateRef.current;
-          const dt = now - last.t;
-          const dLat = Math.abs((last.lat || 0) - geo.lat);
-          const dLng = Math.abs((last.lng || 0) - geo.lng);
-          if (dt < 500 && dLat < 0.00001 && dLng < 0.00001) return;
+    const last = clickGateRef.current;
+    const dt = now - last.t;
+    const dLat = Math.abs((last.lat || 0) - geo.lat);
+    const dLng = Math.abs((last.lng || 0) - geo.lng);
+    if (dt < 500 && dLat < 0.00001 && dLng < 0.00001) return;
 
-          clickGateRef.current = { t: now, lat: geo.lat, lng: geo.lng };
+    clickGateRef.current = { t: now, lat: geo.lat, lng: geo.lng };
 
-          marker.setGeometry(geo);
-          setPinLatLng({ lat: geo.lat, lng: geo.lng });
+    marker.setGeometry(geo);
+    setPinLatLng({ lat: geo.lat, lng: geo.lng });
 
-          setSuggestOpen(false);
-          setSuggestItems([]);
-          setSuggestActive(-1);
+    setSuggestOpen(false);
+    setSuggestItems([]);
+    setSuggestActive(-1);
 
-                    // ✅ marca que o pin veio do clique (evita setCenter em cascata)
-          pinFromTapRef.current = true;
+    // ✅ marca que o pin veio do clique (evita setCenter em cascata)
+    pinFromTapRef.current = true;
 
-
-
-          // ✅ debounce dos fetch (reverse + quadra/lote) para evitar “telar”
-          if (clickFetchDebounceRef.current) clearTimeout(clickFetchDebounceRef.current);
-          clickFetchDebounceRef.current = setTimeout(() => {
-            reverseGeocodeServer(geo.lat, geo.lng);
-            fetchQuadraLote(geo.lat, geo.lng);
-          }, 220);
-
-        } catch (err) {
-          console.log("[HERE TAP] erro ignorado:", err);
-        }
-      };
+    // ❌ não chama mais reverse/quadra-lote ao clicar no mapa
+  } catch (err) {
+    console.log("[HERE TAP] erro ignorado:", err);
+  }
+};
 
       map.addEventListener("tap", onTap);
       setTimeout(() => map.getViewPort().resize(), 80);
@@ -2023,7 +2134,6 @@ onClick={() => {
             onPick={({ lat, lng }) => {
               setPinLatLng({ lat, lng });
               setPickedLabel("");
-              buscarQuadraLote(lat, lng);
             }}
           />
         ) : (
