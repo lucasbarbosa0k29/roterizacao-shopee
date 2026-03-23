@@ -1034,38 +1034,61 @@ try {
       .trim();
   }
 
-  function save(address: string, city: string) {
+  async function save(address: string, city: string) {
     const key = `${address}||${city}`.toUpperCase();
     if (seen.has(key)) return;
     seen.add(key);
 
-    return fetch("/api/address-memory", {
+    const response = await fetch("/api/address-memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
       body: JSON.stringify({
         address,
         city,
-       lat: coord!.lat,
-lng: coord!.lng,
+        lat: coord!.lat,
+        lng: coord!.lng,
         createdBy: null,
       }),
-    }).catch(() => null);
+    });
+
+    if (!response.ok) {
+      let errorText = "";
+      try {
+        errorText = await response.text();
+      } catch {}
+
+      console.error("Falha ao salvar AddressMemory", {
+        address,
+        city,
+        status: response.status,
+        body: errorText,
+      });
+    }
+
+    return response;
   }
 
   const tasks: Array<Promise<any> | undefined> = [];
+  let firstPrimarySave: Promise<any> | undefined;
 
   for (const r of snapshot) {
     const full = String(r.original || "").trim();
     const city = String(r.city || "").trim();
     if (!full) continue;
 
-    tasks.push(save(full, city));
+    const primaryTask = save(full, city);
+    tasks.push(primaryTask);
+    if (!firstPrimarySave) firstPrimarySave = primaryTask;
 
     const base = makeBaseAddress(full);
     if (base && base.length >= 6 && base.toUpperCase() !== full.toUpperCase()) {
       tasks.push(save(base, city));
     }
+  }
+
+  if (firstPrimarySave) {
+    await firstPrimarySave;
   }
 
   void Promise.allSettled(tasks.filter(Boolean) as Promise<any>[]);
