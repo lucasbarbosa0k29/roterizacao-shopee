@@ -258,6 +258,7 @@ if (!rows || rows.length === 0) return;
     y: 0,
     groupId: null,
   });
+  const longPressTimerRef = useRef<any>(null);
 
   // export review modal
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -355,6 +356,13 @@ useEffect(() => {
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
   }, []);
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
 
   // fechar dropdown ao clicar fora
   useEffect(() => {
@@ -1717,7 +1725,159 @@ setTimeout(() => map.getViewPort().resize(), 800);
     </button>
   </div>
 </div>
-             <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-3 md:mt-4">
+             <div className="md:hidden mt-3 space-y-3">
+{groupedRows.map((g) => {
+                        const isGrouped = g.idxs.length > 1;
+                        const baseIdx = g.idxs[0];
+                        const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
+                        const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
+
+                        return (
+                          <div
+                            key={g.id}
+                            className={
+                              `rounded-2xl shadow-sm p-3 transition-colors ${
+                                hasReview ? "text-red-700" : ""
+                              } ${
+                                hasReview
+                                  ? "border-red-200 bg-red-50"
+                                  : groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
+                                  ? "bg-slate-200"
+                                  : g.idxs.some((i) => manualEdits[i]?.confirmed)
+                                  ? "bg-green-100"
+                                  : "border-slate-200 bg-white"
+                              }`
+                            }
+                            onClick={() => {
+                              if (!groupMode) return;
+                              toggleSelectMany(idxsToToggle);
+                            }}
+                            onTouchStart={(e) => {
+                              if (groupMode) return;
+                              clearLongPressTimer();
+                              const touch = e.touches[0];
+                              if (!touch) return;
+
+                              longPressTimerRef.current = setTimeout(() => {
+                                setCtx({
+                                  open: true,
+                                  x: touch.clientX,
+                                  y: touch.clientY,
+                                  groupId: g.id,
+                                });
+                              }, 500);
+                            }}
+                            onTouchEnd={() => {
+                              clearLongPressTimer();
+                            }}
+                            onTouchMove={() => {
+                              clearLongPressTimer();
+                            }}
+                            onTouchCancel={() => {
+                              clearLongPressTimer();
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={
+                                      "px-2 py-1 rounded text-xs transition-colors " +
+                                      (g.status === "CONFIRMADO" || g.status === "OK"
+                                        ? "bg-green-100 text-green-900 hover:bg-green-200"
+                                        : g.status === "PARCIAL"
+                                        ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                                        : g.status === "MANUAL"
+                                        ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+                                        : "bg-red-100 text-red-800 hover:bg-red-200")
+                                    }
+                                  >
+                                    {g.status}
+                                  </span>
+
+                                  <span className="text-sm font-semibold text-slate-900">
+                                    Seq: {g.sequenceText}
+                                  </span>
+                                </div>
+
+                                {isGrouped && (
+                                  <div className="text-xs text-slate-600 mt-2">
+                                    Agrupado ({g.idxs.length})
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {!groupMode && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openManualModalForIdx(baseIdx);
+                                    }}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    title="Mapa / Correção"
+                                  >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                      <path d="M12 21s-7.5-2.7-7.5-11a7.5 7.5 0 1 1 15 0c0 8.3-7.5 11-7.5 11z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                                      <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
+                                    </svg>
+                                  </button>
+                                )}
+
+                                {!groupMode && !isGrouped && (
+                                  <button
+                                    type="button"
+                                    onClick={() => enterGroupModeWithFirst(baseIdx)}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    title="Agrupar manualmente"
+                                  >
+                                    +
+                                  </button>
+                                )}
+
+                                {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_")) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!groupMode) setGroupMode(true);
+                                      setMergeTargetGroupId(g.id);
+                                      setSelectedIdxs(new Set(g.idxs));
+                                    }}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    title="Adicionar mais linhas neste grupo"
+                                  >
+                                    <span className="text-xl leading-none font-medium">+</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 text-sm text-slate-900 break-words">
+                              {g.addressDisplay}
+                            </div>
+
+                            {groupMode && (
+                              <label
+                                className="mt-3 text-xs flex items-center gap-2 select-none cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={idxsToToggle.every((i) => selectedIdxs.has(i))}
+                                  onChange={() => toggleSelectMany(idxsToToggle)}
+                                  className="accent-red-600 cursor-pointer"
+                                />
+                                Selecionar
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })}
+            </div>
+
+             <div className="hidden md:block w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-3 md:mt-4">
   <div className="w-full overflow-x-auto">
    <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-slate-100 text-slate-700">
@@ -1892,7 +2052,10 @@ onClick={() => {
                     </tbody>
                   </table>
 
-                 {groupMode && (
+                </div>
+              </div>
+
+              {groupMode && (
   <div className="fixed bottom-3 left-3 right-3 md:bottom-5 md:left-[260px] md:right-6 z-[9999]">
     <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white/90 backdrop-blur shadow-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="text-sm text-slate-700">
@@ -1919,8 +2082,6 @@ onClick={() => {
     </div>
   </div>
 )}
-                </div>
-              </div>
 
               {/* Context menu */}
 {ctx.open && ctx.groupId && (
@@ -1962,8 +2123,8 @@ onClick={() => {
 )}
               {/* Export review modal */}
               {isExportOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                  <div className="w-full max-w-6xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 md:p-4">
+                  <div className="w-full max-w-6xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200 max-h-[95vh] md:max-h-[90vh] flex flex-col">
                     {/* Header */}
                     <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
                       <div className="flex items-start gap-3">
@@ -2030,9 +2191,43 @@ onClick={() => {
                     </div>
 
                     {/* Table */}
-                    <div className="px-6 pt-4 pb-2">
+                    <div className="px-3 md:px-6 pt-4 pb-0 flex-1 min-h-0 overflow-y-auto">
+                      <div className="md:hidden space-y-3 pb-4">
+                        {exportDraft.map((r, idx) => {
+                          return (
+                            <div
+                              key={r.groupId ?? idx}
+                              className={
+                                "rounded-xl border border-slate-200 p-3 bg-white " +
+                                (manualEdits[r.baseIdx]?.review ? "text-red-600" : "")
+                              }
+                            >
+                              <div>
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                                  Observações
+                                </div>
+                                <textarea
+                                  value={r.complemento || ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setExportDraft((prev) => {
+                                      const next = [...prev];
+                                      next[idx] = { ...next[idx], complemento: v };
+                                      return next;
+                                    });
+                                  }}
+                                  rows={4}
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-300 break-words"
+                                  placeholder="Observações (endereço original, referência, casa/apto...)"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
                       <div
-                        className="overflow-auto rounded-xl border border-slate-200"
+                        className="hidden md:block overflow-auto rounded-xl border border-slate-200"
                         style={{ maxHeight: "60vh" }}
                       >
                         <table className="min-w-full text-sm">
@@ -2083,9 +2278,11 @@ onClick={() => {
                           </tbody>
                         </table>
                       </div>
+                    </div>
 
-                      {/* Footer */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 gap-3">
+                    {/* Footer */}
+                    <div className="sticky bottom-0 border-t bg-white px-3 md:px-6 py-3 md:py-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="text-sm text-slate-600">
                           Total de <b>{exportDraft.length}</b> pontos agrupados
                         </div>
