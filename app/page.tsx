@@ -979,13 +979,21 @@ async function confirmManualModal() {
 }
 
 const rowCity = String(row?.city || "").trim();
+const sameCoordAsRow =
+  typeof row?.lat === "number" &&
+  typeof row?.lng === "number" &&
+  Number(row.lat).toFixed(6) === Number(coord.lat).toFixed(6) &&
+  Number(row.lng).toFixed(6) === Number(coord.lng).toFixed(6);
+const hasPickedLabel = !!String(pickedLabel || "").trim();
 
 // ✅ dispara em segundo plano, sem travar o confirmar
 if (isAparecidaCity(rowCity)) {
   fetchQuadraLote(coord.lat, coord.lng).catch(() => {});
 }
 
-reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
+if (!hasPickedLabel && !sameCoordAsRow) {
+  reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
+}
 
 // ✅ Se a linha faz parte de um grupo...
 const group =

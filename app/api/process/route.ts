@@ -67,9 +67,23 @@ function hasQuadraLoteText(s: string) {
   return /\b(QD|QUADRA|Q\.)\b/.test(up) || /\b(LT|LOTE|L\.)\b/.test(up);
 }
 
+function makeBaseAddress(address: string) {
+  return String(address || "")
+    .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(TORRE)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(EDIFICIO|EDIF[IÍ]CIO|EDIF\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+    .replace(/\b(CONDOMINIO|CONDOM[IÍ]NIO|COND\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+    .replace(/\b(RESIDENCIAL|RES\.)\b\s*[-:]?\s*[^,]+/gi, " ")
+    .replace(/\s+,/g, ",")
+    .replace(/,+/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function isApartmentLike(s: string) {
   const up = String(s || "").toUpperCase();
-  return /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|EDIF|EDIFICIO|ANDAR|SALA)\b/.test(up);
+  return /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|EDIF|EDIFICIO|EDIFÍCIO|CONDOMINIO|CONDOMÍNIO|RESIDENCIAL|ANDAR|SALA)\b/.test(up);
 }
 
 // Fallback regex (quando Gemini falha)
@@ -707,17 +721,17 @@ function buildHereQueryVariants(args: {
   // ✅ limita (pra não ficar MUITO lento)
   const variants = [
     ruaCep,
-    ...ruaVariantsCep,
     fullNoQdLt,
     ruaCity,
-    ...ruaVariantsCity,
+    ruaVariantsCep[0] || "",
+    ruaVariantsCity[0] || "",
     full,
     originalClean,
   ]
     .map((x) => x.trim())
     .filter(Boolean);
 
-  return Array.from(new Set(variants)).slice(0, 8);
+  return Array.from(new Set(variants)).slice(0, 3);
 }
 
 // ===== chama seu /api/aparecida/lot (mapa real) =====
@@ -767,23 +781,40 @@ async function processOne(row: InputRow, baseOrigin: string) {
   // ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva (ANTES do CONDOMINIO)
   const cityForKey = (cityIn || "").trim();
   const memoryKey = normalizeKey(`${addressRaw} ${cityForKey}`);
+  const baseAddressRaw = makeBaseAddress(addressRaw);
+  const memoryBaseKey =
+    baseAddressRaw &&
+    normalizeKey(baseAddressRaw) !== normalizeKey(addressRaw)
+      ? normalizeKey(`${baseAddressRaw} ${cityForKey}`)
+      : null;
 
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
+  let memoryHitKind: null | "exact" | "base" = null;
 
   try {
-    const mem = await prisma.addressMemory.findUnique({
-      where: { key: memoryKey },
-      select: { lat: true, lng: true, label: true },
-    });
+    const candidates = [
+      { key: memoryKey, kind: "exact" as const },
+      ...(memoryBaseKey ? [{ key: memoryBaseKey, kind: "base" as const }] : []),
+    ];
 
-    if (mem?.lat != null && mem?.lng != null) {
+    for (const candidate of candidates) {
+      const mem = await prisma.addressMemory.findUnique({
+        where: { key: candidate.key },
+        select: { lat: true, lng: true, label: true },
+      });
+
+      if (mem?.lat == null || mem?.lng == null) continue;
+
       memoryHit = mem;
+      memoryHitKind = candidate.kind;
 
       // incrementa contador de uso
       await prisma.addressMemory.update({
-        where: { key: memoryKey },
+        where: { key: candidate.key },
         data: { hitCount: { increment: 1 } },
       });
+
+      break;
     }
   } catch (e) {
     console.warn("AddressMemory lookup failed:", e);
@@ -809,13 +840,19 @@ async function processOne(row: InputRow, baseOrigin: string) {
         lng: memoryHit.lng,
         model: "",
         usedGemini: false,
-        notesAuto: "Condomínio/APTO (usando memória salva)",
+        notesAuto:
+          memoryHitKind === "base"
+            ? "Condomínio/APTO (usando memória base)"
+            : "Condomínio/APTO (usando memória salva)",
         quadraAuto: "",
         loteAuto: "",
         raw: null,
         hereBest: null,
         arcgisLotUsed: null,
-        decisionReason: "MEMORY_HIT_CONDOMINIO",
+        decisionReason:
+          memoryHitKind === "base"
+            ? "MEMORY_HIT_BASE_CONDOMINIO"
+            : "MEMORY_HIT_CONDOMINIO",
       };
     }
 
@@ -943,7 +980,11 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   let lng: number | null = memoryHit?.lng ?? null;
 
   // 🔒 variáveis que vão ser usadas mais abaixo (mesmo se pular HERE)
-  let decisionReason: string = memoryHit ? "MEMORY_HIT" : "OK_CONFIDENT";
+  let decisionReason: string = memoryHit
+    ? memoryHitKind === "base"
+      ? "MEMORY_HIT_BASE"
+      : "MEMORY_HIT"
+    : "OK_CONFIDENT";
   let bestHereScore = memoryHit ? 999 : -999;
 
   let enriched: any[] = [];
@@ -982,28 +1023,50 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     };
 
     const seen = new Map<string, any>();
+    const EARLY_ACCEPT_SCORE = 105;
+    const DISCOVER_FALLBACK_SCORE = 90;
+    let bestGeocodeScoreOverall = -999;
+    let bestGeocodeQuery = queries[0] || "";
+    let acceptedEarly = false;
 
     // ✅ coleta candidatos de TODAS queries e escolhe o melhor no final
     for (const qTry of queries) {
       const g1 = await hereGeocode(qTry, at);
+      let bestGeocodeScoreForQuery = -999;
       if (Array.isArray(g1.all) && g1.all.length) {
         for (const it of g1.all) {
           const key = dedupeKeyForHere(it);
           if (seen.has(key)) continue;
           seen.set(key, it);
           const sc = scoreHereItemSmart(it, want);
+          if (sc > bestGeocodeScoreForQuery) bestGeocodeScoreForQuery = sc;
+          if (sc > bestGeocodeScoreOverall) {
+            bestGeocodeScoreOverall = sc;
+            bestGeocodeQuery = qTry;
+          }
           scored.push({ it, score: sc, from: qTry, kind: "geocode" });
         }
       }
 
-      const d1 = await hereDiscover(qTry, at);
-      if (Array.isArray(d1.all) && d1.all.length) {
-        for (const it of d1.all) {
-          const key = dedupeKeyForHere(it);
-          if (seen.has(key)) continue;
-          seen.set(key, it);
-          const sc = scoreHereItemSmart(it, want);
-          scored.push({ it, score: sc, from: qTry, kind: "discover" });
+      if (bestGeocodeScoreForQuery >= EARLY_ACCEPT_SCORE) {
+        acceptedEarly = true;
+        break;
+      }
+    }
+
+    if (!acceptedEarly && bestGeocodeScoreOverall < DISCOVER_FALLBACK_SCORE) {
+      const discoverQuery = bestGeocodeQuery || queries[0] || "";
+
+      if (discoverQuery) {
+        const d1 = await hereDiscover(discoverQuery, at);
+        if (Array.isArray(d1.all) && d1.all.length) {
+          for (const it of d1.all) {
+            const key = dedupeKeyForHere(it);
+            if (seen.has(key)) continue;
+            seen.set(key, it);
+            const sc = scoreHereItemSmart(it, want);
+            scored.push({ it, score: sc, from: discoverQuery, kind: "discover" });
+          }
         }
       }
     }
@@ -1016,7 +1079,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
     // ✅ Aparecida: re-rank TOP 3 do HERE usando ArcGIS
     if (isAparecida && scored.length) {
-      const topK = 3;
+      const topK = 2;
       const top = scored.slice(0, topK);
 
       const wantArc = {
@@ -1060,7 +1123,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     }
 
     // mede “espalhamento” dos melhores candidatos
-    const topN = 3;
+    const topN = 2;
 
     const spreadSource =
       isAparecida && Array.isArray(enriched) && enriched.length ? enriched : scored;
