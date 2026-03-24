@@ -36,6 +36,11 @@ enum ImportStatus {
   FAILED
 }
 
+enum ApiUsagePeriodType {
+  MONTH
+  DAY
+}
+
 model ImportJob {
   id             String       @id @default(cuid())
 
@@ -96,5 +101,19 @@ model AddressMemory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([createdAt])
+}
+
+model ApiUsageCounter {
+  id         String             @id @default(cuid())
+  service    String
+  periodType ApiUsagePeriodType
+  periodKey  String
+  count      Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([service, periodType, periodKey])
+  @@index([service, periodType, periodKey])
   @@index([createdAt])
 }

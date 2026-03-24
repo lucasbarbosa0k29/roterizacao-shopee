@@ -1,5 +1,10 @@
 // app/api/process/route.ts
 import { NextResponse } from "next/server";
+import {
+  getDiscoverBudgetDecision,
+  reserveDiscoverUsage,
+  shouldAttemptDiscoverFromQuality,
+} from "@/app/lib/here-discover-budget";
 import { prisma } from "@/app/lib/prisma";
 
 
@@ -1024,10 +1029,11 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
     const seen = new Map<string, any>();
     const EARLY_ACCEPT_SCORE = 105;
-    const DISCOVER_FALLBACK_SCORE = 90;
     let bestGeocodeScoreOverall = -999;
     let bestGeocodeQuery = queries[0] || "";
     let acceptedEarly = false;
+    let geocodeItemCount = 0;
+    let geocodeItemsWithCoords = 0;
 
     // ✅ coleta candidatos de TODAS queries e escolhe o melhor no final
     for (const qTry of queries) {
@@ -1035,6 +1041,14 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       let bestGeocodeScoreForQuery = -999;
       if (Array.isArray(g1.all) && g1.all.length) {
         for (const it of g1.all) {
+          geocodeItemCount += 1;
+          if (
+            typeof it?.position?.lat === "number" &&
+            typeof it?.position?.lng === "number"
+          ) {
+            geocodeItemsWithCoords += 1;
+          }
+
           const key = dedupeKeyForHere(it);
           if (seen.has(key)) continue;
           seen.set(key, it);
@@ -1054,18 +1068,39 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       }
     }
 
-    if (!acceptedEarly && bestGeocodeScoreOverall < DISCOVER_FALLBACK_SCORE) {
+    const discoverQualityDecision = shouldAttemptDiscoverFromQuality({
+      geocodeItemCount,
+      geocodeItemsWithCoords,
+      bestGeocodeScoreOverall,
+    });
+
+    if (!acceptedEarly && discoverQualityDecision.allowed) {
       const discoverQuery = bestGeocodeQuery || queries[0] || "";
 
       if (discoverQuery) {
-        const d1 = await hereDiscover(discoverQuery, at);
-        if (Array.isArray(d1.all) && d1.all.length) {
-          for (const it of d1.all) {
-            const key = dedupeKeyForHere(it);
-            if (seen.has(key)) continue;
-            seen.set(key, it);
-            const sc = scoreHereItemSmart(it, want);
-            scored.push({ it, score: sc, from: discoverQuery, kind: "discover" });
+        // 🔥 DISCOVER LAST RESORT ONLY
+        const budgetDecision = await getDiscoverBudgetDecision();
+
+        if (!budgetDecision.allowed) {
+          // 🔥 COST GUARD: Discover blocked by budget
+          console.warn(`[DISCOVER_BLOCKED] ${budgetDecision.reason}`);
+        } else {
+          const reservation = await reserveDiscoverUsage();
+
+          if (!reservation.allowed) {
+            // 🔥 COST GUARD: Discover blocked by budget
+            console.warn(`[DISCOVER_BLOCKED] ${reservation.reason}`);
+          } else {
+            const d1 = await hereDiscover(discoverQuery, at);
+            if (Array.isArray(d1.all) && d1.all.length) {
+              for (const it of d1.all) {
+                const key = dedupeKeyForHere(it);
+                if (seen.has(key)) continue;
+                seen.set(key, it);
+                const sc = scoreHereItemSmart(it, want);
+                scored.push({ it, score: sc, from: discoverQuery, kind: "discover" });
+              }
+            }
           }
         }
       }
