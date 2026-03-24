@@ -1019,6 +1019,8 @@ const group =
       return next;
     });
 
+    closeManualModal();
+
     // 2) ✅ Salva na AddressMemory SEMPRE (mesmo se não mexeu no pino)
 //    - para APT/PRÉDIO: salva também uma "versão base" sem complemento (apto/bloco/etc)
 //    - salva sequencialmente (mais estável no Render)
@@ -1042,12 +1044,12 @@ try {
       .trim();
   }
 
-  async function save(address: string, city: string) {
+  function save(address: string, city: string) {
     const key = `${address}||${city}`.toUpperCase();
     if (seen.has(key)) return;
     seen.add(key);
 
-    const response = await fetch("/api/address-memory", {
+    return fetch("/api/address-memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       keepalive: true,
@@ -1058,28 +1060,28 @@ try {
         lng: coord!.lng,
         createdBy: null,
       }),
-    });
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          let errorText = "";
+          try {
+            errorText = await response.text();
+          } catch {}
 
-    if (!response.ok) {
-      let errorText = "";
-      try {
-        errorText = await response.text();
-      } catch {}
+          console.error("Falha ao salvar AddressMemory", {
+            address,
+            city,
+            status: response.status,
+            body: errorText,
+          });
+        }
 
-      console.error("Falha ao salvar AddressMemory", {
-        address,
-        city,
-        status: response.status,
-        body: errorText,
-      });
-    }
-
-    return response;
+        return response;
+      })
+      .catch(() => {});
   }
 
   const tasks: Array<Promise<any> | undefined> = [];
-  let firstPrimarySave: Promise<any> | undefined;
-
   for (const r of snapshot) {
     const full = String(r.original || "").trim();
     const city = String(r.city || "").trim();
@@ -1087,7 +1089,6 @@ try {
 
     const primaryTask = save(full, city);
     tasks.push(primaryTask);
-    if (!firstPrimarySave) firstPrimarySave = primaryTask;
 
     const base = makeBaseAddress(full);
     if (base && base.length >= 6 && base.toUpperCase() !== full.toUpperCase()) {
@@ -1095,17 +1096,10 @@ try {
     }
   }
 
-  if (firstPrimarySave) {
-    await firstPrimarySave;
-  }
-
   void Promise.allSettled(tasks.filter(Boolean) as Promise<any>[]);
-} catch (e) {
-  console.warn("Falha ao salvar AddressMemory:", e);
+} catch {
+  // silencioso para n??o bloquear a UI
 }
-
-    setIsModalOpen(false);
-setModalIdx(null);
   }
 
   async function reverseGeocodeServer(lat: number, lng: number) {
