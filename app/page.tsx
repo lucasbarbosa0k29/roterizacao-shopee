@@ -1609,10 +1609,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
     if (!mounted) return null;
     return (
       <main className="min-h-screen bg-slate-100">
-        <div className="w-full px-6 py-6">
+        <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
      {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
       <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
         Importação de Dados
       </h1>
@@ -1651,7 +1651,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
           <button
             type="submit"
             disabled={loading}
-            className="h-[84px] md:w-[180px] rounded-2xl bg-blue-600 text-white font-semibold text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
+            className="min-h-[56px] w-full md:w-[180px] rounded-2xl bg-blue-600 text-white font-semibold text-base md:text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? "Processando..." : "Buscar"}
           </button>
@@ -1667,7 +1667,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
   </form>
 )}
           {view === "results" && rows.length > 0 && (
-  <div className="w-full">
+  <div className="w-full px-2 sm:px-0">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
   <div className="text-sm text-slate-600">
     Total: <b className="text-slate-900">{rows.length}</b> • Exibindo:{" "}
@@ -1723,31 +1723,31 @@ setTimeout(() => map.getViewPort().resize(), 800);
     </button>
   </div>
 </div>
-             <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-4">
+             <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-3 md:mt-4">
   <div className="w-full overflow-x-auto">
-   <table className="w-full text-sm text-slate-900 table-fixed">
+   <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-slate-100 text-slate-700">
        <tr className="border-b border-slate-200">
-         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[140px]">
+         <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[88px] md:w-[140px]">
     Ação
   </th>
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[120px]">
+  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[82px] md:w-[120px]">
     Status
   </th>
 
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[120px]">
+  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[82px] md:w-[120px]">
     Sequence
   </th>
 
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide min-w-[360px]">
+  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide min-w-[0] w-auto md:min-w-[360px]">
     Destination Address
   </th>
 
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[200px]">
+  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[200px]">
     Bairro
   </th>
 
-  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[160px]">
+  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[160px]">
     City
   </th>
 
@@ -1792,7 +1792,7 @@ onClick={() => {
   title={"Botão direito: Revisão / Limpar Revisão"}
 >
 
-<td className="px-4 py-4 align-top">
+<td className="px-2 md:px-4 py-3 md:py-4 align-top">
                               <div className="flex items-center gap-2">
 {!groupMode && (
   <button
@@ -1801,7 +1801,7 @@ onClick={() => {
       e.stopPropagation();
       openManualModalForIdx(baseIdx);
     }}
-    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
     title="Mapa / Correção"
   >
     {/* ícone do mapa (o seu svg atual pode ficar aqui dentro) */}
@@ -1816,7 +1816,7 @@ onClick={() => {
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
                                     title="Agrupar manualmente"
                                   >
                                     +
@@ -1850,7 +1850,7 @@ onClick={() => {
   // (seleciona todos do grupo como base)
   setSelectedIdxs(new Set(g.idxs));
 }}
-    className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
     title="Adicionar mais linhas neste grupo"
   >
  <span className="text-xl leading-none font-medium">+</span>
@@ -1858,7 +1858,7 @@ onClick={() => {
 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4 align-top">
+                            <td className="px-2 md:px-4 py-3 md:py-4 align-top">
                               <span
   className={
     "px-2 py-1 rounded text-xs transition-colors " +
@@ -1875,10 +1875,10 @@ onClick={() => {
 </span>
                             </td>
 
-                            <td className="px-4 py-4 align-top font-medium">{g.sequenceText}</td>
+                            <td className="px-2 md:px-4 py-3 md:py-4 align-top font-medium text-sm md:text-base">{g.sequenceText}</td>
 
-                           <td className="px-4 py-4 align-top whitespace-nowrap overflow-hidden text-ellipsis max-w-[520px]">
-                              <span className="block whitespace-nowrap overflow-hidden text-ellipsis">
+                           <td className="px-2 md:px-4 py-3 md:py-4 align-top whitespace-normal md:whitespace-nowrap overflow-hidden text-ellipsis max-w-none md:max-w-[520px] w-full">
+                              <span className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis">
   {g.addressDisplay}
 </span>
                               {isGrouped && (
@@ -1888,8 +1888,8 @@ onClick={() => {
                               )}
                             </td>
 
-                           <td className="px-4 py-4 align-top">{g.bairro}</td>
-                            <td className="px-4 py-4 align-top">{g.city}</td>
+                           <td className="hidden md:table-cell px-4 py-4 align-top">{g.bairro}</td>
+                            <td className="hidden md:table-cell px-4 py-4 align-top">{g.city}</td>
 
                             
                           </tr>
@@ -1899,13 +1899,13 @@ onClick={() => {
                   </table>
 
                  {groupMode && (
-  <div className="fixed bottom-5 left-[260px] right-6 z-[9999]">
-    <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white/90 backdrop-blur shadow-lg px-4 py-3 flex items-center justify-between gap-3">
+  <div className="fixed bottom-3 left-3 right-3 md:bottom-5 md:left-[260px] md:right-6 z-[9999]">
+    <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white/90 backdrop-blur shadow-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="text-sm text-slate-700">
         <b>{selectedIdxs.size}</b> Selecionados
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex w-full sm:w-auto items-center justify-end gap-2">
         <button
           type="button"
           onClick={cancelGroupMode}
@@ -2006,7 +2006,7 @@ onClick={() => {
                           </div>
                         </div>
 
-                        <div className="mt-4 flex gap-3">
+                        <div className="mt-4 flex flex-col sm:flex-row gap-3">
                           <button
                             type="button"
                             className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left opacity-60 cursor-not-allowed"
@@ -2091,12 +2091,12 @@ onClick={() => {
                       </div>
 
                       {/* Footer */}
-                      <div className="flex items-center justify-between mt-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 gap-3">
                         <div className="text-sm text-slate-600">
                           Total de <b>{exportDraft.length}</b> pontos agrupados
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                           <button
                             type="button"
                             onClick={() => setIsExportOpen(false)}
@@ -2129,16 +2129,16 @@ onClick={() => {
 >
     <div className="absolute inset-0 bg-white">
       {/* TOP BAR (igual print) */}
-      <div className="absolute left-0 right-0 top-0 z-20 h-[64px] border-b bg-white/95 backdrop-blur">
-        <div className="h-full px-4 flex items-center justify-between gap-3">
+      <div className="absolute left-0 right-0 top-0 z-20 h-[56px] md:h-[64px] border-b bg-white/95 backdrop-blur">
+        <div className="h-full px-3 md:px-4 flex items-center justify-between gap-2 md:gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
               📍
             </div>
 
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-500">ORIGINAL</div>
-              <div className="text-sm font-semibold text-slate-900 truncate">
+              <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">ORIGINAL</div>
+              <div className="text-xs md:text-sm font-semibold text-slate-900 truncate">
   {modalOriginal}
   {(pickedCep || modalCep) && ` - ${pickedCep || modalCep}`}
 </div>
@@ -2155,7 +2155,7 @@ onClick={() => {
           <button
             type="button"
             onClick={closeManualModal}
-            className="w-10 h-10 rounded-xl border bg-white hover:bg-slate-50"
+            className="w-9 h-9 md:w-10 md:h-10 rounded-xl border bg-white hover:bg-slate-50"
             title="Fechar"
           >
             ✕
@@ -2164,7 +2164,7 @@ onClick={() => {
       </div>
 
       {/* MAPA FULLSCREEN (abaixo da topbar) */}
-    <div className="absolute inset-0 pt-[64px] overflow-hidden arcgis-modal">
+    <div className="absolute inset-0 pt-[56px] md:pt-[64px] overflow-hidden arcgis-modal">
         {useArcgisInModal ? (
           <AparecidaArcgisMap
             center={pinLatLng}
@@ -2179,9 +2179,9 @@ onClick={() => {
       </div>
 
       {/* CARD "BUSCA E CAPTURA" (flutuante igual print) */}
-      <div className="absolute left-4 top-[80px] z-30 w-[420px] max-w-[calc(100vw-32px)]">
-        <div className="rounded-2xl border bg-white/95 backdrop-blur shadow-lg p-3">
-          <div className="text-[11px] font-semibold text-emerald-700 mb-2">
+      <div className="absolute left-2 right-2 top-[60px] md:left-4 md:right-auto md:top-[80px] z-30 w-auto md:w-[420px] md:max-w-[calc(100vw-32px)]">
+        <div className="rounded-xl md:rounded-2xl border bg-white/95 backdrop-blur shadow-lg p-2 md:p-3">
+          <div className="text-[10px] md:text-[11px] font-semibold text-emerald-700 mb-1.5 md:mb-2">
             BUSCA E CAPTURA
           </div>
         
@@ -2236,12 +2236,12 @@ onClick={() => {
                 }
               }}
               placeholder="Buscar ou Lat/Lng..."
-              className="w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full border rounded-lg md:rounded-xl px-3 py-2 text-xs md:text-sm outline-none focus:ring-2 focus:ring-emerald-200"
             />
 
             {/* LISTA DE SUGESTÕES (mantém sua lógica atual) */}
             {suggestOpen && suggestItems.length > 0 && (
-              <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border bg-white shadow-lg">
+              <div className="absolute z-50 mt-1.5 md:mt-2 w-full overflow-hidden rounded-lg md:rounded-xl border bg-white shadow-lg">
                 {suggestItems.map((it, idx) => (
                   <button
                     key={`${it.id ?? idx}`}
@@ -2249,7 +2249,7 @@ onClick={() => {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => selectSuggestItem(it)}
                     className={[
-                      "w-full text-left px-3 py-2 text-sm hover:bg-slate-50",
+                      "w-full text-left px-3 py-2 text-xs md:text-sm hover:bg-slate-50",
                       idx === suggestActive ? "bg-slate-50" : "",
                     ].join(" ")}
                   >
@@ -2260,11 +2260,11 @@ onClick={() => {
             )}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2 md:mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <button
               type="button"
               onClick={() => runHereSearch(modalValue)}
-              className="flex-1 rounded-xl bg-emerald-600 text-white text-sm font-semibold py-2 hover:bg-emerald-700"
+              className="flex-1 rounded-lg md:rounded-xl bg-emerald-600 text-white text-xs md:text-sm font-semibold py-2 hover:bg-emerald-700"
             >
               Buscar
             </button>
@@ -2272,7 +2272,7 @@ onClick={() => {
             <button
               type="button"
               onClick={confirmManualModal}
-              className="flex-1 rounded-xl bg-emerald-600 text-white text-sm font-semibold py-2 hover:bg-emerald-700 flex items-center justify-center gap-2"
+              className="flex-1 rounded-lg md:rounded-xl bg-emerald-600 text-white text-xs md:text-sm font-semibold py-2 hover:bg-emerald-700 flex items-center justify-center gap-2"
               title="Confirmar"
             >
               CONFIRMAR <span>✓</span>
@@ -2280,7 +2280,7 @@ onClick={() => {
           </div>
 
           {/* “GPS CAPTURADO” (mantém seus dados atuais) */}
-          <div className="mt-3 rounded-xl border bg-white px-3 py-2 text-xs text-slate-700 flex items-center justify-between gap-2">
+          <div className="mt-2 rounded-lg md:rounded-xl border bg-white px-2.5 md:px-3 py-2 text-[10px] md:text-xs text-slate-700 flex items-center justify-between gap-2">
             <div className="truncate">
               <span className="font-semibold">GPS:</span>{" "}
               {pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "-"}
@@ -2298,7 +2298,7 @@ onClick={() => {
                     : "";
                 if (txt) navigator.clipboard?.writeText(txt);
               }}
-              className="shrink-0 px-3 py-1 rounded-lg border bg-white hover:bg-slate-50"
+              className="shrink-0 px-2.5 md:px-3 py-1 rounded-lg border bg-white hover:bg-slate-50 text-[10px] md:text-xs"
             >
               Copiar
             </button>
@@ -2307,7 +2307,7 @@ onClick={() => {
       </div>
 
       {/* BOTÕES inferiores (se quiser manter como estava) */}
-      <div className="absolute right-4 bottom-4 z-30 flex items-center gap-2">
+      <div className="hidden md:flex absolute left-2 right-2 md:left-auto md:right-4 bottom-2 md:bottom-4 z-30 flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <button
           type="button"
           onClick={closeManualModal}
