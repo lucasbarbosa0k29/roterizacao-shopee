@@ -2,6 +2,7 @@
 import * as XLSX from "xlsx";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 import { prisma } from "@/app/lib/prisma";
 
 export const runtime = "nodejs";
@@ -40,6 +41,8 @@ function parseMaybeNumber(v: any) {
 
 export async function POST(req: Request) {
   try {
+    void cleanupOldImportJobsIfNeeded();
+
     const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
     if (!token?.sub) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

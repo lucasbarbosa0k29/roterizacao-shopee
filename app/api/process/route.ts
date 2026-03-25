@@ -6,6 +6,10 @@ import {
   shouldAttemptDiscoverFromQuality,
 } from "@/app/lib/here-discover-budget";
 import {
+  tryApproximateMemoryMatch,
+  tryApproximateMemoryTextHint,
+} from "@/app/lib/address-memory-approx";
+import {
   incrementDailyMetric,
   METRIC_MEMORY_BATCH_SAVE_ERROR,
   METRIC_MEMORY_BATCH_SAVE_OK,
@@ -45,6 +49,7 @@ type MemoryDebugRow = {
   matchedKey: string | null;
   hereSkippedBecauseMemory: boolean;
   decisionReason: string;
+  usedApproxMemory?: boolean;
 };
 
 function onlyDigits(s: string) {
@@ -815,6 +820,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let memoryHitKind: null | "exact" | "base" = null;
   let matchedMemoryKey: string | null = null;
+  let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
+  let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
 
   try {
     const candidates = [
@@ -1009,6 +1016,45 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     observacao: obsCleanRaw.replace(/gemini\s*erro/gi, "").trim(),
   };
 
+  const isRuaFraca =
+    !normalized.rua ||
+    normalized.rua.length < 8 ||
+    /^RUA\s+\d+$/i.test(normalized.rua);
+
+  if (!memoryHit) {
+    const approx = await tryApproximateMemoryMatch({
+      addressRaw,
+      city: normalized.cidade || cityIn,
+      bairro: normalized.bairro || bairroIn,
+      rua: normalized.rua,
+      quadra: normalized.quadra,
+      lote: normalized.lote,
+    });
+
+    if (approx.matched && approx.lat != null && approx.lng != null) {
+      approxMemoryHit = {
+        lat: approx.lat,
+        lng: approx.lng,
+        label: approx.label || null,
+      };
+    }
+  }
+
+  if (!memoryHit && !approxMemoryHit && isRuaFraca) {
+    const hint = await tryApproximateMemoryTextHint({
+      city: normalized.cidade || cityIn,
+      bairro: normalized.bairro || bairroIn,
+      rua: normalized.rua,
+    });
+
+    if (hint.matched && hint.suggestedAddressLine) {
+      approxMemoryTextHint = {
+        suggestedAddressLine: hint.suggestedAddressLine,
+        reason: hint.reason || "MEMORY_TEXT_HINT",
+      };
+    }
+  }
+
   // 2) normalizedLine (só pra debug/visual — você não vai usar no export)
   const fallbackLine =
     `${addressRaw}${bairroIn ? `, ${bairroIn}` : ""}${cityIn ? `, ${cityIn}` : ""}, GO${cepIn ? `, ${cepIn}` : ""}`.trim();
@@ -1018,16 +1064,18 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   const isAparecida = isAparecidaCity(cityForDecision);
 
 // 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
-  let lat: number | null = memoryHit?.lat ?? null;
-  let lng: number | null = memoryHit?.lng ?? null;
+  let lat: number | null = memoryHit?.lat ?? approxMemoryHit?.lat ?? null;
+  let lng: number | null = memoryHit?.lng ?? approxMemoryHit?.lng ?? null;
 
   // 🔒 variáveis que vão ser usadas mais abaixo (mesmo se pular HERE)
   let decisionReason: string = memoryHit
     ? memoryHitKind === "base"
       ? "MEMORY_HIT_BASE"
       : "MEMORY_HIT"
+    : approxMemoryHit
+      ? "MEMORY_APPROX_HIT"
     : "OK_CONFIDENT";
-  let bestHereScore = memoryHit ? 999 : -999;
+  let bestHereScore = memoryHit || approxMemoryHit ? 999 : -999;
 
   let enriched: any[] = [];
   let bestArcgisFromTop: any = null;
@@ -1037,7 +1085,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: Array<{ it: any; score: number; from: string; kind: "geocode" | "discover" }> = [];
 
-  if (!memoryHit) {
+  if (!memoryHit && !approxMemoryHit) {
     // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
     const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
 
@@ -1055,6 +1103,14 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       normalizedLine,
     });
 
+    const queriesWithHint =
+      approxMemoryTextHint?.suggestedAddressLine
+        ? [
+            approxMemoryTextHint.suggestedAddressLine,
+            ...queries.filter((q) => q !== approxMemoryTextHint?.suggestedAddressLine),
+          ]
+        : queries;
+
     const want = {
       cep: normalized.cep || cepIn,
       city: normalized.cidade || cityIn,
@@ -1067,14 +1123,14 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     const seen = new Map<string, any>();
     const EARLY_ACCEPT_SCORE = 105;
     let bestGeocodeScoreOverall = -999;
-    let bestGeocodeQuery = queries[0] || "";
+    let bestGeocodeQuery = queriesWithHint[0] || "";
     let bestGeocodeItem: any = null;
     let acceptedEarly = false;
     let geocodeItemCount = 0;
     let geocodeItemsWithCoords = 0;
 
     // ✅ coleta candidatos de TODAS queries e escolhe o melhor no final
-    for (const qTry of queries) {
+    for (const qTry of queriesWithHint) {
       const g1 = await hereGeocode(qTry, at);
       let bestGeocodeScoreForQuery = -999;
       if (Array.isArray(g1.all) && g1.all.length) {
@@ -1128,7 +1184,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     });
 
     if (!acceptedEarly && discoverQualityDecision.allowed) {
-      const discoverQuery = bestGeocodeQuery || queries[0] || "";
+      const discoverQuery = bestGeocodeQuery || queriesWithHint[0] || "";
 
       if (discoverQuery) {
         // 🔥 DISCOVER LAST RESORT ONLY
@@ -1397,6 +1453,7 @@ if (!memoryHit && lat != null && lng != null && status === "OK") {
       matchedKey: matchedMemoryKey,
       hereSkippedBecauseMemory: !!memoryHit,
       decisionReason,
+    usedApproxMemory: !!approxMemoryHit,
     } satisfies MemoryDebugRow;
   }
 
