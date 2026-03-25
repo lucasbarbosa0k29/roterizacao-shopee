@@ -17,6 +17,25 @@ export type DiscoverBudgetDecision = {
   projected: number;
 };
 
+function normalizeCompareText(value: string) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function textIncludesEither(a: string, b: string) {
+  const left = normalizeCompareText(a);
+  const right = normalizeCompareText(b);
+  return !!left && !!right && (left.includes(right) || right.includes(left));
+}
+
+function isAparecidaCityName(value: string) {
+  const city = normalizeCompareText(value);
+  return city.includes("APARECIDA");
+}
+
 function getEnvInt(name: string, fallback: number) {
   const raw = String(process.env[name] || "").trim();
   const num = Number(raw);
@@ -105,8 +124,34 @@ export function shouldAttemptDiscoverFromQuality(params: {
   geocodeItemCount: number;
   geocodeItemsWithCoords: number;
   bestGeocodeScoreOverall: number;
+  bestGeocodeItem?: any;
+  expectedCity?: string;
+  expectedBairro?: string;
 }): { allowed: boolean; reason: string } {
-  const { geocodeItemCount, geocodeItemsWithCoords, bestGeocodeScoreOverall } = params;
+  const {
+    geocodeItemCount,
+    geocodeItemsWithCoords,
+    bestGeocodeScoreOverall,
+    bestGeocodeItem,
+    expectedCity,
+    expectedBairro,
+  } = params;
+
+  const bestAddress = bestGeocodeItem?.address || {};
+  const bestCity = String(bestAddress?.city || bestAddress?.county || "");
+  const bestBairro = String(bestAddress?.district || bestAddress?.subdistrict || "");
+  const cityMismatch =
+    !!expectedCity &&
+    !!bestCity &&
+    !textIncludesEither(expectedCity, bestCity);
+  const bairroMismatch =
+    !!expectedBairro &&
+    !!bestBairro &&
+    !textIncludesEither(expectedBairro, bestBairro);
+  const aparecidaMismatch =
+    !!expectedCity &&
+    !!bestCity &&
+    isAparecidaCityName(expectedCity) !== isAparecidaCityName(bestCity);
 
   if (geocodeItemCount <= 0) {
     return { allowed: true, reason: "NO_GEOCODE_ITEMS" };
@@ -118,6 +163,22 @@ export function shouldAttemptDiscoverFromQuality(params: {
 
   if (bestGeocodeScoreOverall < 50) {
     return { allowed: true, reason: "GEOCODE_REALLY_BAD_SCORE" };
+  }
+
+  if (aparecidaMismatch) {
+    return { allowed: true, reason: "GEOCODE_CITY_CLUSTER_MISMATCH" };
+  }
+
+  if (cityMismatch) {
+    return { allowed: true, reason: "GEOCODE_CITY_MISMATCH" };
+  }
+
+  if (bairroMismatch && bestGeocodeScoreOverall < 95) {
+    return { allowed: true, reason: "GEOCODE_BAIRRO_MISMATCH" };
+  }
+
+  if (bestGeocodeScoreOverall < 75) {
+    return { allowed: true, reason: "GEOCODE_WEAK_WITH_COORDS" };
   }
 
   if (bestGeocodeScoreOverall >= 80) {
@@ -133,7 +194,7 @@ export async function getDiscoverBudgetDecision(
 ): Promise<DiscoverBudgetDecision> {
   const monthKey = getCurrentMonthKey(now);
   const dayKey = getCurrentDayKey(now);
-  const monthlyBootstrap = getEnvInt("HERE_DISCOVER_CURRENT_USAGE", 2300);
+  const monthlyBootstrap = getEnvInt("HERE_DISCOVER_CURRENT_USAGE", 0);
 
   const [monthlyCounter, dailyCounter] = await Promise.all([
     db.apiUsageCounter.findUnique({
@@ -158,6 +219,11 @@ export async function getDiscoverBudgetDecision(
     }),
   ]);
 
+  console.info("[DISCOVER_DB_READ]", {
+    monthCount: monthlyCounter?.count ?? monthlyBootstrap,
+    dayCount: dailyCounter?.count ?? 0,
+  });
+
   return buildDiscoverBudgetDecision({
     count: monthlyCounter?.count ?? monthlyBootstrap,
     todayCount: dailyCounter?.count ?? 0,
@@ -170,12 +236,17 @@ export async function reserveDiscoverUsage(
 ): Promise<DiscoverBudgetDecision> {
   const monthKey = getCurrentMonthKey(now);
   const dayKey = getCurrentDayKey(now);
-  const monthlyBootstrap = getEnvInt("HERE_DISCOVER_CURRENT_USAGE", 2300);
+  const monthlyBootstrap = getEnvInt("HERE_DISCOVER_CURRENT_USAGE", 0);
 
   for (let attempt = 0; attempt < RESERVE_RETRIES; attempt += 1) {
     try {
       return await prisma.$transaction(
         async (tx) => {
+          console.info("[DISCOVER_DB_INCREMENT]", {
+            monthKey,
+            dayKey,
+          });
+
           const monthWhere = {
             service_periodType_periodKey: {
               service: HERE_DISCOVER_SERVICE,
@@ -268,4 +339,15 @@ export async function reserveDiscoverUsage(
     count: 0,
     projected: 0,
   };
+}
+
+export async function debugDiscoverUsage() {
+  const rows = await prisma.apiUsageCounter.findMany({
+    where: { service: "HERE_DISCOVER" },
+    orderBy: { updatedAt: "desc" },
+    take: 10,
+  });
+
+  console.info("[DISCOVER_DEBUG_DB]", rows);
+  return rows;
 }

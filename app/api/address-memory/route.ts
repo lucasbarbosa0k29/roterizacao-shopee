@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import {
+  incrementDailyMetric,
+  METRIC_MEMORY_CREATE_OK,
+  METRIC_MEMORY_UPDATE_OK,
+  METRIC_MEMORY_HIT_ONLY,
+  METRIC_MEMORY_SAVE_ERROR,
+} from "@/app/lib/admin-observability";
 
 function normalizeKey(text: string) {
   return String(text || "")
@@ -55,6 +62,7 @@ export async function POST(req: Request) {
           hitCount: 1,
         },
       });
+      await incrementDailyMetric(METRIC_MEMORY_CREATE_OK).catch(() => {});
       return NextResponse.json({ ok: true, mode: "created", saved });
     }
 
@@ -71,6 +79,7 @@ export async function POST(req: Request) {
           hitCount: { increment: 1 },
         },
       });
+      await incrementDailyMetric(METRIC_MEMORY_HIT_ONLY).catch(() => {});
       return NextResponse.json({ ok: true, mode: "hit_only", meters: dist, saved });
     }
 
@@ -84,9 +93,11 @@ export async function POST(req: Request) {
         createdBy: createdBy || null,
       },
     });
+    await incrementDailyMetric(METRIC_MEMORY_UPDATE_OK).catch(() => {});
 
     return NextResponse.json({ ok: true, mode: "updated", meters: dist, saved });
   } catch (e) {
+    await incrementDailyMetric(METRIC_MEMORY_SAVE_ERROR).catch(() => {});
     console.error(e);
     return NextResponse.json({ error: "Erro ao salvar memória" }, { status: 500 });
   }

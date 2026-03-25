@@ -1858,6 +1858,12 @@ setTimeout(() => map.getViewPort().resize(), 800);
                               {g.addressDisplay}
                             </div>
 
+                            {String(g.bairro || "").trim() && (
+                              <div className="mt-1 text-xs text-slate-600 break-words">
+                                {String(g.bairro || "").trim()}
+                              </div>
+                            )}
+
                             {groupMode && (
                               <label
                                 className="mt-3 text-xs flex items-center gap-2 select-none cursor-pointer"

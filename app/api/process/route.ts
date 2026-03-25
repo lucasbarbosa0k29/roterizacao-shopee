@@ -5,6 +5,13 @@ import {
   reserveDiscoverUsage,
   shouldAttemptDiscoverFromQuality,
 } from "@/app/lib/here-discover-budget";
+import {
+  incrementDailyMetric,
+  METRIC_MEMORY_BATCH_SAVE_ERROR,
+  METRIC_MEMORY_BATCH_SAVE_OK,
+  METRIC_MEMORY_HIT_TOTAL,
+  METRIC_MEMORY_LOOKUP_TOTAL,
+} from "@/app/lib/admin-observability";
 import { prisma } from "@/app/lib/prisma";
 
 
@@ -28,6 +35,16 @@ type InputRow = {
   bairro?: string;
   city?: string;
   cep?: string;
+};
+
+type MemoryDebugRow = {
+  memoryKey: string;
+  memoryBaseKey: string | null;
+  memoryHit: boolean;
+  memoryHitKind: "exact" | "base" | null;
+  matchedKey: string | null;
+  hereSkippedBecauseMemory: boolean;
+  decisionReason: string;
 };
 
 function onlyDigits(s: string) {
@@ -756,7 +773,7 @@ async function getAparecidaLotFromArcgis(baseOrigin: string, lat: number, lng: n
 }
 
 // ===== processa 1 linha =====
-async function processOne(row: InputRow, baseOrigin: string) {
+async function processOne(row: InputRow, baseOrigin: string, debugMemory = false) {
   const addressRaw = String(row?.original || "").trim(); // <-- FIEL AO EXCEL
   const bairroIn = row?.bairro ? String(row.bairro) : "";
   const cityIn = row?.city ? String(row.city) : "";
@@ -793,8 +810,11 @@ async function processOne(row: InputRow, baseOrigin: string) {
       ? normalizeKey(`${baseAddressRaw} ${cityForKey}`)
       : null;
 
+  await incrementDailyMetric(METRIC_MEMORY_LOOKUP_TOTAL).catch(() => {});
+
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let memoryHitKind: null | "exact" | "base" = null;
+  let matchedMemoryKey: string | null = null;
 
   try {
     const candidates = [
@@ -812,6 +832,7 @@ async function processOne(row: InputRow, baseOrigin: string) {
 
       memoryHit = mem;
       memoryHitKind = candidate.kind;
+      matchedMemoryKey = candidate.key;
 
       // incrementa contador de uso
       await prisma.addressMemory.update({
@@ -823,6 +844,22 @@ async function processOne(row: InputRow, baseOrigin: string) {
     }
   } catch (e) {
     console.warn("AddressMemory lookup failed:", e);
+  }
+
+  if (memoryHit) {
+    await incrementDailyMetric(METRIC_MEMORY_HIT_TOTAL).catch(() => {});
+  }
+
+  if (debugMemory) {
+    console.info("[MEMORY_LOOKUP_RESULT]", {
+      original: addressRaw,
+      city: cityIn,
+      memoryKey,
+      memoryBaseKey,
+      memoryHit: !!memoryHit,
+      memoryHitKind,
+      matchedMemoryKey,
+    });
   }
 
   // ✅ regra: apartamento/edifício => NÃO BUSCAR no HERE
@@ -1031,6 +1068,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     const EARLY_ACCEPT_SCORE = 105;
     let bestGeocodeScoreOverall = -999;
     let bestGeocodeQuery = queries[0] || "";
+    let bestGeocodeItem: any = null;
     let acceptedEarly = false;
     let geocodeItemCount = 0;
     let geocodeItemsWithCoords = 0;
@@ -1057,6 +1095,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
           if (sc > bestGeocodeScoreOverall) {
             bestGeocodeScoreOverall = sc;
             bestGeocodeQuery = qTry;
+            bestGeocodeItem = it;
           }
           scored.push({ it, score: sc, from: qTry, kind: "geocode" });
         }
@@ -1068,10 +1107,24 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       }
     }
 
+    console.info("[DISCOVER_QUALITY_CHECK]", {
+      geocodeItemCount,
+      geocodeItemsWithCoords,
+      bestGeocodeScoreOverall,
+    });
+
     const discoverQualityDecision = shouldAttemptDiscoverFromQuality({
       geocodeItemCount,
       geocodeItemsWithCoords,
       bestGeocodeScoreOverall,
+      bestGeocodeItem,
+      expectedCity: normalized.cidade || cityIn,
+      expectedBairro: normalized.bairro || bairroIn,
+    });
+
+    console.info("[DISCOVER_QUALITY_RESULT]", {
+      allowed: discoverQualityDecision.allowed,
+      reason: discoverQualityDecision.reason,
     });
 
     if (!acceptedEarly && discoverQualityDecision.allowed) {
@@ -1079,18 +1132,29 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
       if (discoverQuery) {
         // 🔥 DISCOVER LAST RESORT ONLY
+        console.info("[DISCOVER_BUDGET_CHECK]");
         const budgetDecision = await getDiscoverBudgetDecision();
+        console.info("[DISCOVER_BUDGET_RESULT]", budgetDecision);
 
         if (!budgetDecision.allowed) {
           // 🔥 COST GUARD: Discover blocked by budget
-          console.warn(`[DISCOVER_BLOCKED] ${budgetDecision.reason}`);
+          console.warn("[DISCOVER_BLOCKED]", {
+            reason: budgetDecision.reason,
+          });
         } else {
+          console.info("[DISCOVER_RESERVE_ATTEMPT]");
           const reservation = await reserveDiscoverUsage();
+          console.info("[DISCOVER_RESERVED]", reservation);
 
           if (!reservation.allowed) {
             // 🔥 COST GUARD: Discover blocked by budget
-            console.warn(`[DISCOVER_BLOCKED] ${reservation.reason}`);
+            console.warn("[DISCOVER_BLOCKED]", {
+              reason: reservation.reason,
+            });
           } else {
+            console.info("[DISCOVER_CALL]", {
+              query: discoverQuery,
+            });
             const d1 = await hereDiscover(discoverQuery, at);
             if (Array.isArray(d1.all) && d1.all.length) {
               for (const it of d1.all) {
@@ -1279,11 +1343,13 @@ if (!memoryHit && lat != null && lng != null && status === "OK") {
         createdBy: null,
       },
     });
+    await incrementDailyMetric(METRIC_MEMORY_BATCH_SAVE_OK).catch(() => {});
   } catch (e) {
+    await incrementDailyMetric(METRIC_MEMORY_BATCH_SAVE_ERROR).catch(() => {});
     console.warn("AddressMemory save failed:", e);
   }
 }
-  return {
+  const result = {
     sequence: row?.sequence ?? "",
     bairro: bairroAuto,
     city: cityForDecision,
@@ -1321,6 +1387,20 @@ if (!memoryHit && lat != null && lng != null && status === "OK") {
       pos: x.it?.position || null,
     })),
   };
+
+  if (debugMemory) {
+    (result as any).memoryDebug = {
+      memoryKey,
+      memoryBaseKey,
+      memoryHit: !!memoryHit,
+      memoryHitKind,
+      matchedKey: matchedMemoryKey,
+      hereSkippedBecauseMemory: !!memoryHit,
+      decisionReason,
+    } satisfies MemoryDebugRow;
+  }
+
+  return result;
 }
 
 // ===== HANDLER (BATCH) =====
@@ -1331,6 +1411,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({} as any));
 
     const rowsIn: InputRow[] = Array.isArray(body?.rows) ? body.rows : [];
+    const debugMemory = body?.debugMemory === true;
     if (!rowsIn.length) {
       return NextResponse.json({ error: "Envie { rows: [...] }" }, { status: 400 });
     }
@@ -1368,7 +1449,7 @@ export async function POST(req: Request) {
       while (index < rowsIn.length) {
         const i = index++;
         try {
-          results[i] = await processOne(rowsIn[i], baseOrigin);
+          results[i] = await processOne(rowsIn[i], baseOrigin, debugMemory);
         } catch (e: any) {
           results[i] = {
             sequence: rowsIn[i]?.sequence ?? "",
@@ -1434,7 +1515,34 @@ if (jobId) {
 }
 
 
-    return NextResponse.json({ total: results.length, rows: results });
+    let debugMemorySummary: any = undefined;
+
+    if (debugMemory) {
+      const rowsWithDebug = results.filter((r: any) => r?.memoryDebug);
+      const hits = rowsWithDebug.filter((r: any) => r.memoryDebug.memoryHit).length;
+      const baseHits = rowsWithDebug.filter((r: any) => r.memoryDebug.memoryHitKind === "base").length;
+      const exactHits = rowsWithDebug.filter((r: any) => r.memoryDebug.memoryHitKind === "exact").length;
+      const misses = rowsWithDebug.length - hits;
+      const hereSkippedBecauseMemory = rowsWithDebug.filter((r: any) => r.memoryDebug.hereSkippedBecauseMemory).length;
+
+      debugMemorySummary = {
+        enabled: true,
+        totalRows: rowsWithDebug.length,
+        hits,
+        exactHits,
+        baseHits,
+        misses,
+        hereSkippedBecauseMemory,
+      };
+
+      console.info("[MEMORY_BATCH_SUMMARY]", debugMemorySummary);
+    }
+
+    return NextResponse.json({
+      total: results.length,
+      rows: results,
+      ...(debugMemory ? { debugMemorySummary } : {}),
+    });
   } catch (err: any) {
     console.error("Erro /api/process:", err);
 

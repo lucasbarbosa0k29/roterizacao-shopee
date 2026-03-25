@@ -14,8 +14,43 @@ type Job = {
   user: { name?: string | null; email: string; role: string };
 };
 
+type ObservabilityRow = {
+  day: string;
+  discoverToday: number;
+  memoryCreated: number;
+  memoryTotalAccumulated: number;
+  manualCreateOk: number;
+  manualUpdateOk: number;
+  manualHitOnly: number;
+  manualSaveError: number;
+  manualSaveOkTotal: number;
+  batchSaveOk: number;
+  batchSaveError: number;
+  memoryHealth: "OK" | "ATENCAO" | "CRITICO";
+};
+
+type ObservabilityData = {
+  discoverMonth: number;
+  discoverToday: number;
+  memoryHitToday: number;
+  memoryLookupToday: number;
+  memoryHitRateToday: number;
+  memoryTotalStored: number;
+  memoryCreatedToday: number;
+  manualCreateOkToday: number;
+  manualUpdateOkToday: number;
+  manualHitOnlyToday: number;
+  manualSaveErrorToday: number;
+  manualSaveOkToday: number;
+  batchSaveOkToday: number;
+  batchSaveErrorToday: number;
+  memoryHealth: "OK" | "ATENCAO" | "CRITICO";
+  dailyRows: ObservabilityRow[];
+};
+
 export default function AdminPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [obs, setObs] = useState<ObservabilityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -35,13 +70,29 @@ export default function AdminPage() {
       if (!res.ok) {
         console.error("Erro /api/admin/import-jobs:", data);
         setJobs([]);
-        return;
+      } else {
+        setJobs(data.jobs ?? []);
       }
 
-      setJobs(data.jobs ?? []);
+      const obsRes = await fetch("/api/admin/observability", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
+
+      const obsData = await obsRes.json().catch(() => ({}));
+
+      if (!obsRes.ok) {
+        console.error("Erro /api/admin/observability:", obsData);
+        setObs(null);
+      } else {
+        setObs(obsData);
+      }
     } catch (err) {
       console.error("Erro ao carregar admin:", err);
       setJobs([]);
+      setObs(null);
     } finally {
       setLoading(false);
     }
@@ -115,6 +166,136 @@ export default function AdminPage() {
         >
           Usuários
         </Link>
+      </div>
+
+      <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden">
+        <div className="px-5 py-4 font-semibold border-b">
+          Observabilidade Operacional
+        </div>
+
+        <div className="p-5">
+          {!obs && (
+            <div className="text-slate-600">Métricas operacionais indisponíveis.</div>
+          )}
+
+          {obs && (
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Discover no mês
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.discoverMonth}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Discover hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.discoverToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Taxa de reaproveitamento da memória
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.memoryHitRateToday}%</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    {obs.memoryHitToday} de {obs.memoryLookupToday} reaproveitados hoje
+                  </div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Total de endereços na memória
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.memoryTotalStored}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Novos endereços criados hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.memoryCreatedToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Saves manuais/background OK hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.manualSaveOkToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Saves manuais/background com erro hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.manualSaveErrorToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Saves batch OK hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.batchSaveOkToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Saves batch com erro hoje
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.batchSaveErrorToday}</div>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">
+                    Saúde da memória
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{obs.memoryHealth}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-slate-500">
+                      <th className="px-3 py-2">Dia</th>
+                      <th className="px-3 py-2">Novos criados</th>
+                      <th className="px-3 py-2">Total acumulado</th>
+                      <th className="px-3 py-2">Discover</th>
+                      <th className="px-3 py-2">Manual create OK</th>
+                      <th className="px-3 py-2">Manual update OK</th>
+                      <th className="px-3 py-2">Manual hit_only</th>
+                      <th className="px-3 py-2">Manual erro</th>
+                      <th className="px-3 py-2">Manual total OK</th>
+                      <th className="px-3 py-2">Batch OK</th>
+                      <th className="px-3 py-2">Batch erro</th>
+                      <th className="px-3 py-2">Saúde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {obs.dailyRows.map((row) => (
+                      <tr key={row.day} className="border-b last:border-b-0">
+                        <td className="px-3 py-2">{row.day}</td>
+                        <td className="px-3 py-2">{row.memoryCreated}</td>
+                        <td className="px-3 py-2">{row.memoryTotalAccumulated}</td>
+                        <td className="px-3 py-2">{row.discoverToday}</td>
+                        <td className="px-3 py-2">{row.manualCreateOk}</td>
+                        <td className="px-3 py-2">{row.manualUpdateOk}</td>
+                        <td className="px-3 py-2">{row.manualHitOnly}</td>
+                        <td className="px-3 py-2">{row.manualSaveError}</td>
+                        <td className="px-3 py-2">{row.manualSaveOkTotal}</td>
+                        <td className="px-3 py-2">{row.batchSaveOk}</td>
+                        <td className="px-3 py-2">{row.batchSaveError}</td>
+                        <td className="px-3 py-2 font-medium">{row.memoryHealth}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden">
