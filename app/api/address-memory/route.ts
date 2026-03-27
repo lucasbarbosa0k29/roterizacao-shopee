@@ -34,15 +34,66 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
 }
 
 export async function POST(req: Request) {
+  let payload: unknown = null;
+  let saveMode: "created" | "hit_only" | "updated" | null = null;
+  let saveKey: string | null = null;
+  let saveContext: {
+    address: string | null;
+    city: string | null;
+    neighborhood: string | null;
+    lat: number | null;
+    lng: number | null;
+    createdBy: string | null;
+    label: string | null;
+    distanceMeters: number | null;
+    thresholdMeters: number | null;
+  } = {
+    address: null,
+    city: null,
+    neighborhood: null,
+    lat: null,
+    lng: null,
+    createdBy: null,
+    label: null,
+    distanceMeters: null,
+    thresholdMeters: null,
+  };
+
   try {
-    const body = await req.json();
+    const body = (await req.json()) as {
+      address?: unknown;
+      city?: unknown;
+      neighborhood?: unknown;
+      district?: unknown;
+      lat?: unknown;
+      lng?: unknown;
+      createdBy?: unknown;
+    };
+    payload = body;
     const { address, city, lat, lng, createdBy } = body;
 
     if (!address || typeof lat !== "number" || typeof lng !== "number") {
-      return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+      return NextResponse.json({ error: "Dados invÃ¡lidos" }, { status: 400 });
     }
 
     const key = normalizeKey(`${address} ${city || ""}`);
+    saveKey = key;
+    saveContext = {
+      address: typeof address === "string" ? address : null,
+      city: typeof city === "string" ? city : null,
+      neighborhood:
+        typeof body.neighborhood === "string"
+          ? body.neighborhood
+          : typeof body.district === "string"
+            ? body.district
+            : null,
+      lat,
+      lng,
+      createdBy: typeof createdBy === "string" ? createdBy : null,
+      label: typeof address === "string" ? address : null,
+      distanceMeters: null,
+      thresholdMeters: null,
+    };
 
     const existing = await prisma.addressMemory.findUnique({
       where: { key },
@@ -50,8 +101,10 @@ export async function POST(req: Request) {
     });
 
     const THRESHOLD_METERS = 3;
+    saveContext.thresholdMeters = THRESHOLD_METERS;
 
     if (!existing) {
+      saveMode = "created";
       const saved = await prisma.addressMemory.create({
         data: {
           key,
@@ -70,9 +123,11 @@ export async function POST(req: Request) {
       { lat: existing.lat, lng: existing.lng },
       { lat, lng }
     );
+    saveContext.distanceMeters = dist;
 
-    // ✅ Se mudou pouco, só incrementa uso (não altera lat/lng)
+    // âœ… Se mudou pouco, sÃ³ incrementa uso (nÃ£o altera lat/lng)
     if (dist < THRESHOLD_METERS) {
+      saveMode = "hit_only";
       const saved = await prisma.addressMemory.update({
         where: { key },
         data: {
@@ -83,7 +138,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, mode: "hit_only", meters: dist, saved });
     }
 
-    // ✅ Se mudou de verdade, atualiza coordenada + incrementa
+    // âœ… Se mudou de verdade, atualiza coordenada + incrementa
+    saveMode = "updated";
     const saved = await prisma.addressMemory.update({
       where: { key },
       data: {
@@ -98,7 +154,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, mode: "updated", meters: dist, saved });
   } catch (e) {
     await incrementDailyMetric(METRIC_MEMORY_SAVE_ERROR).catch(() => {});
-    console.error(e);
-    return NextResponse.json({ error: "Erro ao salvar memória" }, { status: 500 });
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    const errorStack = e instanceof Error ? e.stack : null;
+
+    console.error("🚨 ADDRESS_MEMORY_SAVE_ERROR");
+    console.error("message:", errorMessage);
+    console.error("stack:", errorStack);
+    console.error("payload:", payload);
+    console.error("normalizedDerived:", saveContext);
+    console.error("mode:", saveMode);
+    console.error("key:", saveKey);
+    console.error("coordinates:", { lat: saveContext.lat, lng: saveContext.lng });
+    console.error("location:", {
+      neighborhood: saveContext.neighborhood,
+      city: saveContext.city,
+      address: saveContext.address,
+    });
+    return NextResponse.json({ error: "Erro ao salvar memÃ³ria" }, { status: 500 });
   }
 }

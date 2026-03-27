@@ -80,6 +80,15 @@ function normalizeKey(text: string) {
     .trim();
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
+function isWeakStreetForMemoryHint(value: string) {
+  const rua = normalizeKey(value);
+
+  return (
+    !rua ||
+    rua.length < 8 ||
+    /^(RUA|R|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|VIELA|VIA)\s+\d+(?:\s+[A-Z])?$/i.test(rua)
+  );
+}
 function stripQuadraLoteFromQuery(q: string) {
   let t = String(q || "");
   t = t.replace(/\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+\b/gi, " ");
@@ -1016,10 +1025,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     observacao: obsCleanRaw.replace(/gemini\s*erro/gi, "").trim(),
   };
 
-  const isRuaFraca =
-    !normalized.rua ||
-    normalized.rua.length < 8 ||
-    /^RUA\s+\d+$/i.test(normalized.rua);
+  const isRuaFraca = isWeakStreetForMemoryHint(normalized.rua);
 
   if (!memoryHit) {
     const approx = await tryApproximateMemoryMatch({
