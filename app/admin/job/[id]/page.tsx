@@ -12,16 +12,18 @@ type Job = {
   errorMessage?: string | null;
   createdAt: string;
   finishedAt?: string | null;
-
-  // ✅ nosso resultado salvo
-  // pode vir:
-  // - formato antigo: ARRAY direto
-  // - formato novo: { version, rows: [...], ... }
   resultJson?: any;
   resultSavedAt?: string | null;
-
   user?: { name?: string | null; email: string; role: string };
 };
+
+type Status =
+  | "OK"
+  | "PARCIAL"
+  | "NAO_ENCONTRADO"
+  | "MANUAL"
+  | "CONFIRMADO"
+  | "REVISAO";
 
 function downloadTextFile(
   filename: string,
@@ -43,9 +45,33 @@ function downloadTextFile(
 
 function csvEscape(v: any) {
   const s = String(v ?? "");
-  // se tiver vírgula, aspas ou quebra de linha, envolve em aspas e duplica aspas internas
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function hasManualEditData(manual: any) {
+  return !!(
+    manual &&
+    (
+      (manual.address && String(manual.address).trim()) ||
+      typeof manual.lat === "number" ||
+      typeof manual.lng === "number" ||
+      (manual.quadra && String(manual.quadra).trim()) ||
+      (manual.lote && String(manual.lote).trim()) ||
+      (manual.notes && String(manual.notes).trim())
+    )
+  );
+}
+
+function getDerivedRowStatus(row: any, manual: any): Status {
+  if (manual?.confirmed) return "CONFIRMADO";
+  if (hasManualEditData(manual)) return "MANUAL";
+  return (row?.status || "NAO_ENCONTRADO") as Status;
+}
+
+function isMemoryHitRow(row: any) {
+  const reason = String(row?.decisionReason || "").toUpperCase();
+  return reason.startsWith("MEMORY");
 }
 
 export default function AdminJobPage() {
@@ -56,7 +82,6 @@ export default function AdminJobPage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ filtros (OPÇÃO 1)
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [onlyWithCoords, setOnlyWithCoords] = useState(false);
@@ -88,23 +113,48 @@ export default function AdminJobPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ✅ CORREÇÃO: aceita os 2 formatos (array antigo e envelope novo)
+  useEffect(() => {
+    if (!job) return;
+    if (job.status !== "PENDING" && job.status !== "PROCESSING") return;
+
+    const interval = setInterval(() => {
+      load();
+    }, 5000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.id, job?.status]);
+
+  const resultEnvelope = useMemo(() => {
+    const rj = job?.resultJson;
+    if (!rj || typeof rj !== "object" || Array.isArray(rj)) return null;
+    return rj as any;
+  }, [job]);
+
   const rowsAll = useMemo(() => {
     if (!job) return [];
 
     const rj = job.resultJson;
-
-    // formato antigo: array direto
     if (Array.isArray(rj)) return rj;
 
-    // formato novo: envelope { rows: [...] }
     const rows = (rj as any)?.rows;
     if (Array.isArray(rows)) return rows;
 
     return [];
   }, [job]);
 
-  // ✅ pega lista de status que existem no resultado (pra dropdown)
+  const manualEdits = useMemo(() => {
+    return (resultEnvelope?.manualEdits ?? {}) as Record<string, any>;
+  }, [resultEnvelope]);
+
+  const hasProcessedRows = useMemo(() => {
+    return rowsAll.some((r: any) =>
+      typeof r?.status === "string" ||
+      typeof r?.decisionReason === "string" ||
+      typeof r?.normalizedLine === "string"
+    );
+  }, [rowsAll]);
+
   const statusOptions = useMemo(() => {
     const s = new Set<string>();
     for (const r of rowsAll) s.add(String((r as any)?.status ?? ""));
@@ -149,7 +199,6 @@ export default function AdminJobPage() {
     });
   }, [rowsAll, q, statusFilter, onlyWithCoords]);
 
-  // ✅ resumo rápido
   const summary = useMemo(() => {
     const by: Record<string, number> = {};
     for (const r of rowsAll) {
@@ -159,14 +208,58 @@ export default function AdminJobPage() {
     return by;
   }, [rowsAll]);
 
-  // =========================
-  // ✅ OPÇÃO 2: Exportar Circuit (CSV)
-  // =========================
+  const metrics = useMemo(() => {
+    const total = Number(job?.totalStops || rowsAll.length || 0);
+    const processed = Number(job?.processedStops || 0);
+    const progressPct = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+    const statusCounts: Record<string, number> = {
+      OK: 0,
+      PARCIAL: 0,
+      NAO_ENCONTRADO: 0,
+      MANUAL: 0,
+      CONFIRMADO: 0,
+      REVISAO: 0,
+    };
+
+    let memoryHits = 0;
+    let manualCorrections = 0;
+
+    rowsAll.forEach((row: any, idx: number) => {
+      const manual = manualEdits[idx];
+      const derivedStatus = getDerivedRowStatus(row, manual);
+      statusCounts[derivedStatus] = (statusCounts[derivedStatus] || 0) + 1;
+
+      if (manual?.review) {
+        statusCounts.REVISAO = (statusCounts.REVISAO || 0) + 1;
+      }
+
+      if (hasManualEditData(manual)) {
+        manualCorrections += 1;
+      }
+
+      if (isMemoryHitRow(row)) {
+        memoryHits += 1;
+      }
+    });
+
+    const memoryHitRate =
+      total > 0 ? Math.round((memoryHits / total) * 100) : 0;
+
+    return {
+      total,
+      processed,
+      progressPct,
+      memoryHits,
+      memoryHitRate,
+      manualCorrections,
+      statusCounts,
+    };
+  }, [job, rowsAll, manualEdits]);
+
   function exportCircuitCSV() {
     const rows = rowsAll;
-
-    // regra segura: exporta só OK + MANUAL (se existir)
-    const allowed = new Set(["OK", "MANUAL", "CONFIRMADO"]); // não quebra se não existir
+    const allowed = new Set(["OK", "MANUAL", "CONFIRMADO"]);
     const exportRows = rows.filter((r: any) => allowed.has(String(r?.status ?? "")));
 
     if (!exportRows.length) {
@@ -174,19 +267,14 @@ export default function AdminJobPage() {
       return;
     }
 
-    // CSV simples (depois você pode ajustar os nomes das colunas)
-    // Circuit costuma aceitar CSV, e você consegue mapear campos no import.
     const header = ["Stop Name", "Address", "Latitude", "Longitude", "Notes"];
 
     const lines = exportRows.map((r: any) => {
       const stopName = `Seq ${r?.sequence ?? ""}`.trim() || "Stop";
-
       const address = String(r?.normalizedLine ?? "").trim() || String(r?.original ?? "").trim();
-
       const lat = typeof r?.lat === "number" ? String(r.lat) : "";
       const lng = typeof r?.lng === "number" ? String(r.lng) : "";
 
-      // notes: coloca quadra/lote + notesAuto + decisionReason
       const ql = [r?.quadraAuto ? `Q${r.quadraAuto}` : "", r?.loteAuto ? `L${r.loteAuto}` : ""]
         .filter(Boolean)
         .join(" ");
@@ -216,7 +304,6 @@ export default function AdminJobPage() {
   if (loading) return <div className="p-8">Carregando...</div>;
   if (!job) return <div className="p-8">Job não encontrado.</div>;
 
-  // paginação simples pra não travar
   const MAX = 300;
   const show = rowsFiltered.slice(0, MAX);
 
@@ -234,6 +321,17 @@ export default function AdminJobPage() {
           <div className="text-sm text-slate-600">
             <span className="font-semibold">Status:</span> {job.status} —{" "}
             {job.processedStops}/{job.totalStops}
+          </div>
+
+          <div className="mt-3 h-2 w-full max-w-xl rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full bg-blue-600 transition-all duration-500"
+              style={{ width: `${Math.min(100, Math.max(0, metrics.progressPct))}%` }}
+            />
+          </div>
+
+          <div className="text-xs text-slate-500 mt-1">
+            Progresso: {metrics.progressPct}%
           </div>
 
           {job.resultSavedAt && (
@@ -269,7 +367,6 @@ export default function AdminJobPage() {
             </button>
           </div>
 
-          {/* ✅ OPÇÃO 2: botões export */}
           <div className="flex gap-2">
             <button
               className="px-3 py-2 rounded-xl border hover:bg-slate-50"
@@ -298,10 +395,68 @@ export default function AdminJobPage() {
         </div>
       )}
 
+      {(job.status === "PENDING" || job.status === "PROCESSING") && (
+        <div className="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          Visualização somente leitura. Este job ainda está em andamento e pode ser atualizado pelo usuário ou pelo processamento.
+        </div>
+      )}
+
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Total de linhas</div>
+          <div className="mt-2 text-2xl font-bold">{metrics.total}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Memory hits</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.memoryHits : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Reaproveitamento</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? `${metrics.memoryHitRate}%` : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Correções manuais</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.manualCorrections : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">OK</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.OK : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">PARCIAL</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.PARCIAL : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">NAO_ENCONTRADO</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.NAO_ENCONTRADO : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">MANUAL</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.MANUAL : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">CONFIRMADO</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.CONFIRMADO : "-"}</div>
+        </div>
+
+        <div className="rounded-xl border p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">REVISAO</div>
+          <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.REVISAO : "-"}</div>
+        </div>
+      </div>
+
       <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden">
         <div className="px-5 py-4 font-semibold border-b flex items-center justify-between gap-4">
           <div>
-            Resultado salvo ({rowsAll.length} linhas)
+            {hasProcessedRows ? "Resultado/estado salvo" : "Prévia da importação"} ({rowsAll.length} linhas)
             {rowsAll.length > 0 && (
               <span className="text-xs text-slate-500 font-normal">
                 {" "}
@@ -310,7 +465,6 @@ export default function AdminJobPage() {
             )}
           </div>
 
-          {/* ✅ OPÇÃO 1: filtros */}
           <div className="flex items-center gap-3">
             <input
               className="px-3 py-2 rounded-xl border text-sm w-[260px]"
@@ -344,7 +498,7 @@ export default function AdminJobPage() {
 
         {rowsAll.length === 0 ? (
           <div className="p-5 text-slate-600">
-            Ainda não tem resultado salvo (resultJson vazio). Isso só aparece quando terminar e salvar.
+            Ainda não há conteúdo disponível para inspeção.
           </div>
         ) : (
           <div className="p-5 text-sm overflow-auto">
@@ -354,18 +508,14 @@ export default function AdminJobPage() {
                   <th className="py-2 pr-3">Seq</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Original</th>
-
                   <th className="py-2 pr-3">End. encontrado</th>
                   <th className="py-2 pr-3">Bairro</th>
                   <th className="py-2 pr-3">Cidade</th>
                   <th className="py-2 pr-3">CEP</th>
-
                   <th className="py-2 pr-3">Quadra</th>
                   <th className="py-2 pr-3">Lote</th>
-
                   <th className="py-2 pr-3">Lat</th>
                   <th className="py-2 pr-3">Lng</th>
-
                   <th className="py-2 pr-3">Obs</th>
                   <th className="py-2 pr-3">Reason</th>
                 </tr>
@@ -376,23 +526,17 @@ export default function AdminJobPage() {
                   <tr key={idx} className="border-b last:border-b-0 align-top">
                     <td className="py-2 pr-3 whitespace-nowrap">{r.sequence ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.status ?? ""}</td>
-
                     <td className="py-2 pr-3 min-w-[340px]">{r.original ?? ""}</td>
-
                     <td className="py-2 pr-3 min-w-[340px] text-slate-700">
                       {r.normalizedLine ?? ""}
                     </td>
-
                     <td className="py-2 pr-3 whitespace-nowrap">{r.bairro ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.city ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.cep ?? ""}</td>
-
                     <td className="py-2 pr-3 whitespace-nowrap">{r.quadraAuto ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.loteAuto ?? ""}</td>
-
                     <td className="py-2 pr-3 whitespace-nowrap">{r.lat ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.lng ?? ""}</td>
-
                     <td className="py-2 pr-3 min-w-[240px]">{r.notesAuto ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.decisionReason ?? ""}</td>
                   </tr>

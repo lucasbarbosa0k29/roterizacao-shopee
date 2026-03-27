@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RoteirizaÃ§Ã£o Shopee",
-  description: "Sistema de roteirizaÃ§Ã£o com HERE Maps",
+  title: "Roteirização Shopee",
+  description: "Sistema de roteirização com HERE Maps",
 };
 
 export const viewport: Viewport = {

@@ -70,7 +70,10 @@ export async function POST(req: Request) {
       createdBy?: unknown;
     };
     payload = body;
-    const { address, city, lat, lng, createdBy } = body;
+    const address = typeof body.address === "string" ? body.address.trim() : "";
+    const city = typeof body.city === "string" ? body.city.trim() : "";
+    const createdBy = typeof body.createdBy === "string" ? body.createdBy : null;
+    const { lat, lng } = body;
 
     if (!address || typeof lat !== "number" || typeof lng !== "number") {
       return NextResponse.json({ error: "Dados invÃ¡lidos" }, { status: 400 });
@@ -79,8 +82,8 @@ export async function POST(req: Request) {
     const key = normalizeKey(`${address} ${city || ""}`);
     saveKey = key;
     saveContext = {
-      address: typeof address === "string" ? address : null,
-      city: typeof city === "string" ? city : null,
+      address,
+      city: city || null,
       neighborhood:
         typeof body.neighborhood === "string"
           ? body.neighborhood
@@ -89,8 +92,8 @@ export async function POST(req: Request) {
             : null,
       lat,
       lng,
-      createdBy: typeof createdBy === "string" ? createdBy : null,
-      label: typeof address === "string" ? address : null,
+      createdBy,
+      label: address,
       distanceMeters: null,
       thresholdMeters: null,
     };

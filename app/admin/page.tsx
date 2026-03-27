@@ -134,7 +134,6 @@ export default function AdminPage() {
     load();
   }, []);
 
-  // Refresh a cada 30s, só se tiver job rodando
   useEffect(() => {
     const interval = setInterval(() => {
       setJobs((prev) => {
@@ -159,7 +158,6 @@ export default function AdminPage() {
           </p>
         </div>
 
-        {/* ✅ BOTÃO PARA CRIAR/GERENCIAR USUÁRIOS */}
         <Link
           href="/admin/users"
           className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
@@ -320,7 +318,7 @@ export default function AdminPage() {
                 ? Math.round((j.processedStops / j.totalStops) * 100)
                 : 0;
 
-            const canOpen = j.status === "DONE";
+            const canOpen = true;
             const isDeleting = deletingId === j.id;
 
             return (
@@ -357,10 +355,10 @@ export default function AdminPage() {
                         onClick={() => canOpen && onOpenJob(j.id)}
                         disabled={!canOpen}
                         title={
-                          canOpen ? "Abrir resultado" : "Só libera quando DONE"
+                          canOpen ? "Abrir detalhes da importação" : "Indisponível"
                         }
                       >
-                        Abrir
+                        Detalhes
                       </button>
 
                       <button
