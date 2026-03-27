@@ -150,6 +150,8 @@ function HomeInner() {
  const [historyId, setHistoryId] = useState<string | null>(null);
  const [historyName, setHistoryName] = useState<string>("Planilha");
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
+  const [notesEditorIdx, setNotesEditorIdx] = useState<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
 const searchParams = useSearchParams();
 const jobId = searchParams.get("job");
 useEffect(() => {
@@ -406,8 +408,7 @@ useEffect(() => {
       typeof manual.lat === "number" ||
       typeof manual.lng === "number" ||
       (manual.quadra && manual.quadra.trim()) ||
-      (manual.lote && manual.lote.trim()) ||
-      (manual.notes && manual.notes.trim())
+      (manual.lote && manual.lote.trim())
     )
   );
 
@@ -428,15 +429,63 @@ useEffect(() => {
     return String((rows[i] as any)?.loteAuto || "").trim();
   }
 
-  // ✅ complemento default (Gemini -> notesAuto) sem Q/L
-  function getRowComplement(i: number) {
-    const manual = String(manualEdits[i]?.notes || "").trim();
-    if (manual) return stripQuadraLoteFromNotes(manual);
+  function getManualObservation(i: number) {
+    return String(manualEdits[i]?.notes || "").trim();
+  }
 
-    const auto = String((rows[i] as any)?.notesAuto || "").trim();
-    if (auto) return stripQuadraLoteFromNotes(auto);
+  function openNotesEditor(idx: number) {
+    setNotesEditorIdx(idx);
+    setNotesDraft(String(manualEdits[idx]?.notes || "").trim());
+  }
 
-    return "";
+  function cancelNotesEditor() {
+    setNotesEditorIdx(null);
+    setNotesDraft("");
+  }
+
+  function saveNotesEditor(idx: number) {
+    const nextValue = notesDraft.trim();
+
+    setManualEdits((prev) => {
+      const current = prev[idx] || {};
+
+      if (!nextValue) {
+        const { [idx]: _removed, ...rest } = prev;
+        const cleanedCurrent = {
+          ...current,
+          notes: undefined,
+        };
+
+        const hasOtherManualData = !!(
+          (cleanedCurrent.address && cleanedCurrent.address.trim()) ||
+          typeof cleanedCurrent.lat === "number" ||
+          typeof cleanedCurrent.lng === "number" ||
+          (cleanedCurrent.quadra && cleanedCurrent.quadra.trim()) ||
+          (cleanedCurrent.lote && cleanedCurrent.lote.trim()) ||
+          cleanedCurrent.confirmed ||
+          cleanedCurrent.review
+        );
+
+        if (!hasOtherManualData) {
+          return rest;
+        }
+
+        return {
+          ...rest,
+          [idx]: cleanedCurrent,
+        };
+      }
+
+      return {
+        ...prev,
+        [idx]: {
+          ...current,
+          notes: nextValue,
+        },
+      };
+    });
+
+    cancelNotesEditor();
   }
 
   // ===== groupedRows =====
@@ -586,11 +635,19 @@ useEffect(() => {
         cep,
         lat,
         lng,
-        notes: getRowComplement(baseIdx),
+        notes: getManualObservation(baseIdx),
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds]);
+
+  function openNotesEditorForGroup(groupId: string) {
+    const group = groupedRows.find((g) => g.id === groupId);
+    if (!group) return;
+
+    openNotesEditor(group.idxs[0]);
+    setCtx({ open: false, x: 0, y: 0, groupId: null });
+  }
 
   // ===== Import =====
   async function handleSubmit(e: React.FormEvent) {
@@ -691,8 +748,12 @@ if (jobId) {
     const draft: ExportDraftRow[] = groupedRows.map((g) => {
       const baseIdx = g.idxs[0];
 
-      // ✅ Observações começam como: "Sequência - Endereço ORIGINAL (Excel)"
-      const obsInicial = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
+      const obsBase = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
+      const obsManual = getManualObservation(baseIdx);
+      const obsInicial =
+        obsManual && !obsBase.includes(obsManual)
+          ? `${obsBase} | ${obsManual}`.trim()
+          : obsBase;
 
       return {
         groupId: g.id,
@@ -711,7 +772,7 @@ if (jobId) {
         quadra: getRowQuadra(baseIdx),
         lote: getRowLote(baseIdx),
 
-        // ✅ vai aparecer na coluna "OBSERVAÇÕES (EDITÁVEL)"
+        // ✅ mantém texto base e acrescenta observação manual no final
         complemento: obsInicial,
       };
     });
@@ -1825,6 +1886,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                   </button>
                                 )}
 
+
                                 {!groupMode && !isGrouped && (
                                   <button
                                     type="button"
@@ -1857,6 +1919,46 @@ setTimeout(() => map.getViewPort().resize(), 800);
                             <div className="mt-3 text-sm text-slate-900 break-words">
                               {g.addressDisplay}
                             </div>
+
+                              {!!String(g.notes || "").trim() && (
+                                <div className="mt-2 text-xs text-slate-700 break-words">
+                                  <span className="font-semibold">Observação:</span> {g.notes}
+                                </div>
+                              )}
+
+                            {notesEditorIdx === baseIdx && (
+                              <div
+                                className="mt-3 space-y-2"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="text"
+                                  value={notesDraft}
+                                  onChange={(e) => setNotesDraft(e.target.value)}
+                                  placeholder="Ex: QD 12 LT 03 / portão azul / fundos"
+                                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                                  autoFocus
+                                />
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => saveNotesEditor(baseIdx)}
+                                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                                  >
+                                    Salvar
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={cancelNotesEditor}
+                                    className="px-3 py-2 rounded-lg text-xs font-semibold border bg-white hover:bg-slate-50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
 
                             {String(g.bairro || "").trim() && (
                               <div className="mt-1 text-xs text-slate-600 break-words">
@@ -1972,6 +2074,7 @@ onClick={() => {
   </button>
 )}
 
+
                                {!groupMode && !isGrouped && (
                                   <button
                                     type="button"
@@ -2041,6 +2144,46 @@ onClick={() => {
                               <span className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis">
   {g.addressDisplay}
 </span>
+
+                              {!!String(g.notes || "").trim() && (
+                                <div className="mt-2 text-xs text-slate-700 break-words whitespace-normal">
+                                  <span className="font-semibold">Observação:</span> {g.notes}
+                                </div>
+                              )}
+
+                              {notesEditorIdx === baseIdx && (
+                                <div
+                                  className="mt-3 space-y-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="text"
+                                    value={notesDraft}
+                                    onChange={(e) => setNotesDraft(e.target.value)}
+                                    placeholder="Ex: QD 12 LT 03 / portão azul / fundos"
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                                    autoFocus
+                                  />
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveNotesEditor(baseIdx)}
+                                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                                    >
+                                      Salvar
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={cancelNotesEditor}
+                                      className="px-3 py-2 rounded-lg text-xs font-semibold border bg-white hover:bg-slate-50"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                               {isGrouped && (
                                 <div className="text-xs text-slate-600 mt-1">
                                   Agrupado ({g.idxs.length})
@@ -2104,6 +2247,15 @@ onClick={() => {
       }}
     >
       Desagrupar
+    </button>
+
+    <button
+      className="px-4 py-2 hover:bg-slate-100 w-full text-left"
+      onClick={() => {
+        openNotesEditorForGroup(ctx.groupId!);
+      }}
+    >
+      Observação
     </button>
 
     <button
