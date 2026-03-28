@@ -278,6 +278,11 @@ if (!rows || rows.length === 0) return;
   const [isOverviewMapOpen, setIsOverviewMapOpen] = useState(false);
   const [overviewSelectedGroupId, setOverviewSelectedGroupId] = useState<string | null>(null);
   const [overviewCardPosition, setOverviewCardPosition] = useState<{ left: number; top: number } | null>(null);
+  const [overviewMoveDraft, setOverviewMoveDraft] = useState<{
+    groupId: string;
+    baseIdx: number;
+    coord: { lat: number; lng: number };
+  } | null>(null);
 
   // modal mapa
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -327,6 +332,11 @@ useEffect(() => {
   const overviewMarkersGroupRef = useRef<any>(null);
   const overviewDidFitRef = useRef(false);
   const overviewSelectedPointRef = useRef<{ lat: number; lng: number } | null>(null);
+  const overviewMoveDraftRef = useRef<{
+    groupId: string;
+    baseIdx: number;
+    coord: { lat: number; lng: number };
+  } | null>(null);
   const reverseCacheRef = useRef<Map<string, any>>(new Map());
   const quadraCacheRef = useRef<Map<string, any>>(new Map());
 
@@ -704,11 +714,20 @@ useEffect(() => {
     return overviewMapPoints.find((point) => point.id === overviewSelectedGroupId) || null;
   }, [overviewMapPoints, overviewSelectedGroupId]);
 
+  const overviewSelectedGroup = useMemo(() => {
+    if (!overviewSelectedGroupId) return null;
+    return groupedRows.find((group) => group.id === overviewSelectedGroupId) || null;
+  }, [groupedRows, overviewSelectedGroupId]);
+
   useEffect(() => {
     overviewSelectedPointRef.current = overviewSelectedPoint
       ? { lat: overviewSelectedPoint.lat, lng: overviewSelectedPoint.lng }
       : null;
   }, [overviewSelectedPoint]);
+
+  useEffect(() => {
+    overviewMoveDraftRef.current = overviewMoveDraft;
+  }, [overviewMoveDraft]);
 
   function syncOverviewCardPosition(point?: { lat: number; lng: number } | null) {
     const map = overviewHereMap.current;
@@ -1137,22 +1156,14 @@ function clearReview(groupId: string) {
     setSuggestActive(-1);
   }
 
-  async function applyConfirmedCoordToGroup(args: {
-    baseIdx: number;
+  async function applyConfirmedCoordToIdxs(args: {
+    idxsToApply: number[];
     coord: { lat: number; lng: number };
-    groupId?: string | null;
     afterConfirm?: () => void;
   }) {
-    const targetGroup =
-      (args.groupId ? groupedRows.find((g) => g.id === args.groupId) : null) ||
-      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
-      null;
-
-    const idxsToApply = targetGroup?.idxs?.length ? targetGroup.idxs : [args.baseIdx];
-
     setManualEdits((prev) => {
       const next = { ...prev };
-      for (const idx of idxsToApply) {
+      for (const idx of args.idxsToApply) {
         next[idx] = { lat: args.coord.lat, lng: args.coord.lng, confirmed: true };
       }
       return next;
@@ -1160,7 +1171,7 @@ function clearReview(groupId: string) {
 
     setRows((prev) => {
       const next = [...prev];
-      for (const idx of idxsToApply) {
+      for (const idx of args.idxsToApply) {
         const r = next[idx];
         if (!r) continue;
         next[idx] = { ...r, lat: args.coord.lat, lng: args.coord.lng, status: "OK" };
@@ -1171,7 +1182,7 @@ function clearReview(groupId: string) {
     args.afterConfirm?.();
 
     try {
-      const snapshot = idxsToApply
+      const snapshot = args.idxsToApply
         .map((idx) => rows[idx])
         .filter(Boolean) as Array<{ original?: string; city?: string }>;
 
@@ -1247,6 +1258,26 @@ function clearReview(groupId: string) {
     }
   }
 
+  async function applyConfirmedCoordToGroup(args: {
+    baseIdx: number;
+    coord: { lat: number; lng: number };
+    groupId?: string | null;
+    afterConfirm?: () => void;
+  }) {
+    const targetGroup =
+      (args.groupId ? groupedRows.find((g) => g.id === args.groupId) : null) ||
+      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
+      null;
+
+    const idxsToApply = targetGroup?.idxs?.length ? targetGroup.idxs : [args.baseIdx];
+
+    await applyConfirmedCoordToIdxs({
+      idxsToApply,
+      coord: args.coord,
+      afterConfirm: args.afterConfirm,
+    });
+  }
+
 async function confirmManualModal() {
     if (modalIdx == null) return;
 
@@ -1300,6 +1331,36 @@ if (!hasPickedLabel && !sameCoordAsRow) {
         lng: overviewSelectedPoint.lng,
       },
       afterConfirm: () => setOverviewSelectedGroupId(null),
+    });
+  }
+
+  function startOverviewMoveMode() {
+    if (!overviewSelectedPoint || !overviewSelectedGroup) return;
+    if (overviewSelectedGroup.idxs.length !== 1) return;
+
+    setOverviewMoveDraft({
+      groupId: overviewSelectedPoint.id,
+      baseIdx: overviewSelectedPoint.baseIdx,
+      coord: {
+        lat: overviewSelectedPoint.lat,
+        lng: overviewSelectedPoint.lng,
+      },
+    });
+  }
+
+  function cancelOverviewMoveMode() {
+    setOverviewMoveDraft(null);
+  }
+
+  function saveOverviewMoveDraft() {
+    if (!overviewMoveDraft) return;
+
+    void applyConfirmedCoordToIdxs({
+      idxsToApply: [overviewMoveDraft.baseIdx],
+      coord: overviewMoveDraft.coord,
+      afterConfirm: () => {
+        setOverviewMoveDraft(null);
+      },
     });
   }
 
@@ -1846,7 +1907,25 @@ setTimeout(() => map.getViewPort().resize(), 800);
         syncOverviewCardPosition(overviewSelectedPointRef.current);
       };
 
+      const onMapTapForMove = (evt: any) => {
+        const draft = overviewMoveDraftRef.current;
+        if (!draft) return;
+        if (evt?.target instanceof H.map.Marker) return;
+
+        const pointer = evt?.currentPointer || evt?.pointer;
+        if (!pointer) return;
+
+        const geo = map.screenToGeo(pointer.viewportX, pointer.viewportY);
+        if (!geo || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lng)) return;
+
+        setOverviewMoveDraft({
+          ...draft,
+          coord: { lat: geo.lat, lng: geo.lng },
+        });
+      };
+
       map.addEventListener("mapviewchangeend", onMapViewChangeEnd);
+      map.addEventListener("tap", onMapTapForMove);
 
       setTimeout(() => map.getViewPort().resize(), 50);
       setTimeout(() => map.getViewPort().resize(), 150);
@@ -1862,6 +1941,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
         try {
           map.removeEventListener("mapviewchangeend", onMapViewChangeEnd);
+        } catch {}
+
+        try {
+          map.removeEventListener("tap", onMapTapForMove);
         } catch {}
 
         try {
@@ -1907,8 +1990,13 @@ setTimeout(() => map.getViewPort().resize(), 800);
       };
 
       for (const point of overviewMapPoints) {
+        const markerPosition =
+          overviewMoveDraft?.groupId === point.id
+            ? overviewMoveDraft.coord
+            : { lat: point.lat, lng: point.lng };
+
         const marker = new H.map.Marker(
-          { lat: point.lat, lng: point.lng },
+          markerPosition,
           { icon: buildOverviewMarkerIcon(point.status === "CONFIRMADO") }
         );
         marker.setData(point.id);
@@ -1930,19 +2018,25 @@ setTimeout(() => map.getViewPort().resize(), 800);
           group.removeEventListener("tap", onTap);
         } catch {}
       };
-    }, [isOverviewMapOpen, overviewMapPoints]);
+    }, [isOverviewMapOpen, overviewMapPoints, overviewMoveDraft]);
 
     useEffect(() => {
       if (!isOverviewMapOpen) {
         setOverviewSelectedGroupId(null);
         setOverviewCardPosition(null);
+        setOverviewMoveDraft(null);
         overviewMarkersGroupRef.current = null;
       }
     }, [isOverviewMapOpen]);
 
     useEffect(() => {
-      syncOverviewCardPosition(overviewSelectedPoint);
-    }, [overviewSelectedPoint]);
+      const pointForCard =
+        overviewMoveDraft?.groupId === overviewSelectedPoint?.id
+          ? overviewMoveDraft?.coord ?? null
+          : overviewSelectedPoint;
+
+      syncOverviewCardPosition(pointForCard);
+    }, [overviewSelectedPoint, overviewMoveDraft]);
 
     // ===== UI =====
     if (!mounted) return null;
@@ -2791,7 +2885,7 @@ onClick={() => {
                       <div ref={overviewMapRef} className="w-full h-full bg-white" />
                     </div>
 
-                    {overviewSelectedPoint && overviewCardPosition && (
+                    {overviewSelectedPoint && overviewCardPosition && !overviewMoveDraft && (
                       <div
                         className="absolute z-20 w-[360px] max-w-[calc(100vw-24px)]"
                         style={{
@@ -2829,6 +2923,22 @@ onClick={() => {
                           </div>
 
                           <div className="mt-4 flex flex-wrap gap-2">
+                            {overviewSelectedGroup?.idxs.length === 1 && (
+                              <button
+                                type="button"
+                                onClick={startOverviewMoveMode}
+                                className="px-3 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50"
+                              >
+                                Mover pino
+                              </button>
+                            )}
+
+                            {overviewSelectedGroup?.idxs.length !== 1 && (
+                              <div className="w-full text-xs text-amber-700">
+                                Mover pino disponível apenas para parada individual.
+                              </div>
+                            )}
+
                             {overviewSelectedPoint.status !== "CONFIRMADO" && (
                               <button
                                 type="button"
@@ -2859,6 +2969,34 @@ onClick={() => {
                               className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800"
                             >
                               Abrir parada
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {overviewMoveDraft && (
+                      <div className="absolute left-2 right-2 bottom-14 md:left-1/2 md:right-auto md:bottom-4 md:-translate-x-1/2 z-30">
+                        <div className="rounded-2xl border bg-white/95 backdrop-blur shadow-xl px-4 py-3">
+                          <div className="text-xs text-amber-700 mb-3">
+                            Clique no mapa para definir a nova posição desta parada.
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={saveOverviewMoveDraft}
+                              className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                              Salvar ajuste
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={cancelOverviewMoveMode}
+                              className="px-3 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50"
+                            >
+                              Cancelar ajuste
                             </button>
                           </div>
                         </div>
