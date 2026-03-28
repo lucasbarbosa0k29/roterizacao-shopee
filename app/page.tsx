@@ -47,6 +47,7 @@ type GroupedRow = {
   idxs: number[];
   sequenceText: string;
   status: Status;
+  statusLabel: string;
   addressDisplay: React.ReactNode;
   addressForExport: string;
   bairro: string;
@@ -107,6 +108,15 @@ function stripQuadraLoteFromNotes(text: string) {
   if (t.toLowerCase().includes("gemini erro")) t = t.replace(/gemini erro/gi, "").trim();
 
   return t;
+}
+
+function escapeHtml(text: string) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // normaliza p/ auto agrupamento (remove CEP, pontuação, espaços)
@@ -265,6 +275,9 @@ if (!rows || rows.length === 0) return;
   // export review modal
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportDraft, setExportDraft] = useState<ExportDraftRow[]>([]);
+  const [isOverviewMapOpen, setIsOverviewMapOpen] = useState(false);
+  const [overviewSelectedGroupId, setOverviewSelectedGroupId] = useState<string | null>(null);
+  const [overviewCardPosition, setOverviewCardPosition] = useState<{ left: number; top: number } | null>(null);
 
   // modal mapa
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -309,6 +322,11 @@ useEffect(() => {
   const hereMap = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const searchRef = useRef<any>(null);
+  const overviewMapRef = useRef<HTMLDivElement | null>(null);
+  const overviewHereMap = useRef<any>(null);
+  const overviewMarkersGroupRef = useRef<any>(null);
+  const overviewDidFitRef = useRef(false);
+  const overviewSelectedPointRef = useRef<{ lat: number; lng: number } | null>(null);
   const reverseCacheRef = useRef<Map<string, any>>(new Map());
   const quadraCacheRef = useRef<Map<string, any>>(new Map());
 
@@ -417,6 +435,22 @@ useEffect(() => {
   // ✅ mantém o status original (OK / PARCIAL / NAO_ENCONTRADO)
   return (rows[i]?.status || "NAO_ENCONTRADO") as Status;
 }
+
+  function isRowMemoryHit(i: number) {
+    const row = rows[i] as any;
+    const decisionReason = String(
+      row?.decisionReason || row?.memoryDebug?.decisionReason || ""
+    ).toUpperCase();
+
+    return !!row?.memoryDebug?.memoryHit || decisionReason.startsWith("MEMORY");
+  }
+
+  function getVisualStatusLabel(status: Status, idxs: number[]) {
+    if (status === "OK" && idxs.some((idx) => isRowMemoryHit(idx))) {
+      return "OK MEMORY";
+    }
+    return status;
+  }
 
   function getRowQuadra(i: number) {
     const manual = String(manualEdits[i]?.quadra || "").trim();
@@ -623,11 +657,14 @@ useEffect(() => {
               ? "PARCIAL"
               : "NAO_ENCONTRADO";
 
+      const statusLabel = getVisualStatusLabel(status, idxs);
+
       return {
         id: g.id,
         idxs,
         sequenceText,
         status,
+        statusLabel,
         addressDisplay,
         addressForExport,
         bairro,
@@ -640,6 +677,76 @@ useEffect(() => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds]);
+
+  const overviewMapPoints = useMemo(() => {
+    return groupedRows
+      .filter(
+        (g) =>
+          typeof g.lat === "number" &&
+          Number.isFinite(g.lat) &&
+          typeof g.lng === "number" &&
+          Number.isFinite(g.lng),
+      )
+      .map((g) => ({
+        id: g.id,
+        baseIdx: g.idxs[0],
+        sequenceText: g.sequenceText,
+        address: g.addressForExport,
+        status: g.status,
+        statusLabel: g.statusLabel,
+        lat: g.lat as number,
+        lng: g.lng as number,
+      }));
+  }, [groupedRows]);
+
+  const overviewSelectedPoint = useMemo(() => {
+    if (!overviewSelectedGroupId) return null;
+    return overviewMapPoints.find((point) => point.id === overviewSelectedGroupId) || null;
+  }, [overviewMapPoints, overviewSelectedGroupId]);
+
+  useEffect(() => {
+    overviewSelectedPointRef.current = overviewSelectedPoint
+      ? { lat: overviewSelectedPoint.lat, lng: overviewSelectedPoint.lng }
+      : null;
+  }, [overviewSelectedPoint]);
+
+  function syncOverviewCardPosition(point?: { lat: number; lng: number } | null) {
+    const map = overviewHereMap.current;
+    if (!map || !point) {
+      setOverviewCardPosition(null);
+      return;
+    }
+
+    try {
+      const screen = map.geoToScreen({ lat: point.lat, lng: point.lng });
+      const viewport = map.getViewPort();
+      const width = viewport?.element?.clientWidth || 0;
+      const left = Math.max(12, Math.min((screen?.x ?? 0) - 180, Math.max(12, width - 372)));
+      const top = Math.max(76, (screen?.y ?? 0) - 16);
+
+      setOverviewCardPosition({ left, top });
+    } catch {
+      setOverviewCardPosition(null);
+    }
+  }
+
+  function buildOverviewMarkerIcon(isConfirmed: boolean) {
+    const fill = isConfirmed ? "#16a34a" : "#2563eb";
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+        <path d="M14 35s10-9.2 10-19A10 10 0 1 0 4 16c0 9.8 10 19 10 19Z" fill="${fill}" stroke="#ffffff" stroke-width="2"/>
+        <circle cx="14" cy="16" r="4" fill="#ffffff"/>
+      </svg>
+    `;
+    const H = (window as any).H;
+    return new H.map.Icon(
+      `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+      {
+        size: { w: 28, h: 36 },
+        anchor: { x: 14, y: 36 },
+      }
+    );
+  }
 
   function openNotesEditorForGroup(groupId: string) {
     const group = groupedRows.find((g) => g.id === groupId);
@@ -1030,6 +1137,116 @@ function clearReview(groupId: string) {
     setSuggestActive(-1);
   }
 
+  async function applyConfirmedCoordToGroup(args: {
+    baseIdx: number;
+    coord: { lat: number; lng: number };
+    groupId?: string | null;
+    afterConfirm?: () => void;
+  }) {
+    const targetGroup =
+      (args.groupId ? groupedRows.find((g) => g.id === args.groupId) : null) ||
+      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
+      null;
+
+    const idxsToApply = targetGroup?.idxs?.length ? targetGroup.idxs : [args.baseIdx];
+
+    setManualEdits((prev) => {
+      const next = { ...prev };
+      for (const idx of idxsToApply) {
+        next[idx] = { lat: args.coord.lat, lng: args.coord.lng, confirmed: true };
+      }
+      return next;
+    });
+
+    setRows((prev) => {
+      const next = [...prev];
+      for (const idx of idxsToApply) {
+        const r = next[idx];
+        if (!r) continue;
+        next[idx] = { ...r, lat: args.coord.lat, lng: args.coord.lng, status: "OK" };
+      }
+      return next;
+    });
+
+    args.afterConfirm?.();
+
+    try {
+      const snapshot = idxsToApply
+        .map((idx) => rows[idx])
+        .filter(Boolean) as Array<{ original?: string; city?: string }>;
+
+      const seen = new Set<string>();
+
+      function makeBaseAddress(addr: string) {
+        return addr
+          .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+          .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+          .replace(/\b(TORRE)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
+          .replace(/\b(EDIFICIO|EDIF\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+          .replace(/\b(CONDOMINIO|COND\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
+          .replace(/\b(RESIDENCIAL|RES\.)\b\s*[-:]?\s*[^,]+/gi, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function save(address: string, city: string) {
+        const key = `${address}||${city}`.toUpperCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        return fetch("/api/address-memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            address,
+            city,
+            lat: args.coord.lat,
+            lng: args.coord.lng,
+            createdBy: null,
+          }),
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              let errorText = "";
+              try {
+                errorText = await response.text();
+              } catch {}
+
+              console.error("Falha ao salvar AddressMemory", {
+                address,
+                city,
+                status: response.status,
+                body: errorText,
+              });
+            }
+
+            return response;
+          })
+          .catch(() => {});
+      }
+
+      const tasks: Array<Promise<any> | undefined> = [];
+      for (const r of snapshot) {
+        const full = String(r.original || "").trim();
+        const city = String(r.city || "").trim();
+        if (!full) continue;
+
+        const primaryTask = save(full, city);
+        tasks.push(primaryTask);
+
+        const base = makeBaseAddress(full);
+        if (base && base.length >= 6 && base.toUpperCase() !== full.toUpperCase()) {
+          tasks.push(save(base, city));
+        }
+      }
+
+      void Promise.allSettled(tasks.filter(Boolean) as Promise<any>[]);
+    } catch {
+      // silencioso para nao bloquear a UI
+    }
+  }
+
 async function confirmManualModal() {
     if (modalIdx == null) return;
 
@@ -1064,111 +1281,26 @@ if (!hasPickedLabel && !sameCoordAsRow) {
   reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
 }
 
-// ✅ Se a linha faz parte de um grupo...
-const group =
-  groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(modalIdx)) || null;
-    const idxsToApply = group?.idxs?.length ? group.idxs : [modalIdx];
-
-    // 1) Atualiza estado local (linha + manualEdits) para TODOS do grupo
-    setManualEdits((prev) => {
-      const next = { ...prev };
-      for (const idx of idxsToApply) {
-        next[idx] = { lat: coord.lat, lng: coord.lng, confirmed: true };
-      }
-      return next;
+    await applyConfirmedCoordToGroup({
+      baseIdx: modalIdx,
+      coord,
+      afterConfirm: closeManualModal,
     });
+  }
 
-    setRows((prev) => {
-      const next = [...prev];
-      for (const idx of idxsToApply) {
-        const r = next[idx];
-        if (!r) continue;
-        next[idx] = { ...r, lat: coord.lat, lng: coord.lng, status: "OK" };
-      }
-      return next;
+  function confirmOverviewSelectedPoint() {
+    if (!overviewSelectedPoint) return;
+    if (overviewSelectedPoint.status === "CONFIRMADO") return;
+
+    void applyConfirmedCoordToGroup({
+      baseIdx: overviewSelectedPoint.baseIdx,
+      groupId: overviewSelectedPoint.id,
+      coord: {
+        lat: overviewSelectedPoint.lat,
+        lng: overviewSelectedPoint.lng,
+      },
+      afterConfirm: () => setOverviewSelectedGroupId(null),
     });
-
-    closeManualModal();
-
-    // 2) ✅ Salva na AddressMemory SEMPRE (mesmo se não mexeu no pino)
-//    - para APT/PRÉDIO: salva também uma "versão base" sem complemento (apto/bloco/etc)
-//    - salva sequencialmente (mais estável no Render)
-// 2) ✅ Salva na AddressMemory EM BACKGROUND (não trava UI)
-try {
-  const snapshot = idxsToApply
-    .map((idx) => rows[idx])
-    .filter(Boolean) as Array<{ original?: string; city?: string }>;
-
-  const seen = new Set<string>();
-
-  function makeBaseAddress(addr: string) {
-    return addr
-      .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
-      .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
-      .replace(/\b(TORRE)\b\s*[-:]?\s*[\w\/\-\.]+/gi, " ")
-      .replace(/\b(EDIFICIO|EDIF\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
-      .replace(/\b(CONDOMINIO|COND\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
-      .replace(/\b(RESIDENCIAL|RES\.)\b\s*[-:]?\s*[^,]+/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function save(address: string, city: string) {
-    const key = `${address}||${city}`.toUpperCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-
-    return fetch("/api/address-memory", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        address,
-        city,
-        lat: coord!.lat,
-        lng: coord!.lng,
-        createdBy: null,
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          let errorText = "";
-          try {
-            errorText = await response.text();
-          } catch {}
-
-          console.error("Falha ao salvar AddressMemory", {
-            address,
-            city,
-            status: response.status,
-            body: errorText,
-          });
-        }
-
-        return response;
-      })
-      .catch(() => {});
-  }
-
-  const tasks: Array<Promise<any> | undefined> = [];
-  for (const r of snapshot) {
-    const full = String(r.original || "").trim();
-    const city = String(r.city || "").trim();
-    if (!full) continue;
-
-    const primaryTask = save(full, city);
-    tasks.push(primaryTask);
-
-    const base = makeBaseAddress(full);
-    if (base && base.length >= 6 && base.toUpperCase() !== full.toUpperCase()) {
-      tasks.push(save(base, city));
-    }
-  }
-
-  void Promise.allSettled(tasks.filter(Boolean) as Promise<any>[]);
-} catch {
-  // silencioso para n??o bloquear a UI
-}
   }
 
   async function reverseGeocodeServer(lat: number, lng: number) {
@@ -1668,6 +1800,150 @@ setTimeout(() => map.getViewPort().resize(), 800);
       // redesenha overlay com debounce
 
     }, [pinLatLng]);
+
+    useEffect(() => {
+      if (!isOverviewMapOpen || !overviewMapRef.current) return;
+
+      const H = (window as any).H;
+      if (!H) return;
+
+      if (overviewHereMap.current) {
+        try {
+          overviewHereMap.current.dispose();
+        } catch {}
+        overviewHereMap.current = null;
+      }
+
+      const apiKey = (process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
+      if (!apiKey) return;
+
+      const platform = new H.service.Platform({ apikey: apiKey });
+      const layers = platform.createDefaultLayers();
+
+      const initial = overviewMapPoints[0]
+        ? { lat: overviewMapPoints[0].lat, lng: overviewMapPoints[0].lng }
+        : { lat: -16.8233, lng: -49.2439 };
+
+      const map = new H.Map(overviewMapRef.current, layers.vector.normal.map, {
+        zoom: overviewMapPoints.length ? 13 : 11,
+        center: initial,
+        pixelRatio: 1,
+      });
+
+      const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+      const ui = H.ui.UI.createDefault(map, layers);
+      ui.removeControl("mapsettings");
+      ui.getControl("mapsettings")?.setDisabled(true);
+
+      overviewHereMap.current = map;
+      overviewDidFitRef.current = false;
+
+      map.getViewModel().addEventListener("sync", () => {
+        map.getViewPort().resize();
+      });
+
+      const onMapViewChangeEnd = () => {
+        syncOverviewCardPosition(overviewSelectedPointRef.current);
+      };
+
+      map.addEventListener("mapviewchangeend", onMapViewChangeEnd);
+
+      setTimeout(() => map.getViewPort().resize(), 50);
+      setTimeout(() => map.getViewPort().resize(), 150);
+      setTimeout(() => map.getViewPort().resize(), 400);
+
+      return () => {
+        if (overviewMarkersGroupRef.current) {
+          try {
+            map.removeObject(overviewMarkersGroupRef.current);
+          } catch {}
+          overviewMarkersGroupRef.current = null;
+        }
+
+        try {
+          map.removeEventListener("mapviewchangeend", onMapViewChangeEnd);
+        } catch {}
+
+        try {
+          behavior.disable();
+        } catch {}
+
+        try {
+          ui?.dispose?.();
+        } catch {}
+
+        try {
+          map.dispose();
+        } catch {}
+
+        overviewHereMap.current = null;
+        overviewDidFitRef.current = false;
+      };
+    }, [isOverviewMapOpen]);
+
+    useEffect(() => {
+      if (!isOverviewMapOpen) return;
+
+      const H = (window as any).H;
+      const map = overviewHereMap.current;
+      if (!H || !map) return;
+
+      if (overviewMarkersGroupRef.current) {
+        try {
+          map.removeObject(overviewMarkersGroupRef.current);
+        } catch {}
+        overviewMarkersGroupRef.current = null;
+      }
+
+      const group = new H.map.Group();
+
+      const onTap = (evt: any) => {
+        const target = evt.target;
+        const groupId = target?.getData?.();
+        if (!groupId) return;
+        const point = overviewMapPoints.find((item) => item.id === groupId) || null;
+        setOverviewSelectedGroupId(groupId);
+        syncOverviewCardPosition(point);
+      };
+
+      for (const point of overviewMapPoints) {
+        const marker = new H.map.Marker(
+          { lat: point.lat, lng: point.lng },
+          { icon: buildOverviewMarkerIcon(point.status === "CONFIRMADO") }
+        );
+        marker.setData(point.id);
+        group.addObject(marker);
+      }
+
+      group.addEventListener("tap", onTap);
+      map.addObject(group);
+      overviewMarkersGroupRef.current = group;
+
+      const bounds = group.getBoundingBox?.();
+      if (bounds && !overviewDidFitRef.current) {
+        map.getViewModel().setLookAtData({ bounds });
+        overviewDidFitRef.current = true;
+      }
+
+      return () => {
+        try {
+          group.removeEventListener("tap", onTap);
+        } catch {}
+      };
+    }, [isOverviewMapOpen, overviewMapPoints]);
+
+    useEffect(() => {
+      if (!isOverviewMapOpen) {
+        setOverviewSelectedGroupId(null);
+        setOverviewCardPosition(null);
+        overviewMarkersGroupRef.current = null;
+      }
+    }, [isOverviewMapOpen]);
+
+    useEffect(() => {
+      syncOverviewCardPosition(overviewSelectedPoint);
+    }, [overviewSelectedPoint]);
+
     // ===== UI =====
     if (!mounted) return null;
     return (
@@ -1751,6 +2027,24 @@ setTimeout(() => map.getViewPort().resize(), 800);
       }`}
     >
       Auto Agrupar
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setIsOverviewMapOpen(true)}
+      disabled={overviewMapPoints.length === 0}
+      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+        overviewMapPoints.length === 0
+          ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+          : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+      }`}
+      title={
+        overviewMapPoints.length === 0
+          ? "Nenhuma parada com coordenadas para exibir"
+          : "Abrir mapa com todas as paradas"
+      }
+    >
+      Ver no mapa
     </button>
 
     <button
@@ -1853,7 +2147,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                         : "bg-red-100 text-red-800 hover:bg-red-200")
                                     }
                                   >
-                                    {g.status}
+                                    {g.statusLabel}
                                   </span>
 
                                   <span className="text-sm font-semibold text-slate-900">
@@ -2134,7 +2428,7 @@ onClick={() => {
       : "bg-red-100 text-red-800 hover:bg-red-200")
   }
 >
-  {g.status}
+  {g.statusLabel}
 </span>
                             </td>
 
@@ -2462,6 +2756,118 @@ onClick={() => {
                             Confirmar e Exportar
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isOverviewMapOpen && (
+                <div className="fixed inset-0 z-[9998] bg-black/30">
+                  <div className="absolute inset-0 bg-white">
+                    <div className="absolute left-0 right-0 top-0 z-20 h-[56px] md:h-[64px] border-b bg-white/95 backdrop-blur">
+                      <div className="h-full px-3 md:px-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm md:text-base font-semibold text-slate-900">
+                            Ver no mapa
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            Mostrando {overviewMapPoints.length} parada(s) com coordenadas
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsOverviewMapOpen(false)}
+                          className="w-9 h-9 md:w-10 md:h-10 rounded-xl border bg-white hover:bg-slate-50"
+                          title="Fechar"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="absolute inset-0 pt-[56px] md:pt-[64px] overflow-hidden">
+                      <div ref={overviewMapRef} className="w-full h-full bg-white" />
+                    </div>
+
+                    {overviewSelectedPoint && overviewCardPosition && (
+                      <div
+                        className="absolute z-20 w-[360px] max-w-[calc(100vw-24px)]"
+                        style={{
+                          left: overviewCardPosition.left,
+                          top: overviewCardPosition.top,
+                          transform: "translateY(-100%)",
+                        }}
+                      >
+                        <div className="rounded-2xl border bg-white shadow-xl p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900">
+                                Sequência {overviewSelectedPoint.sequenceText}
+                              </div>
+                              <div className="mt-1 text-sm text-slate-600">
+                                {overviewSelectedPoint.address}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setOverviewSelectedGroupId(null)}
+                              className="w-8 h-8 rounded-lg border bg-white hover:bg-slate-50 text-slate-500"
+                              title="Fechar card"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="mt-3 text-xs text-slate-500">
+                            Status:{" "}
+                            <span className="font-semibold text-slate-700">
+                              {overviewSelectedPoint.statusLabel}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {overviewSelectedPoint.status !== "CONFIRMADO" && (
+                              <button
+                                type="button"
+                                onClick={confirmOverviewSelectedPoint}
+                                className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                              >
+                                Confirmar
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsOverviewMapOpen(false);
+                                openNotesEditorForGroup(overviewSelectedPoint.id);
+                              }}
+                              className="px-3 py-2 rounded-lg text-sm font-semibold border bg-white hover:bg-slate-50"
+                            >
+                              Ver observações
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsOverviewMapOpen(false);
+                                openManualModalForIdx(overviewSelectedPoint.baseIdx);
+                              }}
+                              className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800"
+                            >
+                              Abrir parada
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="absolute left-2 right-2 bottom-2 md:left-4 md:right-auto md:bottom-4 z-20">
+                      <div className="rounded-xl border bg-white/95 backdrop-blur shadow-lg px-3 py-2 text-xs text-slate-700">
+                        Visualização somente leitura. Clique em um marcador para ver sequência, endereço e status.
                       </div>
                     </div>
                   </div>
