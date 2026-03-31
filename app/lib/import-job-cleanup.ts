@@ -19,7 +19,7 @@ export async function cleanupOldImportJobsIfNeeded() {
 
     await prisma.importJob.deleteMany({
       where: {
-        createdAt: { lt: cutoff },
+        updatedAt: { lt: cutoff },
       },
     });
   } catch (e) {

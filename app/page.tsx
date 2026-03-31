@@ -157,15 +157,23 @@ function HomeInner() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RowItem[]>([]);
   const [view, setView] = useState<"upload" | "results">("upload");
+  const [jobProgress, setJobProgress] = useState<{
+    status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+    processedStops: number;
+    totalStops: number;
+    errorMessage?: string | null;
+  } | null>(null);
  const [historyId, setHistoryId] = useState<string | null>(null);
  const [historyName, setHistoryName] = useState<string>("Planilha");
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
+  const lastWorkspaceUpdatedAtRef = useRef(0);
+  const isApplyingRemoteWorkspaceRef = useRef(false);
   const [notesEditorIdx, setNotesEditorIdx] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
 const searchParams = useSearchParams();
 const jobId = searchParams.get("job");
 useEffect(() => {
-  if (!jobId) return;
+  /*
 
   (async () => {
     try {
@@ -181,43 +189,39 @@ useEffect(() => {
       }
 
       const job = data?.job;
-      const payload = job?.resultJson;
+      const resultPayload = job?.resultJson;
+      const workspacePayload = job?.workspaceJson ?? resultPayload;
 
       // aceita: array direto OU objeto { rows, ... }
-      const loadedRows = Array.isArray(payload) ? payload : payload?.rows;
+      const loadedRows = Array.isArray(resultPayload) ? resultPayload : resultPayload?.rows;
 
       if (!Array.isArray(loadedRows) || loadedRows.length === 0) {
         alert("Histórico sem rows salvos (resultJson vazio).");
         return;
       }
 
-    setFile(null);
-setRows(loadedRows);
+      setFile(null);
+      setRows(loadedRows);
 
 // ✅ restaura estados salvos do histórico (payload envelope)
-const p = payload && typeof payload === "object" ? payload : null;
+      const p = workspacePayload && typeof workspacePayload === "object" ? workspacePayload : null;
 
-setManualEdits(p?.manualEdits ?? {});
-setManualGroups(p?.manualGroups ?? {});
-setAutoGrouped(!!p?.autoGrouped);
-setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
-setGroupMode(!!p?.groupMode);
-setSelectedIdxs(new Set(p?.selectedIdxs ?? []));
+      applyWorkspaceSnapshot(p, {
+        preserveEphemeral: false,
+        nextName: job?.originalName || "Planilha",
+      });
 
 // ✅ restaura view corretamente
-setView((p?.view === "upload" || p?.view === "results") ? p.view : "results");
 
 // ✅ restaura nome salvo
-setHistoryName(typeof p?.name === "string" ? p.name : "Planilha");
 
 setHistoryId(job.id);
-      // limpa URL sem resetar state
-      window.history.replaceState({}, "", window.location.pathname);
     } catch (e) {
       console.error(e);
       alert("Erro ao abrir histórico.");
     }
   })();
+  */
 }, [jobId]);
   // grupos manuais
   const [manualGroups, setManualGroups] = useState<Record<string, number[]>>({});
@@ -231,22 +235,138 @@ setHistoryId(job.id);
   const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set());
   const [mergeTargetGroupId, setMergeTargetGroupId] = useState<string | null>(null);
 
+  function applyWorkspaceSnapshot(
+    snapshot: any,
+    options?: { preserveEphemeral?: boolean; nextName?: string | null }
+  ) {
+    const p = snapshot && typeof snapshot === "object" ? snapshot : null;
+
+    isApplyingRemoteWorkspaceRef.current = true;
+
+    setManualEdits(p?.manualEdits ?? {});
+    setManualGroups(p?.manualGroups ?? {});
+    setAutoGrouped(!!p?.autoGrouped);
+    setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
+
+    if (!options?.preserveEphemeral) {
+      setGroupMode(false);
+      setSelectedIdxs(new Set());
+      setView("results");
+    }
+
+    setHistoryName(
+      typeof p?.name === "string" && p.name.trim()
+        ? p.name
+        : (options?.nextName || "Planilha")
+    );
+    lastWorkspaceUpdatedAtRef.current = Number(p?.updatedAtMs || 0);
+  }
+
+  function applyJobProgress(job: any) {
+    const status = String(job?.status || "PENDING") as "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+
+    setJobProgress({
+      status,
+      processedStops: Number(job?.processedStops || 0),
+      totalStops: Number(job?.totalStops || 0),
+      errorMessage: typeof job?.errorMessage === "string" ? job.errorMessage : null,
+    });
+
+    if (status === "PENDING" || status === "PROCESSING") {
+      setLoading(true);
+      setView("upload");
+      setRows([]);
+      return false;
+    }
+
+    if (status === "FAILED") {
+      setLoading(false);
+      setView("upload");
+      setRows([]);
+      return false;
+    }
+
+    setLoading(false);
+    return true;
+  }
+
+  function hydrateDoneJob(job: any) {
+    const resultPayload = job?.resultJson;
+    const workspacePayload = job?.workspaceJson ?? resultPayload;
+    const loadedRows = Array.isArray(resultPayload) ? resultPayload : resultPayload?.rows;
+
+    if (!Array.isArray(loadedRows) || loadedRows.length === 0) {
+      return false;
+    }
+
+    setRows(loadedRows);
+    applyWorkspaceSnapshot(workspacePayload, {
+      preserveEphemeral: false,
+      nextName: job?.originalName || "Planilha",
+    });
+    setView("results");
+    return true;
+  }
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/history/${encodeURIComponent(jobId)}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data?.error || "Erro ao abrir histÃ³rico.");
+          return;
+        }
+
+        const job = data?.job;
+        setHistoryId(job.id);
+        setFile(null);
+        setHistoryName(job?.originalName || "Planilha");
+
+        if (!applyJobProgress(job)) {
+          return;
+          alert("HistÃ³rico sem rows salvos (resultJson vazio).");
+          return;
+        }
+
+        if (!hydrateDoneJob(job)) {
+          alert("Histórico sem rows salvos (resultJson vazio).");
+        }
+      } catch (e) {
+        console.error(e);
+        setLoading(false);
+        setJobProgress(null);
+        alert("Erro ao abrir histÃ³rico.");
+      }
+    })();
+  }, [jobId]);
+
 
 useEffect(() => {
 if (!historyId) return;
+if (isApplyingRemoteWorkspaceRef.current) {
+  isApplyingRemoteWorkspaceRef.current = false;
+  return;
+}
 // ✅ não salva histórico vazio
 if (!rows || rows.length === 0) return;
   const t = setTimeout(() => {
+  const updatedAtMs = Date.now();
+  lastWorkspaceUpdatedAtRef.current = updatedAtMs;
  updateHistoryDb(historyId, {
-  rows,
+  version: 1,
   manualEdits,
   manualGroups,
   autoGrouped,
   autoBreakIds: Array.from(autoBreakIds),
-  groupMode,
-  selectedIdxs: Array.from(selectedIdxs),
-  view,
   name: historyName || file?.name || "Planilha",
+  updatedAtMs,
 }).catch(() => {});
 }, 400);
 
@@ -258,11 +378,51 @@ if (!rows || rows.length === 0) return;
   manualGroups,
   autoGrouped,
   autoBreakIds,
-  groupMode,
-  selectedIdxs,
-  view,
   file,
+  historyName,
 ]);
+useEffect(() => {
+if (!historyId) return;
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/history/${encodeURIComponent(historyId)}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+
+      const job = data?.job;
+      if (!job) return;
+
+      if (!applyJobProgress(job)) {
+        return;
+      }
+
+      if (rows.length === 0) {
+        hydrateDoneJob(job);
+        return;
+      }
+
+      const remoteWorkspace = job?.workspaceJson;
+      const remoteUpdatedAtMs = Number(remoteWorkspace?.updatedAtMs || 0);
+
+      if (!remoteUpdatedAtMs) return;
+      if (remoteUpdatedAtMs <= lastWorkspaceUpdatedAtRef.current) return;
+
+      applyWorkspaceSnapshot(remoteWorkspace, {
+        preserveEphemeral: true,
+        nextName: job?.originalName || "Planilha",
+      });
+    } catch {
+      // polling silencioso
+    }
+  }, 10000);
+
+  return () => clearInterval(interval);
+}, [historyId, rows.length]);
   // menu do botão direito
   const [ctx, setCtx] = useState<{ open: boolean; x: number; y: number; groupId: string | null }>({
     open: false,
@@ -789,6 +949,7 @@ useEffect(() => {
     setSelectedIdxs(new Set());
     setIsExportOpen(false);
     setExportDraft([]);
+    setJobProgress(null);
     setHistoryName(file.name);
 
     try {
@@ -819,6 +980,9 @@ const jobId =
   dataImport?.importJob?.id ||
   "";
 setHistoryId(jobId);
+if (jobId) {
+  window.history.replaceState({}, "", `/?job=${encodeURIComponent(jobId)}`);
+}
 // (opcional) pra você ver no console do navegador se veio mesmo
 if (!jobId) {
   console.warn("⚠️ jobId não veio do /api/import. Admin não vai mostrar progresso.");
@@ -851,16 +1015,16 @@ if (jobId) {
   if (!Array.isArray(dataProcess?.rows) || dataProcess.rows.length === 0) {
     console.warn("⚠️ Não salvou no histórico porque veio rows vazio do /api/process");
   } else {
+    const updatedAtMs = Date.now();
+    lastWorkspaceUpdatedAtRef.current = updatedAtMs;
     updateHistoryDb(jobId, {
-      rows: dataProcess.rows,
+      version: 1,
       manualEdits,
       manualGroups,
       autoGrouped,
       autoBreakIds: Array.from(autoBreakIds),
-      groupMode,
-      selectedIdxs: Array.from(selectedIdxs),
-      view: "results",
       name: file?.name || "Planilha sem nome",
+      updatedAtMs,
     }).catch(() => {});
   }
 }
@@ -2090,10 +2254,26 @@ setTimeout(() => map.getViewPort().resize(), 800);
           </button>
         </div>
 
-        {loading && (
+        {loading && !jobProgress && (
           <p className="mt-4 text-sm text-slate-500">
             Processando...
           </p>
+        )}
+
+        {loading && jobProgress && (
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <div className="font-semibold">
+              {jobProgress.status === "PENDING" ? "Importação iniciada" : "Processando planilha"}
+            </div>
+            <div className="mt-1">
+              Progresso: {jobProgress.processedStops}/{jobProgress.totalStops}
+            </div>
+            {jobProgress.errorMessage && (
+              <div className="mt-2 text-red-700">
+                Erro: {jobProgress.errorMessage}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -2164,6 +2344,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
   setExportDraft([]);
   setView("upload");
 
+  setJobProgress(null);
   setHistoryName("Planilha");
   setHistoryId(null);
 }}

@@ -6,20 +6,11 @@ import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { Prisma } from "@prisma/client";
-
-/**
- * Next.js 16+: params é Promise.
- * Por isso todos handlers abaixo usam:
- *   { params }: { params: Promise<{ id: string }> }
- * e depois:
- *   const { id } = await params;
- */
+import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 
 function normalizeResultJson(resultJson: any) {
-  // 1) se veio NULL / JsonNull
   if (!resultJson) return null;
 
-  // 2) HISTÓRICO ANTIGO: resultJson era um ARRAY direto => vira envelope
   if (Array.isArray(resultJson)) {
     return {
       version: 1,
@@ -36,26 +27,76 @@ function normalizeResultJson(resultJson: any) {
     };
   }
 
-  // 3) formato atual: objeto com rows
   if (typeof resultJson === "object") {
     const rows = (resultJson as any)?.rows;
-
-    // se rows existir e for array, tá OK
     if (Array.isArray(rows)) return resultJson;
-
-    // se por algum motivo veio objeto sem rows, trata como vazio
     return null;
   }
 
   return null;
 }
 
-// ✅ ABRIR UM ITEM DO HISTÓRICO (do usuário logado)
+function normalizeWorkspaceJson(workspaceJson: any, fallbackResultJson?: any) {
+  const legacy =
+    !workspaceJson || typeof workspaceJson !== "object" || Array.isArray(workspaceJson)
+      ? normalizeResultJson(fallbackResultJson)
+      : null;
+
+  const source =
+    workspaceJson && typeof workspaceJson === "object" && !Array.isArray(workspaceJson)
+      ? workspaceJson
+      : legacy;
+
+  return {
+    version: 1,
+    manualEdits:
+      source?.manualEdits && typeof source.manualEdits === "object"
+        ? source.manualEdits
+        : {},
+    manualGroups:
+      source?.manualGroups && typeof source.manualGroups === "object"
+        ? source.manualGroups
+        : {},
+    autoGrouped: !!source?.autoGrouped,
+    autoBreakIds: Array.isArray(source?.autoBreakIds) ? source.autoBreakIds : [],
+    name: typeof source?.name === "string" ? source.name : null,
+    updatedAtMs: Number(source?.updatedAtMs || 0),
+  };
+}
+
+function mergeWorkspaceJson(current: any, incoming: any) {
+  return {
+    version: 1,
+    manualEdits: {
+      ...(current?.manualEdits ?? {}),
+      ...(incoming?.manualEdits ?? {}),
+    },
+    manualGroups:
+      incoming?.manualGroups && typeof incoming.manualGroups === "object"
+        ? incoming.manualGroups
+        : (current?.manualGroups ?? {}),
+    autoGrouped:
+      typeof incoming?.autoGrouped === "boolean"
+        ? incoming.autoGrouped
+        : !!current?.autoGrouped,
+    autoBreakIds: Array.isArray(incoming?.autoBreakIds)
+      ? incoming.autoBreakIds
+      : (current?.autoBreakIds ?? []),
+    name:
+      typeof incoming?.name === "string"
+        ? incoming.name
+        : (current?.name ?? null),
+    updatedAtMs: Date.now(),
+  };
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    void cleanupOldImportJobsIfNeeded();
+
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id as string | undefined;
 
@@ -63,7 +104,6 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ✅ Next 16: precisa await params
     const { id } = await params;
     const safeId = String(id || "").trim();
 
@@ -76,8 +116,10 @@ export async function GET(
         totalStops: true,
         processedStops: true,
         resultJson: true,
+        workspaceJson: true,
         resultSavedAt: true,
         createdAt: true,
+        updatedAt: true,
         errorMessage: true,
       },
     });
@@ -87,9 +129,8 @@ export async function GET(
     }
 
     const normalized = normalizeResultJson(job.resultJson);
+    const workspace = normalizeWorkspaceJson(job.workspaceJson, job.resultJson);
 
-    // ✅ VOLTA AO COMPORTAMENTO QUE VOCÊ TINHA:
-    // Se não tem rows salvos, retorna 404 com a mensagem.
     if (
       !normalized ||
       !Array.isArray((normalized as any).rows) ||
@@ -105,7 +146,8 @@ export async function GET(
       ok: true,
       job: {
         ...job,
-        resultJson: normalized, // ✅ padronizado
+        resultJson: normalized,
+        workspaceJson: workspace,
       },
     });
   } catch (e) {
@@ -114,12 +156,13 @@ export async function GET(
   }
 }
 
-// ✅ SALVAR ALTERAÇÕES DO USUÁRIO (resultado + estado da tela)
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    void cleanupOldImportJobsIfNeeded();
+
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id as string | undefined;
 
@@ -135,52 +178,31 @@ export async function PATCH(
       return NextResponse.json({ ok: true });
     }
 
-    /**
-     * ✅ IMPORTANTÍSSIMO:
-     * Seu frontend (history-db.ts) manda:  body: JSON.stringify({ resultJson })
-     * Então aqui a gente aceita:
-     *  - body.resultJson (novo)
-     *  - body (antigo, caso você mande o objeto direto)
-     */
-    const incoming = (body as any)?.resultJson ?? body;
+    const incoming = (body as any)?.workspace ?? body;
+    const incomingWorkspace = normalizeWorkspaceJson(incoming);
 
-    // normaliza/garante formato envelope
-    const normalized = normalizeResultJson(incoming);
+    const current = await prisma.importJob.findFirst({
+      where: { id: safeId, userId },
+      select: {
+        resultJson: true,
+        workspaceJson: true,
+      },
+    });
 
-    // se vier inválido, não salva lixo
-    if (!normalized || !Array.isArray((normalized as any).rows)) {
-      return NextResponse.json(
-        { error: "Payload inválido: resultJson sem rows." },
-        { status: 400 },
-      );
+    if (!current) {
+      return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
     }
 
-    // ✅ TRAVA ANTI-VAZIO (NÃO SOBRESCREVE O RESULTADO BOM)
-    const incomingRows = (normalized as any).rows as any[];
-    if (!incomingRows.length) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "skip_empty_rows" });
-    }
-
-    // garante campos mínimos (evita undefined)
-    const payload = {
-      version: 1,
-      rows: incomingRows, // ✅ usa a mesma referência validada
-      manualEdits: (normalized as any).manualEdits ?? {},
-      manualGroups: (normalized as any).manualGroups ?? {},
-      autoGrouped: !!(normalized as any).autoGrouped,
-      autoBreakIds: Array.isArray((normalized as any).autoBreakIds) ? (normalized as any).autoBreakIds : [],
-      groupMode: !!(normalized as any).groupMode,
-      selectedIdxs: Array.isArray((normalized as any).selectedIdxs) ? (normalized as any).selectedIdxs : [],
-      view: (normalized as any).view ?? "results",
-      name: (normalized as any).name ?? null,
-      updatedAtMs: Date.now(),
-    };
+    const currentWorkspace = normalizeWorkspaceJson(
+      current.workspaceJson,
+      current.resultJson,
+    );
+    const payload = mergeWorkspaceJson(currentWorkspace, incomingWorkspace);
 
     const updated = await prisma.importJob.updateMany({
       where: { id: safeId, userId },
       data: {
-        resultJson: payload as any,
-        resultSavedAt: new Date(),
+        workspaceJson: payload as any,
       },
     });
 
@@ -195,7 +217,6 @@ export async function PATCH(
   }
 }
 
-// ✅ “APAGAR” DO HISTÓRICO (limpa só resultado salvo)
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -215,6 +236,7 @@ export async function DELETE(
       where: { id: safeId, userId },
       data: {
         resultJson: Prisma.JsonNull,
+        workspaceJson: Prisma.JsonNull,
         resultSavedAt: null,
       },
     });

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
+import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 
 export const runtime = "nodejs";
 
@@ -15,24 +17,35 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // ✅ LIMPA AUTOMÁTICO: apaga tudo que tiver mais de 36 horas
   try {
-    const cutoff = new Date(Date.now() - 36 * 60 * 60 * 1000);
-    await prisma.importJob.deleteMany({
-      where: { createdAt: { lt: cutoff } },
+    void cleanupOldImportJobsIfNeeded();
+
+    const jobs = await prisma.importJob.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+      },
     });
+
+    return NextResponse.json({ jobs });
   } catch (e) {
-    // não quebra a listagem se der erro na limpeza
-    console.warn("ImportJob cleanup failed:", e);
+    console.error("GET /api/admin/import-jobs error:", e);
+
+    const isDbOffline =
+      e instanceof Prisma.PrismaClientInitializationError ||
+      (e instanceof Error && e.message.includes("Can't reach database server"));
+
+    if (isDbOffline) {
+      return NextResponse.json(
+        { error: "Banco de dados indisponível no momento." },
+        { status: 503 },
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Erro ao carregar importações." },
+      { status: 500 },
+    );
   }
-
-  const jobs = await prisma.importJob.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: {
-      user: { select: { id: true, name: true, email: true, role: true } },
-    },
-  });
-
-  return NextResponse.json({ jobs });
 }

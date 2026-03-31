@@ -5,9 +5,12 @@ import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { Prisma } from "@prisma/client";
+import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 
 export async function GET() {
   try {
+    void cleanupOldImportJobsIfNeeded();
+
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id as string | undefined;
 
@@ -20,19 +23,20 @@ export async function GET() {
         userId,
         resultSavedAt: { not: null },
       },
-      orderBy: { resultSavedAt: "desc" },
+      orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         originalName: true,
         resultSavedAt: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
 
     const items = jobs.map((j) => ({
       id: j.id,
       name: j.originalName || "Planilha sem nome",
-      savedAt: (j.resultSavedAt ?? j.createdAt).getTime(),
+      savedAt: j.updatedAt.getTime(),
     }));
 
     return NextResponse.json({ ok: true, items });
@@ -47,6 +51,8 @@ export async function GET() {
 
 export async function DELETE() {
   try {
+    void cleanupOldImportJobsIfNeeded();
+
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id as string | undefined;
 
@@ -57,7 +63,8 @@ export async function DELETE() {
     await prisma.importJob.updateMany({
       where: { userId },
       data: {
-        resultJson: Prisma.DbNull, // ✅
+        resultJson: Prisma.DbNull,
+        workspaceJson: Prisma.DbNull,
         resultSavedAt: null,
       },
     });
