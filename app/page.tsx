@@ -473,15 +473,6 @@ useEffect(() => {
   setMounted(true);
 }, []);
 
-useEffect(() => {
-  void import("./components/AparecidaArcgisMap").then((mod) => {
-    mod.preloadAparecidaArcgisMap?.();
-  });
-
-  void import("./components/GoianiaArcgisMap").then((mod) => {
-    mod.preloadGoianiaArcgisMap?.();
-  });
-}, []);
   async function buscarQuadraLote(lat: number, lng: number) {
     try {
       const res = await fetch(`/api/aparecida/lot?lat=${lat}&lng=${lng}`);

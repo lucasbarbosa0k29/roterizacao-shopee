@@ -9,6 +9,9 @@ type Props = {
 
 // WebMap Aparecida (quadra/lote)
 const WEBMAP_ID = "9c9045a200f94fb78ef9b67811c8ca87";
+const ARCGIS_THEME_ID = "arcgis-theme-light-css";
+const ARCGIS_THEME_HREF =
+  "https://js.arcgis.com/4.34/@arcgis/core/assets/esri/themes/light/main.css";
 
 let arcgisModulesPromise: Promise<
   [
@@ -35,8 +38,15 @@ function loadArcgisModules() {
   return arcgisModulesPromise;
 }
 
-export function preloadAparecidaArcgisMap() {
-  void loadArcgisModules();
+function ensureArcgisThemeCss() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(ARCGIS_THEME_ID)) return;
+
+  const link = document.createElement("link");
+  link.id = ARCGIS_THEME_ID;
+  link.rel = "stylesheet";
+  link.href = ARCGIS_THEME_HREF;
+  document.head.appendChild(link);
 }
 
 // SINGLETONS (mantém o mapa vivo, sem flash)
@@ -59,6 +69,8 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
   // INIT / REATTACH
   // =========================
   useEffect(() => {
+    ensureArcgisThemeCss();
+
     if (mapInitialized) {
       if (divRef.current && sharedView) {
         sharedView.container = divRef.current;
