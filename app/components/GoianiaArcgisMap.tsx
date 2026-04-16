@@ -7,8 +7,8 @@ type Props = {
   onPick: (pos: { lat: number; lng: number }) => void;
 };
 
-// WebMap Aparecida (quadra/lote)
-const WEBMAP_ID = "9c9045a200f94fb78ef9b67811c8ca87";
+// WebMap Goiania
+const WEBMAP_ID = "57a4843038344a3eaa6cf6ef452ee358";
 
 let arcgisModulesPromise: Promise<
   [
@@ -35,11 +35,11 @@ function loadArcgisModules() {
   return arcgisModulesPromise;
 }
 
-export function preloadAparecidaArcgisMap() {
+export function preloadGoianiaArcgisMap() {
   void loadArcgisModules();
 }
 
-// SINGLETONS (mantém o mapa vivo, sem flash)
+// SINGLETONS (mantem o mapa vivo, sem flash)
 let sharedView: any = null;
 let sharedWebMap: any = null;
 let sharedMarker: any = null;
@@ -52,7 +52,7 @@ let mapInitialized = false;
 let suppressNextCenterGoTo = false;
 let lastExternalCenterKey = "";
 
-export default function AparecidaArcgisMap({ center, onPick }: Props) {
+export default function GoianiaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
 
   // =========================
@@ -63,18 +63,13 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
       if (divRef.current && sharedView) {
         sharedView.container = divRef.current;
 
-        // ✅ quando reabre o modal, centraliza no pino atual (evita abrir no "endereço anterior")
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
           const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
 
-          // evita repetição inútil
           if (key !== lastExternalCenterKey) {
             lastExternalCenterKey = key;
-
-            // evita bloqueio por clique anterior
             suppressNextCenterGoTo = false;
 
-            // garante que o view está pronto antes do goTo
             Promise.resolve(sharedView.when?.()).then(() => {
               try {
                 sharedView.goTo(
@@ -83,11 +78,9 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
                 );
               } catch {}
 
-              // atualiza o marker
               setMarker(center.lat, center.lng);
             });
           } else {
-            // mesmo key, mas garante marker
             setMarker(center.lat, center.lng);
           }
         }
@@ -121,11 +114,10 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
       sharedView = new MapView({
         container: divRef.current,
         map: sharedWebMap,
-        center: center ? [center.lng, center.lat] : [-49.2439, -16.8233],
+        center: center ? [center.lng, center.lat] : [-49.2643, -16.6869],
         zoom: center ? 18 : 16,
       });
 
-      // evita puxão automático
       try {
         sharedView.popup.autoPanEnabled = false;
       } catch {}
@@ -133,7 +125,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
       sharedGraphic = Graphic;
       sharedPoint = Point;
 
-      // Search (uma vez só)
       if (!sharedSearch) {
         sharedSearch = new Search({
           view: sharedView,
@@ -142,7 +133,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         sharedView.ui.add(sharedSearch, "top-right");
       }
 
-      // Clique no mapa
       sharedView.on("click", (event: any) => {
         const p = sharedView.toMap({ x: event.x, y: event.y });
         if (!p) return;
@@ -158,7 +148,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
       if (center) {
         lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
 
-        // ✅ garante abrir já no pino + zoom correto
         try {
           await sharedView.when?.();
           await sharedView.goTo(
@@ -186,7 +175,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
     const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
     if (key === lastExternalCenterKey) {
-      // mesmo ponto, mas garante marker
       setMarker(center.lat, center.lng);
       return;
     }
@@ -230,7 +218,7 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
   }
 
   // =========================
-  // BOTÃO CENTRALIZAR NO PINO
+  // BOTAO CENTRALIZAR NO PINO
   // =========================
   function goToPin() {
     if (!sharedView || !sharedMarker) return;
@@ -242,10 +230,8 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
   return (
     <div className="relative w-full h-full bg-white">
-      {/* MAPA */}
       <div ref={divRef} className="absolute inset-0" />
 
-      {/* BOTÃO CENTRALIZAR (estilo Google Maps) */}
       <button
         type="button"
         onClick={goToPin}

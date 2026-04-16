@@ -11,6 +11,14 @@ const AparecidaArcgisMap = dynamic(
   { ssr: false }
 );
 
+const GoianiaArcgisMap = dynamic(
+  () => import("./components/GoianiaArcgisMap"),
+  { ssr: false }
+);
+
+type ManualMapProvider = "here" | "arcgis";
+type ArcgisCityKey = "aparecida" | "goiania";
+
 type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "REVISAO";
 
 type RowItem = {
@@ -457,11 +465,22 @@ if (!historyId) return;
   const [pickedLote, setPickedLote] = useState("");
 
   const [pinLatLng, setPinLatLng] = useState<{ lat: number; lng: number } | null>(null);
+  const [manualMapProvider, setManualMapProvider] = useState<ManualMapProvider>("here");
 // 🔒 evita hydration mismatch
 const [mounted, setMounted] = useState(false);
 
 useEffect(() => {
   setMounted(true);
+}, []);
+
+useEffect(() => {
+  void import("./components/AparecidaArcgisMap").then((mod) => {
+    mod.preloadAparecidaArcgisMap?.();
+  });
+
+  void import("./components/GoianiaArcgisMap").then((mod) => {
+    mod.preloadGoianiaArcgisMap?.();
+  });
 }, []);
   async function buscarQuadraLote(lat: number, lng: number) {
     try {
@@ -514,18 +533,34 @@ useEffect(() => {
   const pinFromTapRef = useRef(false);
   const clickFetchDebounceRef = useRef<any>(null);
 
-  function isAparecidaCity(v: any) {
-    const s = String(v || "")
+  function normalizeCityName(v: any) {
+    return String(v || "")
       .toUpperCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
-    return s.includes("APARECIDA");
   }
 
-  const useArcgisInModal =
+  function isAparecidaCity(v: any) {
+    return normalizeCityName(v).includes("APARECIDA");
+  }
+
+  function getArcgisCityKey(v: any): ArcgisCityKey | null {
+    const s = normalizeCityName(v);
+    if (s.includes("APARECIDA")) return "aparecida";
+    if (s.includes("GOIANIA")) return "goiania";
+    return null;
+  }
+
+  const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
+  const arcgisCityKey = getArcgisCityKey(modalCity);
+  const canShowArcgisOption = isModalOpen && !!arcgisCityKey;
+  const arcgisAvailable =
     isModalOpen &&
-    modalIdx !== null &&
-    isAparecidaCity(rows?.[modalIdx]?.city);
+    !!arcgisCityKey &&
+    (arcgisCityKey === "aparecida" || arcgisCityKey === "goiania");
+
+  const activeMapProvider: ManualMapProvider =
+    manualMapProvider === "arcgis" && arcgisAvailable ? "arcgis" : "here";
 
   // ===== AUTOSUGGEST (dropdown estilo Waze) =====
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -1879,7 +1914,7 @@ if (!hasPickedLabel && !sameCoordAsRow) {
 }
     // ===== cria mapa 1 vez =====
     useEffect(() => {
-      if (!isModalOpen || !mapRef.current) return;
+      if (!isModalOpen || activeMapProvider !== "here" || !mapRef.current) return;
 
    const H = (window as any).H;
 if (!H) return;
@@ -2001,7 +2036,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
 };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isModalOpen]);
+    }, [isModalOpen, activeMapProvider]);
     useEffect(() => {
       if (!isModalOpen) return;
       if (!pinLatLng) return;
@@ -3239,8 +3274,16 @@ onClick={() => {
 
       {/* MAPA FULLSCREEN (abaixo da topbar) */}
     <div className="absolute inset-0 pt-[56px] md:pt-[64px] overflow-hidden arcgis-modal">
-        {useArcgisInModal ? (
+        {activeMapProvider === "arcgis" && arcgisCityKey === "aparecida" ? (
           <AparecidaArcgisMap
+            center={pinLatLng}
+            onPick={({ lat, lng }) => {
+              setPinLatLng({ lat, lng });
+              setPickedLabel("");
+            }}
+          />
+        ) : activeMapProvider === "arcgis" && arcgisCityKey === "goiania" ? (
+          <GoianiaArcgisMap
             center={pinLatLng}
             onPick={({ lat, lng }) => {
               setPinLatLng({ lat, lng });
@@ -3261,6 +3304,51 @@ onClick={() => {
         
 
           {/* INPUT de busca (mantém sua lógica atual) */}
+          {canShowArcgisOption && (
+            <div className="mb-2 md:mb-3 flex items-center justify-between gap-2">
+              <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">
+                MAPA
+              </div>
+
+              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setManualMapProvider("here")}
+                  className={[
+                    "px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold transition-colors",
+                    activeMapProvider === "here"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                  ].join(" ")}
+                >
+                  HERE
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (arcgisAvailable) setManualMapProvider("arcgis");
+                  }}
+                  disabled={!arcgisAvailable}
+                  title={
+                    arcgisAvailable
+                      ? "Usar mapa ArcGIS"
+                      : "ArcGIS ainda nao disponivel para esta cidade"
+                  }
+                  className={[
+                    "px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold transition-colors",
+                    activeMapProvider === "arcgis"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                    !arcgisAvailable ? "opacity-50 cursor-not-allowed" : "",
+                  ].join(" ")}
+                >
+                  ArcGIS
+                </button>
+              </div>
+            </div>
+          )}
+
           <div ref={searchBoxWrapRef} className="relative">
             <input
               value={modalValue}
