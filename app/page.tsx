@@ -473,6 +473,45 @@ useEffect(() => {
   setMounted(true);
 }, []);
 
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  let cancelled = false;
+
+  const warmupArcgis = () => {
+    if (cancelled) return;
+
+    void import("./components/AparecidaArcgisMap").then((mod) => {
+      if (!cancelled) mod.preloadAparecidaArcgisMap?.();
+    });
+
+    void import("./components/GoianiaArcgisMap").then((mod) => {
+      if (!cancelled) mod.preloadGoianiaArcgisMap?.();
+    });
+  };
+
+  const idle = (window as any).requestIdleCallback as
+    | ((cb: () => void) => number)
+    | undefined;
+  const cancelIdle = (window as any).cancelIdleCallback as
+    | ((id: number) => void)
+    | undefined;
+
+  if (idle) {
+    const idleId = idle(() => warmupArcgis());
+    return () => {
+      cancelled = true;
+      if (cancelIdle) cancelIdle(idleId);
+    };
+  }
+
+  const timeoutId = window.setTimeout(warmupArcgis, 1200);
+  return () => {
+    cancelled = true;
+    window.clearTimeout(timeoutId);
+  };
+}, []);
+
   async function buscarQuadraLote(lat: number, lng: number) {
     try {
       const res = await fetch(`/api/aparecida/lot?lat=${lat}&lng=${lng}`);
