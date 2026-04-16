@@ -7,6 +7,26 @@ import { authOptions } from "@/app/lib/auth";
 import { Prisma } from "@prisma/client";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 
+function isLocalDev() {
+  return process.env.NODE_ENV !== "production";
+}
+
+function isTemporaryDbError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientInitializationError) return true;
+
+  const message = String((error as any)?.message || error || "").toLowerCase();
+
+  return (
+    message.includes("can't reach database server") ||
+    message.includes("failed to connect") ||
+    message.includes("connection") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("authentication failed") ||
+    message.includes("prismaclientinitializationerror")
+  );
+}
+
 export async function GET() {
   try {
     void cleanupOldImportJobsIfNeeded();
@@ -41,6 +61,16 @@ export async function GET() {
 
     return NextResponse.json({ ok: true, items });
   } catch (e) {
+    if (isLocalDev() && isTemporaryDbError(e)) {
+      console.warn("GET /api/history degraded due to temporary DB error:", e);
+      return NextResponse.json({
+        ok: true,
+        items: [],
+        degraded: true,
+        reason: "temporary_db_unavailable",
+      });
+    }
+
     console.error("GET /api/history error:", e);
     return NextResponse.json(
       { error: "Erro ao listar histórico." },
@@ -71,6 +101,18 @@ export async function DELETE() {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (isLocalDev() && isTemporaryDbError(e)) {
+      console.warn("DELETE /api/history degraded due to temporary DB error:", e);
+      return NextResponse.json(
+        {
+          error: "Histórico indisponível temporariamente no ambiente local.",
+          degraded: true,
+          reason: "temporary_db_unavailable",
+        },
+        { status: 503 }
+      );
+    }
+
     console.error("DELETE /api/history error:", e);
     return NextResponse.json(
       { error: "Erro ao limpar histórico." },

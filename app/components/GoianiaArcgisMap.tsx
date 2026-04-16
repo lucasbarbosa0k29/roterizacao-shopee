@@ -7,32 +7,25 @@ type Props = {
   onPick: (pos: { lat: number; lng: number }) => void;
 };
 
-// WebMap Goiania
-const WEBMAP_ID = "57a4843038344a3eaa6cf6ef452ee358";
+const GOIANIA_LOTES_URL = "/data/goiania_lotes.geojson";
 const ARCGIS_THEME_ID = "arcgis-theme-light-css";
 const ARCGIS_THEME_HREF =
   "https://js.arcgis.com/4.34/@arcgis/core/assets/esri/themes/light/main.css";
 
-let arcgisModulesPromise: Promise<
-  [
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-  ]
-> | null = null;
+let arcgisModulesPromise: Promise<any[]> | null = null;
 
 function loadArcgisModules() {
   if (!arcgisModulesPromise) {
     arcgisModulesPromise = Promise.all([
       import("@arcgis/core/config"),
-      import("@arcgis/core/WebMap"),
+      import("@arcgis/core/Map"),
+      import("@arcgis/core/layers/GeoJSONLayer"),
       import("@arcgis/core/views/MapView"),
       import("@arcgis/core/Graphic"),
       import("@arcgis/core/geometry/Point"),
       import("@arcgis/core/widgets/Search"),
+      import("@arcgis/core/renderers/SimpleRenderer"),
+      import("@arcgis/core/layers/support/LabelClass"),
     ]);
   }
   return arcgisModulesPromise;
@@ -51,8 +44,10 @@ function ensureArcgisThemeCss() {
 
 // SINGLETONS (mantem o mapa vivo, sem flash)
 let sharedView: any = null;
-let sharedWebMap: any = null;
+let sharedMap: any = null;
+let sharedLotLayer: any = null;
 let sharedMarker: any = null;
+let sharedSelectedLotGraphic: any = null;
 let sharedGraphic: any = null;
 let sharedPoint: any = null;
 let sharedSearch: any = null;
@@ -62,73 +57,17 @@ let mapInitialized = false;
 let suppressNextCenterGoTo = false;
 let lastExternalCenterKey = "";
 
-function getLayerDebugName(layer: any, index: number) {
-  return (
-    String(layer?.title || "").trim() ||
-    String(layer?.id || "").trim() ||
-    `${layer?.type || "layer"}#${index}`
-  );
+function formatCoord(value: number) {
+  return Number(value).toFixed(6);
 }
 
-async function loadLayerWithRetry(layer: any, retries = 1) {
-  let lastError: any = null;
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      await layer?.load?.();
-      return true;
-    } catch (err) {
-      lastError = err;
-
-      if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-async function prepareGoianiaWebMap(webMap: any) {
-  try {
-    await webMap?.load?.();
-  } catch (err) {
-    console.error("[GoianiaArcgisMap] webmap failed to load, continuing with partial map:", err);
-    return;
-  }
-
-  const operationalLayers = webMap?.layers?.toArray?.() ?? [];
-  if (!operationalLayers.length) return;
-
-  const failedLayers: any[] = [];
-
-  const results = await Promise.allSettled(
-    operationalLayers.map((layer: any) => loadLayerWithRetry(layer, 1))
-  );
-
-  results.forEach((result, index) => {
-    if (result.status === "rejected") {
-      const layer = operationalLayers[index];
-      const name = getLayerDebugName(layer, index);
-
-      console.error("[GoianiaArcgisMap] layer failed to load:", {
-        layer: name,
-        error: result.reason,
-      });
-
-      failedLayers.push(layer);
-    }
-  });
-
-  for (const layer of failedLayers) {
-    try {
-      if (webMap?.layers?.includes?.(layer)) {
-        webMap.layers.remove(layer);
-      }
-    } catch (err) {
-      console.warn("[GoianiaArcgisMap] failed to remove bad layer:", err);
-    }
-  }
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 export default function GoianiaArcgisMap({ center, onPick }: Props) {
@@ -175,11 +114,14 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
       try {
         const [
           { default: esriConfig },
-          { default: WebMap },
+          { default: Map },
+          { default: GeoJSONLayer },
           { default: MapView },
           { default: Graphic },
           { default: Point },
           { default: Search },
+          { default: SimpleRenderer },
+          { default: LabelClass },
         ] = await loadArcgisModules();
 
         const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
@@ -190,24 +132,71 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
           return;
         }
 
-        if (!sharedWebMap) {
-          sharedWebMap = new WebMap({
-            portalItem: { id: WEBMAP_ID },
+        if (!sharedLotLayer) {
+          sharedLotLayer = new GeoJSONLayer({
+            url: GOIANIA_LOTES_URL,
+            title: "mapa_goiania_local",
+            outFields: ["*"],
+            labelsVisible: true,
+            labelingInfo: [
+              new LabelClass({
+                labelExpressionInfo: {
+                  expression: `
+                    var q = DefaultValue($feature.nm_qdr, "");
+                    var l = DefaultValue($feature.nm_lot, "");
+                    return "Qd " + q + " Lt " + l;
+                  `,
+                },
+                symbol: {
+                  type: "text",
+                  color: [24, 24, 27, 0.92],
+                  haloColor: [245, 241, 232, 0.95],
+                  haloSize: 1.2,
+                  font: {
+                    family: "Arial",
+                    size: 9,
+                    weight: "normal",
+                  },
+                },
+                labelPlacement: "always-horizontal",
+                minScale: 4000,
+                maxScale: 0,
+              }),
+            ],
+            renderer: new SimpleRenderer({
+              symbol: {
+                type: "simple-fill",
+                color: [0, 0, 0, 0],
+                outline: {
+                  color: [38, 38, 38, 0.88],
+                  width: 0.7,
+                },
+              },
+            }),
+            popupTemplate: {
+              title: "Goiânia",
+              content: [
+                {
+                  type: "fields",
+                  fieldInfos: [
+                    { fieldName: "nm_qdr", label: "Quadra" },
+                    { fieldName: "nm_lot", label: "Lote" },
+                  ],
+                },
+              ],
+            },
           });
         }
 
-        try {
-          await prepareGoianiaWebMap(sharedWebMap);
-        } catch (err) {
-          console.error(
-            "[GoianiaArcgisMap] unexpected prepare error, continuing with map creation:",
-            err
-          );
+        if (!sharedMap) {
+          sharedMap = new Map({
+            basemap: "topo-vector",
+          });
         }
 
         sharedView = new MapView({
           container: divRef.current,
-          map: sharedWebMap,
+          map: sharedMap,
           center: center ? [center.lng, center.lat] : [-49.2643, -16.6869],
           zoom: center ? 18 : 16,
         });
@@ -237,6 +226,29 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
           suppressNextCenterGoTo = true;
           setMarker(lat, lng);
           onPick({ lat, lng });
+
+          Promise.resolve(
+            sharedView.hitTest(event, { include: [sharedLotLayer] })
+          )
+            .then((hit: any) => {
+              const feature =
+                hit?.results?.find((r: any) => r?.graphic?.layer === sharedLotLayer)?.graphic ||
+                null;
+
+              if (!feature) {
+                clearSelectedLot();
+                try {
+                  sharedView.popup.close();
+                } catch {}
+                return;
+              }
+
+              highlightSelectedLot(feature);
+              openLotPopup(feature, lat, lng);
+            })
+            .catch((err: any) => {
+              console.error("[GoianiaArcgisMap] hitTest failed:", err);
+            });
         });
 
         if (center) {
@@ -252,6 +264,10 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
 
           setMarker(center.lat, center.lng);
         }
+
+        if (!sharedMap.layers.includes(sharedLotLayer)) {
+          sharedMap.add(sharedLotLayer);
+        }
       } catch (err) {
         console.error("[GoianiaArcgisMap] init failed:", err);
 
@@ -260,8 +276,11 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
         } catch {}
 
         sharedView = null;
+        sharedMap = null;
+        sharedLotLayer = null;
         sharedSearch = null;
         sharedMarker = null;
+        sharedSelectedLotGraphic = null;
         sharedGraphic = null;
         sharedPoint = null;
         mapInitialized = false;
@@ -323,6 +342,66 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
     });
 
     sharedView.graphics.add(sharedMarker);
+  }
+
+  function clearSelectedLot() {
+    if (!sharedView || !sharedSelectedLotGraphic) return;
+
+    try {
+      sharedView.graphics.remove(sharedSelectedLotGraphic);
+    } catch {}
+
+    sharedSelectedLotGraphic = null;
+  }
+
+  function highlightSelectedLot(feature: any) {
+    if (!sharedView || !sharedGraphic || !feature?.geometry) return;
+
+    clearSelectedLot();
+
+    sharedSelectedLotGraphic = new sharedGraphic({
+      geometry: feature.geometry,
+      symbol: {
+        type: "simple-fill",
+        color: [255, 255, 255, 0.04],
+        outline: {
+          color: [17, 24, 39, 0.98],
+          width: 1.6,
+        },
+      },
+    });
+
+    sharedView.graphics.add(sharedSelectedLotGraphic);
+  }
+
+  function openLotPopup(feature: any, lat: number, lng: number) {
+    if (!sharedView || !feature) return;
+
+    const attrs = feature.attributes || {};
+    const quadra = escapeHtml(attrs.nm_qdr || "");
+    const lote = escapeHtml(attrs.nm_lot || "");
+    const latText = formatCoord(lat);
+    const lngText = formatCoord(lng);
+
+    try {
+      sharedView.popup.open({
+        location: {
+          type: "point",
+          latitude: lat,
+          longitude: lng,
+        },
+        title: "Goiânia",
+        content: `
+          <div style="font-size:13px; line-height:1.5;">
+            <div><strong>Coordenadas:</strong> ${latText}, ${lngText}</div>
+            <div style="height:8px;"></div>
+            <div><strong>Quadra:</strong> ${quadra || "-"}</div>
+            <div style="height:8px;"></div>
+            <div><strong>Lote:</strong> ${lote || "-"}</div>
+          </div>
+        `,
+      });
+    } catch {}
   }
 
   // =========================
