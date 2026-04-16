@@ -38,10 +38,6 @@ function loadArcgisModules() {
   return arcgisModulesPromise;
 }
 
-export function preloadGoianiaArcgisMap() {
-  void loadArcgisModules();
-}
-
 function ensureArcgisThemeCss() {
   if (typeof document === "undefined") return;
   if (document.getElementById(ARCGIS_THEME_ID)) return;
