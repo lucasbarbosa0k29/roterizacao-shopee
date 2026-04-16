@@ -62,6 +62,75 @@ let mapInitialized = false;
 let suppressNextCenterGoTo = false;
 let lastExternalCenterKey = "";
 
+function getLayerDebugName(layer: any, index: number) {
+  return (
+    String(layer?.title || "").trim() ||
+    String(layer?.id || "").trim() ||
+    `${layer?.type || "layer"}#${index}`
+  );
+}
+
+async function loadLayerWithRetry(layer: any, retries = 1) {
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await layer?.load?.();
+      return true;
+    } catch (err) {
+      lastError = err;
+
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+async function prepareGoianiaWebMap(webMap: any) {
+  try {
+    await webMap?.load?.();
+  } catch (err) {
+    console.error("[GoianiaArcgisMap] webmap failed to load, continuing with partial map:", err);
+    return;
+  }
+
+  const operationalLayers = webMap?.layers?.toArray?.() ?? [];
+  if (!operationalLayers.length) return;
+
+  const failedLayers: any[] = [];
+
+  const results = await Promise.allSettled(
+    operationalLayers.map((layer: any) => loadLayerWithRetry(layer, 1))
+  );
+
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      const layer = operationalLayers[index];
+      const name = getLayerDebugName(layer, index);
+
+      console.error("[GoianiaArcgisMap] layer failed to load:", {
+        layer: name,
+        error: result.reason,
+      });
+
+      failedLayers.push(layer);
+    }
+  });
+
+  for (const layer of failedLayers) {
+    try {
+      if (webMap?.layers?.includes?.(layer)) {
+        webMap.layers.remove(layer);
+      }
+    } catch (err) {
+      console.warn("[GoianiaArcgisMap] failed to remove bad layer:", err);
+    }
+  }
+}
+
 export default function GoianiaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
 
@@ -103,72 +172,99 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
     mapInitialized = true;
 
     (async () => {
-      const [
-        { default: esriConfig },
-        { default: WebMap },
-        { default: MapView },
-        { default: Graphic },
-        { default: Point },
-        { default: Search },
-      ] = await loadArcgisModules();
-
-      const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
-      if (apiKey) esriConfig.apiKey = apiKey;
-
-      if (!divRef.current) return;
-
-      if (!sharedWebMap) {
-        sharedWebMap = new WebMap({
-          portalItem: { id: WEBMAP_ID },
-        });
-      }
-
-      sharedView = new MapView({
-        container: divRef.current,
-        map: sharedWebMap,
-        center: center ? [center.lng, center.lat] : [-49.2643, -16.6869],
-        zoom: center ? 18 : 16,
-      });
-
       try {
-        sharedView.popup.autoPanEnabled = false;
-      } catch {}
+        const [
+          { default: esriConfig },
+          { default: WebMap },
+          { default: MapView },
+          { default: Graphic },
+          { default: Point },
+          { default: Search },
+        ] = await loadArcgisModules();
 
-      sharedGraphic = Graphic;
-      sharedPoint = Point;
+        const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
+        if (apiKey) esriConfig.apiKey = apiKey;
 
-      if (!sharedSearch) {
-        sharedSearch = new Search({
-          view: sharedView,
-          includeDefaultSources: true,
-        });
-        sharedView.ui.add(sharedSearch, "top-right");
-      }
+        if (!divRef.current) {
+          mapInitialized = false;
+          return;
+        }
 
-      sharedView.on("click", (event: any) => {
-        const p = sharedView.toMap({ x: event.x, y: event.y });
-        if (!p) return;
-
-        const lat = Number(p.latitude);
-        const lng = Number(p.longitude);
-
-        suppressNextCenterGoTo = true;
-        setMarker(lat, lng);
-        onPick({ lat, lng });
-      });
-
-      if (center) {
-        lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
+        if (!sharedWebMap) {
+          sharedWebMap = new WebMap({
+            portalItem: { id: WEBMAP_ID },
+          });
+        }
 
         try {
-          await sharedView.when?.();
-          await sharedView.goTo(
-            { center: [center.lng, center.lat], zoom: 18 },
-            { animate: false }
+          await prepareGoianiaWebMap(sharedWebMap);
+        } catch (err) {
+          console.error(
+            "[GoianiaArcgisMap] unexpected prepare error, continuing with map creation:",
+            err
           );
+        }
+
+        sharedView = new MapView({
+          container: divRef.current,
+          map: sharedWebMap,
+          center: center ? [center.lng, center.lat] : [-49.2643, -16.6869],
+          zoom: center ? 18 : 16,
+        });
+
+        try {
+          sharedView.popup.autoPanEnabled = false;
         } catch {}
 
-        setMarker(center.lat, center.lng);
+        sharedGraphic = Graphic;
+        sharedPoint = Point;
+
+        if (!sharedSearch) {
+          sharedSearch = new Search({
+            view: sharedView,
+            includeDefaultSources: true,
+          });
+          sharedView.ui.add(sharedSearch, "top-right");
+        }
+
+        sharedView.on("click", (event: any) => {
+          const p = sharedView.toMap({ x: event.x, y: event.y });
+          if (!p) return;
+
+          const lat = Number(p.latitude);
+          const lng = Number(p.longitude);
+
+          suppressNextCenterGoTo = true;
+          setMarker(lat, lng);
+          onPick({ lat, lng });
+        });
+
+        if (center) {
+          lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
+
+          try {
+            await sharedView.when?.();
+            await sharedView.goTo(
+              { center: [center.lng, center.lat], zoom: 18 },
+              { animate: false }
+            );
+          } catch {}
+
+          setMarker(center.lat, center.lng);
+        }
+      } catch (err) {
+        console.error("[GoianiaArcgisMap] init failed:", err);
+
+        try {
+          sharedView?.destroy?.();
+        } catch {}
+
+        sharedView = null;
+        sharedSearch = null;
+        sharedMarker = null;
+        sharedGraphic = null;
+        sharedPoint = null;
+        mapInitialized = false;
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
