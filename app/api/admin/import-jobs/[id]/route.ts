@@ -43,6 +43,8 @@ export async function GET(req: Request, ctx: any) {
           errorMessage: true,
           createdAt: true,
           finishedAt: true,
+          resultPath: true,
+          resultJson: true,
           resultSavedAt: true,
           user: { select: { name: true, email: true, role: true } },
         }
