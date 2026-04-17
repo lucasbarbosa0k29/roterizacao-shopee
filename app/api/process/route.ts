@@ -16,10 +16,13 @@ import {
   METRIC_MEMORY_HIT_TOTAL,
   METRIC_MEMORY_LOOKUP_TOTAL,
 } from "@/app/lib/admin-observability";
+import { saveJobResult } from "@/app/lib/job-storage";
 import { prisma } from "@/app/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 
 export const runtime = "nodejs";
+const PROGRESS_BATCH_SIZE = 25;
 
 type Normalized = {
   rua: string;
@@ -1507,6 +1510,8 @@ export async function POST(req: Request) {
     const concurrency = 5;
     const results: any[] = new Array(rowsIn.length);
     let index = 0;
+    let completedCount = 0;
+    let lastPersistedCount = 0;
 
     async function worker() {
       while (index < rowsIn.length) {
@@ -1533,15 +1538,25 @@ export async function POST(req: Request) {
             error: e?.message || "Erro ao processar linha",
           };
         } finally {
-          // ✅ SÓ AQUI incrementa (uma vez por linha)
+          completedCount += 1;
+
           if (jobId) {
-            await prisma.importJob.update({
-              where: { id: jobId },
-              data: {
-                processedStops: { increment: 1 },
-                status: "PROCESSING",
-              },
-            });
+            const shouldFlushProgress =
+              completedCount - lastPersistedCount >= PROGRESS_BATCH_SIZE ||
+              completedCount === rowsIn.length;
+
+            if (shouldFlushProgress) {
+              const nextProcessedStops = completedCount;
+              lastPersistedCount = nextProcessedStops;
+
+              await prisma.importJob.update({
+                where: { id: jobId },
+                data: {
+                  processedStops: nextProcessedStops,
+                  status: "PROCESSING",
+                },
+              });
+            }
           }
         }
       }
@@ -1549,8 +1564,11 @@ export async function POST(req: Request) {
 
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
+    let resultPath: string | null = null;
+
    // ✅ no final, marca DONE e salva resultado completo
 if (jobId) {
+  resultPath = await saveJobResult(jobId, results);
   await prisma.importJob.update({
     where: { id: jobId },
     data: {
@@ -1559,19 +1577,8 @@ if (jobId) {
       processedStops: rowsIn.length,
 
       // 🔥 SALVA O RESULTADO FINAL NO BANCO
-   resultJson: {
-  version: 1,
-  rows: results,
-  manualEdits: {},
-  manualGroups: {},
-  autoGrouped: false,
-  autoBreakIds: [],
-  groupMode: false,
-  selectedIdxs: [],
-  view: "results",
-  name: null,
-  updatedAtMs: Date.now(),
-},
+      resultPath,
+      resultJson: Prisma.DbNull,
       resultSavedAt: new Date(),
     },
   });

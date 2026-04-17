@@ -86,10 +86,11 @@ export default function AdminJobPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [onlyWithCoords, setOnlyWithCoords] = useState(false);
 
-  async function load() {
+  async function load(mode: "full" | "progress" = "full") {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/import-jobs/${id}`, {
+      const qs = mode === "progress" ? "?mode=progress" : "";
+      const res = await fetch(`/api/admin/import-jobs/${id}${qs}`, {
         method: "GET",
         credentials: "include",
         cache: "no-store",
@@ -102,14 +103,23 @@ export default function AdminJobPage() {
         return;
       }
 
-      setJob(data.job);
+      if (mode === "progress") {
+        const nextJob = data.job;
+        setJob((prev) => (prev ? { ...prev, ...nextJob } : nextJob));
+
+        if (nextJob?.status === "DONE") {
+          await load("full");
+        }
+      } else {
+        setJob(data.job);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (id) load();
+    if (id) load("full");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -118,7 +128,7 @@ export default function AdminJobPage() {
     if (job.status !== "PENDING" && job.status !== "PROCESSING") return;
 
     const interval = setInterval(() => {
-      load();
+      load("progress");
     }, 5000);
 
     return () => clearInterval(interval);

@@ -1,5 +1,6 @@
 export const runtime = "nodejs";
 
+import { deleteJobResult } from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -90,9 +91,30 @@ export async function DELETE() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const jobs = await prisma.importJob.findMany({
+      where: {
+        userId,
+        resultPath: { not: null },
+      },
+      select: {
+        resultPath: true,
+      },
+    });
+
+    await Promise.all(
+      jobs.map((job) =>
+        job.resultPath
+          ? deleteJobResult(job.resultPath).catch((error) => {
+              console.warn("Failed to delete job result file:", error);
+            })
+          : Promise.resolve()
+      )
+    );
+
     await prisma.importJob.updateMany({
       where: { userId },
       data: {
+        resultPath: null,
         resultJson: Prisma.DbNull,
         workspaceJson: Prisma.DbNull,
         resultSavedAt: null,

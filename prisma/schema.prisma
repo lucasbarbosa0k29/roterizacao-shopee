@@ -62,6 +62,7 @@ model ImportJob {
 
   // ✅ salva o resultado final do processamento (linhas/endereços)
   resultJson     Json?
+  resultPath     String?      @db.Text
   resultSavedAt  DateTime?
 
   // ✅ NOVO: salva o "estado da tela" (confirmado/revisão, agrupamentos, seleções etc.)

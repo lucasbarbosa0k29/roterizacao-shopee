@@ -23,7 +23,14 @@ export async function GET(req: Request) {
     const jobs = await prisma.importJob.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        originalName: true,
+        totalStops: true,
+        processedStops: true,
+        errorMessage: true,
+        createdAt: true,
         user: { select: { id: true, name: true, email: true, role: true } },
       },
     });

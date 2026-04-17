@@ -124,8 +124,6 @@ export async function POST(req: Request) {
         processedStops: 0,
 
         // ✅ já salva o “estado inicial” no banco (pra abrir depois)
-        resultJson: rows as any,
-        resultSavedAt: new Date(),
       },
       select: { id: true },
     });

@@ -1,6 +1,7 @@
 // app/api/history/[id]/route.ts
 export const runtime = "nodejs";
 
+import { deleteJobResult, loadJobResult } from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -34,6 +35,22 @@ function normalizeResultJson(resultJson: any) {
   }
 
   return null;
+}
+
+function buildEmptyResultEnvelope() {
+  return {
+    version: 1,
+    rows: [],
+    manualEdits: {},
+    manualGroups: {},
+    autoGrouped: false,
+    autoBreakIds: [],
+    groupMode: false,
+    selectedIdxs: [],
+    view: "results",
+    name: null,
+    updatedAtMs: Date.now(),
+  };
 }
 
 function normalizeWorkspaceJson(workspaceJson: any, fallbackResultJson?: any) {
@@ -91,7 +108,7 @@ function mergeWorkspaceJson(current: any, incoming: any) {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -106,46 +123,72 @@ export async function GET(
 
     const { id } = await params;
     const safeId = String(id || "").trim();
+    const url = new URL(req.url);
+    const progressOnly = url.searchParams.get("mode") === "progress";
 
     const job = await prisma.importJob.findFirst({
       where: { id: safeId, userId },
-      select: {
-        id: true,
-        originalName: true,
-        status: true,
-        totalStops: true,
-        processedStops: true,
-        resultJson: true,
-        workspaceJson: true,
-        resultSavedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        errorMessage: true,
-      },
+      select: progressOnly
+        ? {
+            id: true,
+            originalName: true,
+            status: true,
+            totalStops: true,
+            processedStops: true,
+            resultSavedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            errorMessage: true,
+          }
+        : {
+            id: true,
+            originalName: true,
+            status: true,
+            totalStops: true,
+            processedStops: true,
+            resultPath: true,
+            resultJson: true,
+            workspaceJson: true,
+            resultSavedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            errorMessage: true,
+          },
     });
 
     if (!job) {
       return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
     }
 
-    const normalized = normalizeResultJson(job.resultJson);
-    const workspace = normalizeWorkspaceJson(job.workspaceJson, job.resultJson);
-
-    if (
-      !normalized ||
-      !Array.isArray((normalized as any).rows) ||
-      (normalized as any).rows.length === 0
-    ) {
-      return NextResponse.json(
-        { error: "Histórico sem rows salvos (resultJson vazio)." },
-        { status: 404 },
-      );
+    if (progressOnly) {
+      return NextResponse.json({ ok: true, job });
     }
+
+    let storedResultJson = job.resultJson;
+
+    if (job.resultPath) {
+      try {
+        storedResultJson = await loadJobResult(job.resultPath);
+      } catch (error) {
+        console.error("Erro ao carregar arquivo do job:", error);
+        storedResultJson = job.resultJson;
+      }
+    }
+
+    let normalized = normalizeResultJson(storedResultJson);
+
+    if (!normalized) {
+      console.warn("Job sem arquivo e sem resultJson:", job.id);
+      normalized = buildEmptyResultEnvelope();
+    }
+
+    const workspace = normalizeWorkspaceJson(job.workspaceJson, storedResultJson);
 
     return NextResponse.json({
       ok: true,
       job: {
         ...job,
+        resultPath: undefined,
         resultJson: normalized,
         workspaceJson: workspace,
       },
@@ -184,7 +227,6 @@ export async function PATCH(
     const current = await prisma.importJob.findFirst({
       where: { id: safeId, userId },
       select: {
-        resultJson: true,
         workspaceJson: true,
       },
     });
@@ -193,10 +235,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
     }
 
-    const currentWorkspace = normalizeWorkspaceJson(
-      current.workspaceJson,
-      current.resultJson,
-    );
+    const currentWorkspace = normalizeWorkspaceJson(current.workspaceJson);
     const payload = mergeWorkspaceJson(currentWorkspace, incomingWorkspace);
 
     const updated = await prisma.importJob.updateMany({
@@ -232,9 +271,27 @@ export async function DELETE(
     const { id } = await params;
     const safeId = String(id || "").trim();
 
+    const current = await prisma.importJob.findFirst({
+      where: { id: safeId, userId },
+      select: {
+        resultPath: true,
+      },
+    });
+
+    if (!current) {
+      return NextResponse.json({ error: "NÃ£o encontrado." }, { status: 404 });
+    }
+
+    if (current.resultPath) {
+      await deleteJobResult(current.resultPath).catch((error) => {
+        console.warn("Failed to delete job result file:", error);
+      });
+    }
+
     const updated = await prisma.importJob.updateMany({
       where: { id: safeId, userId },
       data: {
+        resultPath: null,
         resultJson: Prisma.JsonNull,
         workspaceJson: Prisma.JsonNull,
         resultSavedAt: null,

@@ -316,30 +316,36 @@ setHistoryId(job.id);
     return true;
   }
 
+  async function fetchHistoryJob(
+    id: string,
+    mode: "full" | "progress" = "full"
+  ) {
+    const qs = mode === "progress" ? "?mode=progress" : "";
+
+    const res = await fetch(`/api/history/${encodeURIComponent(id)}${qs}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || "Erro ao abrir histórico.");
+    }
+
+    return data?.job;
+  }
+
   useEffect(() => {
     if (!jobId) return;
 
     (async () => {
       try {
-        const res = await fetch(`/api/history/${encodeURIComponent(jobId)}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          alert(data?.error || "Erro ao abrir histÃ³rico.");
-          return;
-        }
-
-        const job = data?.job;
+        const job = await fetchHistoryJob(jobId, "full");
         setHistoryId(job.id);
         setFile(null);
         setHistoryName(job?.originalName || "Planilha");
 
         if (!applyJobProgress(job)) {
-          return;
-          alert("HistÃ³rico sem rows salvos (resultJson vazio).");
           return;
         }
 
@@ -376,7 +382,7 @@ if (!rows || rows.length === 0) return;
   name: historyName || file?.name || "Planilha",
   updatedAtMs,
 }).catch(() => {});
-}, 400);
+}, 1500);
 
   return () => clearTimeout(t);
 }, [
@@ -391,46 +397,29 @@ if (!rows || rows.length === 0) return;
 ]);
 useEffect(() => {
 if (!historyId) return;
+if (rows.length > 0 && jobProgress?.status === "DONE") return;
 
   const interval = setInterval(async () => {
     try {
-      const res = await fetch(`/api/history/${encodeURIComponent(historyId)}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return;
-
-      const job = data?.job;
+      const job = await fetchHistoryJob(historyId, "progress");
       if (!job) return;
 
       if (!applyJobProgress(job)) {
         return;
       }
 
-      if (rows.length === 0) {
-        hydrateDoneJob(job);
+      if (job.status === "DONE" && rows.length === 0) {
+        const fullJob = await fetchHistoryJob(historyId, "full");
+        hydrateDoneJob(fullJob);
         return;
       }
-
-      const remoteWorkspace = job?.workspaceJson;
-      const remoteUpdatedAtMs = Number(remoteWorkspace?.updatedAtMs || 0);
-
-      if (!remoteUpdatedAtMs) return;
-      if (remoteUpdatedAtMs <= lastWorkspaceUpdatedAtRef.current) return;
-
-      applyWorkspaceSnapshot(remoteWorkspace, {
-        preserveEphemeral: true,
-        nextName: job?.originalName || "Planilha",
-      });
     } catch {
       // polling silencioso
     }
   }, 10000);
 
   return () => clearInterval(interval);
-}, [historyId, rows.length]);
+}, [historyId, rows.length, jobProgress?.status]);
   // menu do botão direito
   const [ctx, setCtx] = useState<{ open: boolean; x: number; y: number; groupId: string | null }>({
     open: false,
