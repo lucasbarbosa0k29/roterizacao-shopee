@@ -135,6 +135,8 @@ export async function GET(
             status: true,
             totalStops: true,
             processedStops: true,
+            resultPath: true,
+            resultJson: true,
             resultSavedAt: true,
             createdAt: true,
             updatedAt: true,
