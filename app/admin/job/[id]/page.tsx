@@ -371,7 +371,7 @@ export default function AdminJobPage() {
 
             <button
               className="px-3 py-2 rounded-xl border hover:bg-slate-50"
-              onClick={load}
+              onClick={() => load("full")}
             >
               Recarregar
             </button>
