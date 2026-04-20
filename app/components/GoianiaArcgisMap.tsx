@@ -142,8 +142,11 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
               new LabelClass({
                 labelExpressionInfo: {
                   expression: `
-                    var q = DefaultValue($feature.nm_qdr, "");
-                    var l = DefaultValue($feature.nm_lot, "");
+                    var q = Trim(DefaultValue($feature.nm_qdr, ""));
+                    var l = Trim(DefaultValue($feature.nm_lot, ""));
+                    if (IsEmpty(q) || IsEmpty(l) || Upper(q) == "AREA") {
+                      return "";
+                    }
                     return "Qd " + q + " Lt " + l;
                   `,
                 },

@@ -1578,7 +1578,7 @@ if (jobId) {
 
       // 🔥 SALVA O RESULTADO FINAL NO BANCO
       resultPath,
-      resultJson: Prisma.DbNull,
+      resultJson: results as Prisma.InputJsonValue,
       resultSavedAt: new Date(),
     },
   });
