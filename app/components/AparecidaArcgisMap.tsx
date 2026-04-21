@@ -130,7 +130,8 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
     mapInitialized = true;
 
-    (async () => {
+    async function initMapWithRetry(attempt = 1): Promise<void> {
+      try {
       const [
         { default: esriConfig },
         { default: WebMap },
@@ -218,8 +219,31 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         setMarker(center.lat, center.lng);
       }
 
-      syncLotLayerState();
-    })();
+        syncLotLayerState();
+      } catch (error) {
+        console.error(`[AparecidaArcgisMap] init failed (attempt ${attempt}/2):`, error);
+
+        try {
+          sharedView?.destroy?.();
+        } catch {}
+
+        sharedView = null;
+        sharedSearch = null;
+        sharedMarker = null;
+        sharedGraphic = null;
+        sharedPoint = null;
+
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          await initMapWithRetry(attempt + 1);
+          return;
+        }
+
+        mapInitialized = false;
+      }
+    }
+
+    initMapWithRetry();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
