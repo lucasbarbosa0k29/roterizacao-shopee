@@ -52,6 +52,7 @@ function ensureArcgisThemeCss() {
 // SINGLETONS (mantém o mapa vivo, sem flash)
 let sharedView: any = null;
 let sharedWebMap: any = null;
+let sharedLotLayer: any = null;
 let sharedMarker: any = null;
 let sharedGraphic: any = null;
 let sharedPoint: any = null;
@@ -61,6 +62,26 @@ let mapInitialized = false;
 // controle anti-flash
 let suppressNextCenterGoTo = false;
 let lastExternalCenterKey = "";
+
+const LOT_LAYER_ID = "19bf34119f0-layer-2";
+const LOTS_MIN_SCALE = 5000;
+const LABELS_MIN_SCALE = 2500;
+
+function syncLotLayerState() {
+  if (!sharedView || !sharedWebMap || !sharedLotLayer) return;
+
+  const shouldShowLots = sharedView.scale <= LOTS_MIN_SCALE;
+  const layerInMap = sharedWebMap.layers.includes(sharedLotLayer);
+
+  if (shouldShowLots && !layerInMap) {
+    sharedWebMap.add(sharedLotLayer);
+  } else if (!shouldShowLots && layerInMap) {
+    sharedWebMap.remove(sharedLotLayer);
+  }
+
+  sharedLotLayer.labelsVisible = sharedView.scale <= LABELS_MIN_SCALE;
+  sharedLotLayer.popupEnabled = sharedView.scale <= LABELS_MIN_SCALE;
+}
 
 export default function AparecidaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
@@ -128,6 +149,17 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         sharedWebMap = new WebMap({
           portalItem: { id: WEBMAP_ID },
         });
+
+        await sharedWebMap.load();
+        sharedLotLayer =
+          sharedWebMap.layers.find((layer: any) => layer.id === LOT_LAYER_ID) ||
+          sharedWebMap.layers.find((layer: any) => layer.title === "Mapa Aparecida 100%");
+
+        if (sharedLotLayer) {
+          sharedLotLayer.labelsVisible = false;
+          sharedLotLayer.popupEnabled = false;
+          sharedWebMap.remove(sharedLotLayer);
+        }
       }
 
       sharedView = new MapView({
@@ -144,6 +176,10 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
       sharedGraphic = Graphic;
       sharedPoint = Point;
+
+      sharedView.watch("stationary", (stationary: boolean) => {
+        if (stationary) syncLotLayerState();
+      });
 
       // Search (uma vez só)
       if (!sharedSearch) {
@@ -181,6 +217,8 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
         setMarker(center.lat, center.lng);
       }
+
+      syncLotLayerState();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
