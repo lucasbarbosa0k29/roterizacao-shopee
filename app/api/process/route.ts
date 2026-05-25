@@ -18,6 +18,9 @@ import {
 } from "@/app/lib/admin-observability";
 import { saveJobResult } from "@/app/lib/job-storage";
 import { prisma } from "@/app/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/auth";
+import { AccessControlError, consumeRouteAllowance } from "@/app/lib/access-control";
 import { Prisma } from "@prisma/client";
 
 
@@ -1474,6 +1477,40 @@ export async function POST(req: Request) {
   let jobId = "";
 
   try {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id as string | undefined;
+    const role = (((session?.user as any)?.role as string | undefined) ?? "USER") as
+      | "ADMIN"
+      | "USER";
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        accessBlockedAt: true,
+        accessBlockReason: true,
+      },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (currentUser.role !== "ADMIN" && currentUser.accessBlockedAt) {
+      return NextResponse.json(
+        {
+          error: currentUser.accessBlockReason ?? "Seu acesso está bloqueado.",
+          code: "ACCESS_BLOCKED",
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json().catch(() => ({} as any));
 
     const rowsIn: InputRow[] = Array.isArray(body?.rows) ? body.rows : [];
@@ -1483,6 +1520,34 @@ export async function POST(req: Request) {
     }
 
     jobId = String(body?.jobId || "").trim();
+
+    if (!jobId && role === "USER") {
+      return NextResponse.json(
+        { error: "jobId é obrigatório para este usuário." },
+        { status: 400 }
+      );
+    }
+
+    if (jobId) {
+      const job = await prisma.importJob.findUnique({
+        where: { id: jobId },
+        select: { id: true, userId: true },
+      });
+
+      if (!job) {
+        return NextResponse.json({ error: "ImportJob não encontrado." }, { status: 404 });
+      }
+
+      if (role === "USER" && job.userId !== userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      await consumeRouteAllowance({
+        userId,
+        jobId: job.id,
+        role,
+      });
+    }
 
     // ✅ Se não vier jobId, avisa no console (isso explica admin não atualizar)
     if (!jobId) {
@@ -1614,6 +1679,16 @@ if (jobId) {
       ...(debugMemory ? { debugMemorySummary } : {}),
     });
   } catch (err: any) {
+    if (err instanceof AccessControlError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: err.code,
+        },
+        { status: err.status }
+      );
+    }
+
     console.error("Erro /api/process:", err);
 
     if (jobId) {

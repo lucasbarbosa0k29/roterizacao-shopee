@@ -6,6 +6,7 @@ import { prisma } from "@/app/lib/prisma";
 import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { getUserAccessSnapshot } from "@/app/lib/access-control";
 
 function isAdmin(session: any) {
   const role = (session?.user as any)?.role;
@@ -28,12 +29,21 @@ export async function GET() {
         email: true,
         role: true,
         active: true,
+        accessBlockedAt: true,
+        accessBlockReason: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    return NextResponse.json({ ok: true, users });
+    const usersWithAccess = await Promise.all(
+      users.map(async (user) => ({
+        ...user,
+        access: await getUserAccessSnapshot(user.id),
+      }))
+    );
+
+    return NextResponse.json({ ok: true, users: usersWithAccess });
   } catch (e) {
     console.error("Erro admin list users:", e);
     return NextResponse.json({ error: "Erro ao listar usuários." }, { status: 500 });

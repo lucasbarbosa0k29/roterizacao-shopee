@@ -1,9 +1,11 @@
 // app/api/import/route.ts
 import * as XLSX from "xlsx";
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { getServerSession } from "next-auth";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 import { prisma } from "@/app/lib/prisma";
+import { authOptions } from "@/app/lib/auth";
+import { getUserAccessSnapshot } from "@/app/lib/access-control";
 
 export const runtime = "nodejs";
 
@@ -43,9 +45,48 @@ export async function POST(req: Request) {
   try {
     void cleanupOldImportJobsIfNeeded();
 
-    const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
-    if (!token?.sub) {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id as string | undefined;
+
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        accessBlockedAt: true,
+        accessBlockReason: true,
+      },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (currentUser.role !== "ADMIN" && currentUser.accessBlockedAt) {
+      return NextResponse.json(
+        {
+          error: currentUser.accessBlockReason ?? "Seu acesso está bloqueado.",
+          code: "ACCESS_BLOCKED",
+        },
+        { status: 403 }
+      );
+    }
+
+    const access = await getUserAccessSnapshot(userId);
+    if (!access.canStartRoute) {
+      return NextResponse.json(
+        {
+          error: access.message ?? "Seu acesso não permite iniciar uma nova rota.",
+          code: access.code,
+          upgradeUrl: "/planos",
+          access,
+        },
+        { status: 403 }
+      );
     }
 
     const formData = await req.formData();
@@ -116,7 +157,7 @@ export async function POST(req: Request) {
 
     const job = await prisma.importJob.create({
       data: {
-        userId: token.sub,
+        userId,
         originalName: file.name,
         storedName: null,
         status: "PENDING",

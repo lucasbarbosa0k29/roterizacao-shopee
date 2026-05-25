@@ -12,21 +12,62 @@ enum Role {
   USER
 }
 
-model User {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum SubscriptionPlanCode {
+  FREE
+  BASIC
+  PRO
+}
 
-  importJobs ImportJob[]
+enum UserSubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum SubscriptionSource {
+  ADMIN_GRANT
+  TRIAL
+  INFINITEPAY_LINK
+  MANUAL_PAYMENT
+}
+
+enum RouteUsageSource {
+  SUBSCRIPTION_DAILY
+  EXTRA_CREDIT
+  ADMIN_OVERRIDE
+  FREE
+}
+
+enum RouteCreditReason {
+  ADMIN_GRANT
+  MANUAL_PAYMENT
+  ADJUSTMENT
+  CONSUMPTION
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String?
+  email             String   @unique
+  password          String
+  role              Role     @default(USER)
+  active            Boolean  @default(true)
+  accessBlockedAt   DateTime?
+  accessBlockReason String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  importJobs        ImportJob[]
+  subscriptions     UserSubscription[] @relation("UserSubscriptions")
+  routeUsages       RouteUsage[]
+  routeCredits      RouteCredit[]
+  adminActionLogs   AdminAccessLog[]   @relation("AdminActor")
+  targetActionLogs  AdminAccessLog[]   @relation("AdminTarget")
 
   @@index([role])
   @@index([active])
   @@index([createdAt])
+  @@index([accessBlockedAt])
 }
 
 enum ImportStatus {
@@ -46,6 +87,7 @@ model ImportJob {
 
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routeUsage     RouteUsage?
 
   originalName   String?
   storedName     String?
@@ -77,6 +119,92 @@ model ImportJob {
   @@index([resultSavedAt])
 
   @@unique([userId, storedName])
+}
+
+model SubscriptionPlan {
+  id              String               @id @default(cuid())
+  code            SubscriptionPlanCode @unique
+  name            String
+  durationDays    Int?
+  dailyRouteLimit Int                  @default(0)
+  isUnlimited     Boolean              @default(false)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  subscriptions   UserSubscription[]
+
+  @@index([isActive])
+}
+
+model UserSubscription {
+  id               String                 @id @default(cuid())
+  userId           String
+  planId           String
+  status           UserSubscriptionStatus @default(ACTIVE)
+  source           SubscriptionSource
+  startsAt         DateTime
+  expiresAt        DateTime?
+  grantedByAdminId String?
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  user             User             @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+  plan             SubscriptionPlan @relation(fields: [planId], references: [id])
+  routeUsages      RouteUsage[]
+
+  @@index([userId, status, expiresAt])
+  @@index([planId])
+  @@index([grantedByAdminId])
+  @@index([createdAt])
+}
+
+model RouteUsage {
+  id             String            @id @default(cuid())
+  userId         String
+  importJobId    String?           @unique
+  subscriptionId String?
+  source         RouteUsageSource
+  usageDayKey    String
+  createdAt      DateTime          @default(now())
+
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  importJob      ImportJob?        @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  subscription   UserSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, usageDayKey])
+  @@index([subscriptionId])
+  @@index([createdAt])
+}
+
+model RouteCredit {
+  id         String            @id @default(cuid())
+  userId     String
+  delta      Int
+  reason     RouteCreditReason
+  notes      String?
+  createdAt  DateTime          @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AdminAccessLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  targetUserId String
+  action       String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  admin        User     @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
+  targetUser   User     @relation("AdminTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action])
 }
 
 //

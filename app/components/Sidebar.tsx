@@ -3,18 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { listHistoryDb } from "../lib/history-db";
 import { signOut, useSession } from "next-auth/react";
+import { listHistoryDb } from "../lib/history-db";
 
 type SidebarProps = {
   isOpen?: boolean;
   onClose?: () => void;
 };
 
+type AccessSnapshot = {
+  canStartRoute: boolean;
+  code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
+};
+
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const [historyCount, setHistoryCount] = useState(0);
+  const [access, setAccess] = useState<AccessSnapshot | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
 
   const isActive = (href: string) => pathname === href;
 
@@ -23,9 +30,53 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     () => (session?.user as any)?.role === "ADMIN",
     [session]
   );
+  const canUseTool = isAdmin || (!accessLoading && access?.canStartRoute === true);
 
   useEffect(() => {
     if (!isAuthed) {
+      setAccess(null);
+      setAccessLoading(false);
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      try {
+        setAccessLoading(true);
+
+        const res = await fetch("/api/access/me", {
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!alive) return;
+
+        if (!res.ok) {
+          setAccess(null);
+          return;
+        }
+
+        setAccess(data as AccessSnapshot);
+      } finally {
+        if (alive) setAccessLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [isAuthed]);
+
+  useEffect(() => {
+    if (!isAuthed) {
+      setHistoryCount(0);
+      return;
+    }
+
+    if (!canUseTool) {
       setHistoryCount(0);
       return;
     }
@@ -46,7 +97,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     return () => {
       alive = false;
     };
-  }, [pathname, isAuthed]);
+  }, [pathname, isAuthed, canUseTool]);
 
   if (!isAuthed) return null;
 
@@ -94,7 +145,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {/* TOPO / BRAND (igual referência) */}
         <div className="px-5 pt-6">
           <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4 shadow-sm">
             <div className="flex items-center gap-3">
@@ -114,7 +164,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {/* MENU CARD */}
         <div className="px-5 mt-4">
           <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4">
             <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/85">
@@ -122,55 +171,75 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </div>
 
             <nav className="flex flex-col gap-2">
-              {/* Importar Planilha (card maior igual referência) */}
-              <Link
-                href="/"
-                onClick={onClose}
-                className={[
-                  "block rounded-3xl bg-white/12 ring-1 ring-white/15 hover:bg-white/16 transition",
-                  isActive("/") ? "bg-white/18 ring-white/25 shadow-sm" : "",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className={iconBox}>
-                      <span className="text-lg">⬆️</span>
+              {canUseTool && (
+                <Link
+                  href="/"
+                  onClick={onClose}
+                  className={[
+                    "block rounded-3xl bg-white/12 ring-1 ring-white/15 hover:bg-white/16 transition",
+                    isActive("/") ? "bg-white/18 ring-white/25 shadow-sm" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center justify-between px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className={iconBox}>
+                        <span className="text-lg">⬆️</span>
+                      </div>
+                      <div className="font-extrabold text-[20px] leading-tight">
+                        Importar
+                        <br />
+                        Planilha
+                      </div>
                     </div>
-                    <div className="font-extrabold text-[20px] leading-tight">
-                      Importar
-                      <br />
-                      Planilha
-                    </div>
+                    <span className="text-white/70 text-xl">›</span>
                   </div>
-                  <span className="text-white/70 text-xl">›</span>
-                </div>
-              </Link>
+                </Link>
+              )}
 
-              {/* Histórico */}
+              {canUseTool && (
+                <Link
+                  href="/historico"
+                  onClick={onClose}
+                  className={[
+                    itemRowBase,
+                    isActive("/historico") ? activeRow : idleRow,
+                  ].join(" ")}
+                >
+                  <div className={leftSide}>
+                    <div className={iconBox}>
+                      <span className="text-lg">🕘</span>
+                    </div>
+                    <div className="font-extrabold text-[18px]">Histórico</div>
+
+                    {historyCount > 0 && (
+                      <span className="ml-2 min-w-[34px] h-[34px] px-3 text-[13px] flex items-center justify-center rounded-full bg-white/90 text-[#8B3C12] font-extrabold ring-1 ring-black/10 shadow-sm">
+                        {historyCount}
+                      </span>
+                    )}
+                  </div>
+                  {chevron}
+                </Link>
+              )}
+
               <Link
-                href="/historico"
+                href="/planos"
                 onClick={onClose}
                 className={[
                   itemRowBase,
-                  isActive("/historico") ? activeRow : idleRow,
+                  isActive("/planos") ? activeRow : idleRow,
                 ].join(" ")}
               >
                 <div className={leftSide}>
                   <div className={iconBox}>
-                    <span className="text-lg">🕘</span>
+                    <span className="text-lg">💳</span>
                   </div>
-                  <div className="font-extrabold text-[18px]">Histórico</div>
-
-                  {historyCount > 0 && (
-                    <span className="ml-2 min-w-[34px] h-[34px] px-3 text-[13px] flex items-center justify-center rounded-full bg-white/90 text-[#8B3C12] font-extrabold ring-1 ring-black/10 shadow-sm">
-                      {historyCount}
-                    </span>
-                  )}
+                  <div className="font-extrabold text-[18px]">
+                    {accessLoading ? "Conta" : canUseTool ? "Minha assinatura" : "Planos"}
+                  </div>
                 </div>
                 {chevron}
               </Link>
 
-              {/* ADMIN */}
               {isAdmin && (
                 <>
                   <Link
@@ -185,9 +254,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       <div className={iconBox}>
                         <span className="text-lg">🛠️</span>
                       </div>
-                      <div className="font-extrabold text-[18px]">
-                        Administração
-                      </div>
+                      <div className="font-extrabold text-[18px]">Administração</div>
                     </div>
                     {chevron}
                   </Link>
@@ -216,7 +283,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
         <div className="flex-1" />
 
-        {/* BOTÕES (separados do menu, lá embaixo) */}
         <div className="px-5 pb-5">
           <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4">
             <button

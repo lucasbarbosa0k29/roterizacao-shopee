@@ -2,6 +2,9 @@
   "name": "roteirizacao-shopee",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "node --experimental-strip-types prisma/seed.ts"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
