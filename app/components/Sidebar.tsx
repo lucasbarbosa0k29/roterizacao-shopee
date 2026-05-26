@@ -16,6 +16,73 @@ type AccessSnapshot = {
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
 
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M12 16V6" strokeLinecap="round" />
+      <path d="m8.5 9.5 3.5-3.5 3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 18.5h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.4-5.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.5 4.5v3.8h3.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 7.8v4.6l3 1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CardIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <rect x="3.5" y="6" width="17" height="12" rx="2.5" />
+      <path d="M3.5 10h17" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M12 3.5 5.5 6v5.6c0 4.1 2.5 7.8 6.5 8.9 4-1.1 6.5-4.8 6.5-8.9V6L12 3.5Z" strokeLinejoin="round" />
+      <path d="m9.5 12 1.7 1.7 3.5-3.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M15.5 18.5v-1c0-1.9-1.7-3.5-3.8-3.5S8 15.6 8 17.5v1" strokeLinecap="round" />
+      <circle cx="11.8" cy="9.2" r="2.7" />
+      <path d="M18.5 18v-.8c0-1.4-.9-2.6-2.2-3.1" strokeLinecap="round" />
+      <path d="M15.8 6.8a2.5 2.5 0 0 1 0 4.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M18.5 14.8A7.5 7.5 0 0 1 9.2 5.5a7.7 7.7 0 1 0 9.3 9.3Z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M10 7V5.8A2.3 2.3 0 0 1 12.3 3.5h4.2a2.3 2.3 0 0 1 2.3 2.3v12.4a2.3 2.3 0 0 1-2.3 2.3h-4.2A2.3 2.3 0 0 1 10 18.2V17" strokeLinecap="round" />
+      <path d="M14.5 12H5.5" strokeLinecap="round" />
+      <path d="m8.5 9-3 3 3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
@@ -102,16 +169,17 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   if (!isAuthed) return null;
 
   const itemRowBase =
-    "group flex items-center justify-between w-full px-4 py-3 rounded-2xl transition-all";
-  const leftSide = "flex items-center gap-3";
+    "group flex items-center justify-between rounded-[22px] px-4 py-3.5 text-white/88 transition-all duration-200";
+  const leftSide = "flex items-center gap-3.5";
   const iconBox =
-    "w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/15 flex items-center justify-center";
+    "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/82 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 group-hover:border-white/18 group-hover:bg-white/12 group-hover:text-white";
   const chevron = (
-    <span className="text-white/70 group-hover:text-white/90 transition">›</span>
+    <span className="text-sm text-white/38 transition group-hover:text-white/70">{">"}</span>
   );
 
-  const activeRow = "bg-white/16 ring-1 ring-white/20 shadow-sm";
-  const idleRow = "hover:bg-white/10";
+  const activeRow =
+    "bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] ring-1 ring-white/14 shadow-[0_12px_30px_rgba(0,0,0,0.18)]";
+  const idleRow = "hover:bg-white/[0.06]";
 
   return (
     <>
@@ -126,10 +194,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <aside
         className={[
           "sidebar",
-          "w-[280px] md:w-[280px] min-h-screen text-white flex flex-col flex-shrink-0",
-          "bg-gradient-to-b from-[#D86A1F] via-[#C85A15] to-[#B44B10]",
-          "shadow-2xl",
-          "fixed inset-y-0 left-0 z-50 transition-transform duration-200 md:relative md:translate-x-0 md:sticky md:top-0",
+          "fixed inset-y-0 left-0 z-50 flex min-h-screen w-[288px] flex-shrink-0 flex-col text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:translate-x-0",
+          "bg-[radial-gradient(circle_at_top,rgba(73,164,161,0.16),transparent_24%),linear-gradient(180deg,#17313b_0%,#132932_52%,#0d1d24_100%)]",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         ].join(" ")}
       >
@@ -138,7 +204,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold"
+              className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-semibold text-white/88"
             >
               Fechar
             </button>
@@ -146,53 +212,50 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </div>
 
         <div className="px-5 pt-6">
-          <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white/95 flex items-center justify-center shadow-sm">
-                <span className="text-[#D86A1F] font-extrabold text-2xl leading-none">
-                  RT
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.07] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-13 w-13 items-center justify-center rounded-[22px] bg-[linear-gradient(145deg,#f7fffd_0%,#dff5ef_65%,#bfe6da_100%)] shadow-[0_16px_24px_rgba(9,26,31,0.18)]">
+                <span className="bg-[linear-gradient(180deg,#17313b_0%,#1f5a6b_100%)] bg-clip-text text-2xl font-black leading-none text-transparent">
+                  RH
                 </span>
               </div>
 
-              <div className="leading-tight">
-                <div className="font-extrabold text-[18px]">RT Shopee</div>
-                <div className="text-white/90 text-[12px] font-medium">
-                  Gerencie suas rotas
+              <div className="min-w-0 leading-tight">
+                <div className="text-[20px] font-black tracking-tight text-white">RottaHub</div>
+                <div className="mt-1 text-[12px] font-medium text-white/62">
+                  Console Operacional
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="px-5 mt-4">
-          <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4">
-            <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/85">
-              Menu Principal
+        <div className="mt-5 px-5">
+          <div className="rounded-[28px] border border-white/8 bg-white/[0.05] p-4 backdrop-blur">
+            <div className="px-2 pb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
+              Operação
             </div>
 
-            <nav className="flex flex-col gap-2">
+            <nav className="flex flex-col gap-1.5">
               {canUseTool && (
                 <Link
                   href="/"
                   onClick={onClose}
                   className={[
-                    "block rounded-3xl bg-white/12 ring-1 ring-white/15 hover:bg-white/16 transition",
-                    isActive("/") ? "bg-white/18 ring-white/25 shadow-sm" : "",
+                    itemRowBase,
+                    isActive("/") ? activeRow : idleRow,
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={iconBox}>
-                        <span className="text-lg">⬆️</span>
-                      </div>
-                      <div className="font-extrabold text-[20px] leading-tight">
-                        Importar
-                        <br />
-                        Planilha
-                      </div>
+                  <div className={leftSide}>
+                    <div className={iconBox}>
+                      <UploadIcon />
                     </div>
-                    <span className="text-white/70 text-xl">›</span>
+                    <div className="leading-tight">
+                      <div className="text-[15px] font-semibold text-white">Importar Planilha</div>
+                      <div className="mt-1 text-[12px] text-white/48">Entrada Operacional</div>
+                    </div>
                   </div>
+                  {chevron}
                 </Link>
               )}
 
@@ -207,12 +270,15 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 >
                   <div className={leftSide}>
                     <div className={iconBox}>
-                      <span className="text-lg">🕘</span>
+                      <HistoryIcon />
                     </div>
-                    <div className="font-extrabold text-[18px]">Histórico</div>
+                    <div className="leading-tight">
+                      <div className="text-[15px] font-semibold text-white">Histórico</div>
+                      <div className="mt-1 text-[12px] text-white/48">Execuções Recentes</div>
+                    </div>
 
                     {historyCount > 0 && (
-                      <span className="ml-2 min-w-[34px] h-[34px] px-3 text-[13px] flex items-center justify-center rounded-full bg-white/90 text-[#8B3C12] font-extrabold ring-1 ring-black/10 shadow-sm">
+                      <span className="ml-1 flex h-[30px] min-w-[30px] items-center justify-center rounded-full border border-[#8fd0bf]/45 bg-[#dff5ef] px-2 text-[12px] font-extrabold text-[#0f5f58] shadow-sm">
                         {historyCount}
                       </span>
                     )}
@@ -231,10 +297,13 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               >
                 <div className={leftSide}>
                   <div className={iconBox}>
-                    <span className="text-lg">💳</span>
+                    <CardIcon />
                   </div>
-                  <div className="font-extrabold text-[18px]">
-                    {accessLoading ? "Conta" : canUseTool ? "Minha assinatura" : "Planos"}
+                  <div className="leading-tight">
+                    <div className="text-[15px] font-semibold text-white">
+                      {accessLoading ? "Conta" : canUseTool ? "Minha Assinatura" : "Planos"}
+                    </div>
+                    <div className="mt-1 text-[12px] text-white/48">Conta e Acesso Comercial</div>
                   </div>
                 </div>
                 {chevron}
@@ -252,9 +321,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   >
                     <div className={leftSide}>
                       <div className={iconBox}>
-                        <span className="text-lg">🛠️</span>
+                        <ShieldIcon />
                       </div>
-                      <div className="font-extrabold text-[18px]">Administração</div>
+                      <div className="leading-tight">
+                        <div className="text-[15px] font-semibold text-white">Administração</div>
+                        <div className="mt-1 text-[12px] text-white/48">Controles Internos</div>
+                      </div>
                     </div>
                     {chevron}
                   </Link>
@@ -269,9 +341,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   >
                     <div className={leftSide}>
                       <div className={iconBox}>
-                        <span className="text-lg">👤</span>
+                        <UsersIcon />
                       </div>
-                      <div className="font-extrabold text-[18px]">Usuários</div>
+                      <div className="leading-tight">
+                        <div className="text-[15px] font-semibold text-white">Usuários</div>
+                        <div className="mt-1 text-[12px] text-white/48">Gestão de Contas</div>
+                      </div>
                     </div>
                     {chevron}
                   </Link>
@@ -283,35 +358,39 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
         <div className="flex-1" />
 
-        <div className="px-5 pb-5">
-          <div className="rounded-3xl bg-white/10 ring-1 ring-white/15 p-4">
+        <div className="px-5 pb-5 pt-5">
+          <div className="rounded-[28px] border border-white/8 bg-white/[0.05] p-4 backdrop-blur">
             <button
               type="button"
-              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/14 transition"
+              className="group flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-white/86 transition hover:bg-white/[0.06]"
               onClick={() => alert("Modo escuro vamos fazer depois")}
             >
-              <span className="flex items-center gap-3">
-                <span className="text-lg">🌙</span>
-                <span className="font-extrabold text-[18px]">Escuro</span>
+              <span className="flex items-center gap-3.5">
+                <span className={iconBox}>
+                  <MoonIcon />
+                </span>
+                <span className="text-[15px] font-semibold">Escuro</span>
               </span>
-              <span className="text-white/70 text-xl">›</span>
+              <span className="text-sm text-white/38 transition group-hover:text-white/70">{">"}</span>
             </button>
 
             <button
               type="button"
-              className="mt-3 w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/14 transition"
+              className="group mt-1.5 flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-white/86 transition hover:bg-white/[0.06]"
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
-              <span className="flex items-center gap-3">
-                <span className="text-lg">↩️</span>
-                <span className="font-extrabold text-[18px]">Sair</span>
+              <span className="flex items-center gap-3.5">
+                <span className={iconBox}>
+                  <LogoutIcon />
+                </span>
+                <span className="text-[15px] font-semibold">Sair</span>
               </span>
-              <span className="text-white/70 text-xl">›</span>
+              <span className="text-sm text-white/38 transition group-hover:text-white/70">{">"}</span>
             </button>
           </div>
 
-          <div className="mt-3 text-[11px] text-white/85 px-2">
-            @ RT Shopee © 2026
+          <div className="mt-3 px-2 text-[11px] text-white/42">
+            RottaHub Console (c) 2026
           </div>
         </div>
       </aside>

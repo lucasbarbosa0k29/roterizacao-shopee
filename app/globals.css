@@ -1,28 +1,33 @@
 @import "tailwindcss";
 
 /* ===============================
-   🎨 VARIÁVEIS DE TEMA
+   VARIAVEIS DE TEMA
 ================================ */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f4f7f6;
+  --foreground: #14232b;
   --panel: #ffffff;
-  --border: rgba(15, 23, 42, 0.10);
+  --border: rgba(20, 35, 43, 0.1);
+  --panel-muted: #eef3f2;
+  --brand: #1f5a6b;
+  --brand-strong: #17313b;
+  --accent: #0f766e;
+  --accent-soft: #dff5ef;
 
-  /* Sidebar orange (mais próximo da referência) */
-  --sidebar-from: #D86A1F;
-  --sidebar-mid:  #C85A15;
-  --sidebar-to:   #B44B10;
+  /* Sidebar corporativa */
+  --sidebar-from: #17313b;
+  --sidebar-mid: #132932;
+  --sidebar-to: #0d1d24;
 
   /* Hover suave do menu */
-  --brand-hover: rgba(255,255,255,0.12);
+  --brand-hover: rgba(255, 255, 255, 0.12);
 }
 
 html.dark {
   --background: #0b1220;
   --foreground: #e5e7eb;
   --panel: #0f172a;
-  --border: rgba(226, 232, 240, 0.10);
+  --border: rgba(226, 232, 240, 0.1);
 }
 
 /* ===============================
@@ -35,7 +40,9 @@ body {
 
 body {
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(circle at top, rgba(31, 90, 107, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7faf9 0%, var(--background) 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
@@ -46,24 +53,23 @@ body {
 }
 
 /* ===============================
-   LAYOUT BASE DO APP  (IMPORTANTE)
-   -> isso impede o sidebar de "tampar" a página
+   LAYOUT BASE DO APP
 ================================ */
 .app-shell {
   display: flex;
   min-height: 100vh;
-  background: var(--background);
+  background: transparent;
 }
 
 .app-shell > aside.sidebar {
-  flex: 0 0 280px;     /* mesma largura do Sidebar.tsx */
+  flex: 0 0 280px;
 }
 
 .app-page {
   flex: 1;
-  min-width: 0;        /* essencial pra tabelas/overflow não estourarem */
+  min-width: 0;
   overflow: auto;
-  background: var(--background);
+  background: transparent;
   padding: 24px;
 }
 
@@ -73,11 +79,12 @@ body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
 }
 
 /* ===============================
-   SIDEBAR (limita o hover só no sidebar)
+   SIDEBAR
 ================================ */
 aside.sidebar a:hover {
   background: var(--brand-hover);

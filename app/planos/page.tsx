@@ -36,7 +36,7 @@ function PaymentButton({ href, label }: { href?: string; label: string }) {
       <button
         type="button"
         disabled
-        className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400 cursor-not-allowed"
+        className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
       >
         Link não configurado
       </button>
@@ -48,7 +48,7 @@ function PaymentButton({ href, label }: { href?: string; label: string }) {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="block w-full rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
+      className="block w-full rounded-2xl bg-[#17313b] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#10242c]"
     >
       {label}
     </a>
@@ -116,10 +116,13 @@ export default function PlanosPage() {
   const extraUrl = process.env.NEXT_PUBLIC_PAYMENT_EXTRA_ROUTE_URL;
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-900">Minha assinatura</h1>
+        <div className="mb-8 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1f5a6b]">
+            Conta e Assinatura
+          </div>
+          <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900">Minha assinatura</h1>
           <p className="mt-2 text-sm text-slate-600">
             Consulte seu status comercial e escolha a melhor forma de liberação.
           </p>
@@ -135,7 +138,7 @@ export default function PlanosPage() {
           </div>
         ) : (
           <>
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
               <div className="text-sm font-semibold text-slate-500">Status atual</div>
               <div className="mt-3 text-lg font-bold text-slate-900">
                 {access?.isAdmin
@@ -165,15 +168,15 @@ export default function PlanosPage() {
               ) : null}
 
               <div className="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-                <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                   <div className="font-semibold text-slate-900">Plano</div>
                   <div className="mt-1">{access?.activeSubscription?.code || "Nenhum"}</div>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <div className="font-semibold text-slate-900">Rotas disponíveis hoje</div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="font-semibold text-slate-900">Rotas Disponíveis Hoje</div>
                   <div className="mt-1">{getAvailableRoutesLabel(access)}</div>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                   <div className="font-semibold text-slate-900">Créditos</div>
                   <div className="mt-1">{access?.routeCreditsBalance ?? 0}</div>
                 </div>
@@ -181,7 +184,7 @@ export default function PlanosPage() {
             </div>
 
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-blue-600">
                   BASIC
                 </div>
@@ -196,7 +199,7 @@ export default function PlanosPage() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="rounded-[28px] border border-[#8fd0bf] bg-[linear-gradient(180deg,#ffffff_0%,#f4fbf8_100%)] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
                   PRO
                 </div>
@@ -211,7 +214,7 @@ export default function PlanosPage() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-amber-600">
                   Rota avulsa
                 </div>

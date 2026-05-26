@@ -840,6 +840,19 @@ useEffect(() => {
     return status;
   }
 
+  function getStatusBadgeClass(status: Status) {
+    if (status === "CONFIRMADO" || status === "OK") {
+      return "border border-emerald-200 bg-emerald-50 text-emerald-800";
+    }
+    if (status === "PARCIAL") {
+      return "border border-amber-200 bg-amber-50 text-amber-800";
+    }
+    if (status === "MANUAL") {
+      return "border border-sky-200 bg-sky-50 text-sky-800";
+    }
+    return "border border-rose-200 bg-rose-50 text-rose-800";
+  }
+
   function getRowQuadra(i: number) {
     const manual = String(manualEdits[i]?.quadra || "").trim();
     if (manual) return manual;
@@ -1085,6 +1098,28 @@ useEffect(() => {
         lat: g.lat as number,
         lng: g.lng as number,
       }));
+  }, [groupedRows]);
+
+  const exportSummary = useMemo(() => {
+    const summary = {
+      total: groupedRows.length,
+      ok: 0,
+      partial: 0,
+      manual: 0,
+      notFound: 0,
+      grouped: 0,
+    };
+
+    for (const group of groupedRows) {
+      if (group.idxs.length > 1) summary.grouped += 1;
+
+      if (group.status === "CONFIRMADO" || group.status === "OK") summary.ok += 1;
+      else if (group.status === "PARCIAL") summary.partial += 1;
+      else if (group.status === "MANUAL") summary.manual += 1;
+      else summary.notFound += 1;
+    }
+
+    return summary;
   }, [groupedRows]);
 
   const overviewSelectedPoint = useMemo(() => {
@@ -2451,22 +2486,38 @@ setTimeout(() => map.getViewPort().resize(), 800);
     }
 
     return (
-      <main className="min-h-screen bg-slate-100">
+      <main className="min-h-screen bg-transparent">
         <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
      {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
     <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
-      <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
-        Importação de Dados
-      </h1>
-      <p className="text-sm text-slate-600 mb-6">
-        Selecione a planilha da Shopee para iniciar o processamento.
-      </p>
+      <div className="mb-6 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
+          Painel de Roteirização
+        </div>
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+          Transforme planilhas em rotas revisáveis e prontas para exportação
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+          Envie a planilha operacional, acompanhe o processamento e revise os pontos em um fluxo visual único.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            Importação Assistida
+          </span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+            Revisão Operacional
+          </span>
+          <span className="rounded-full bg-[#dff5ef] px-3 py-1 text-xs font-medium text-[#0f5f58]">
+            Exportação para Circuit
+          </span>
+        </div>
+      </div>
 
-      <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-6">
+      <div className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
         <div className="flex flex-col md:flex-row gap-4">
           {/* INPUT PLANILHA */}
-          <label className="flex-1 cursor-pointer rounded-2xl border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition p-5">
+          <label className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white">
             <input
               type="file"
               accept=".xlsx,.csv"
@@ -2475,13 +2526,13 @@ setTimeout(() => map.getViewPort().resize(), 800);
             />
 
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-600/10 flex items-center justify-center text-xl">
+              <div className="w-12 h-12 rounded-2xl bg-[#dff5ef] flex items-center justify-center text-xl text-[#0f5f58]">
                 ⬆️
               </div>
 
               <div className="min-w-0">
                 <div className="font-semibold text-slate-900">
-                  Selecionar Planilha
+                  Carregar Arquivo Operacional
                 </div>
                 <div className="text-sm text-slate-600 truncate">
                   {file ? file.name : "Nenhum arquivo escolhido"}
@@ -2494,9 +2545,9 @@ setTimeout(() => map.getViewPort().resize(), 800);
           <button
             type="submit"
             disabled={loading}
-            className="min-h-[56px] w-full md:w-[180px] rounded-2xl bg-blue-600 text-white font-semibold text-base md:text-lg shadow-md hover:bg-blue-700 disabled:opacity-50"
+            className="min-h-[56px] w-full md:w-[220px] rounded-[20px] bg-[#17313b] text-white font-semibold text-base shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50"
           >
-            {loading ? "Processando..." : "Buscar"}
+            {loading ? "Processando..." : "Iniciar Análise"}
           </button>
         </div>
 
@@ -2507,12 +2558,20 @@ setTimeout(() => map.getViewPort().resize(), 800);
         )}
 
         {loading && jobProgress && (
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <div className="mt-4 rounded-[22px] border border-[#cde3dd] bg-[#f4fbf8] px-4 py-4 text-sm text-slate-800">
             <div className="font-semibold">
               {jobProgress.status === "PENDING" ? "Importação iniciada" : "Processando planilha"}
             </div>
             <div className="mt-1">
               Progresso: {jobProgress.processedStops}/{jobProgress.totalStops}
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-[#0f766e] transition-all"
+                style={{
+                  width: `${jobProgress.totalStops ? (jobProgress.processedStops / jobProgress.totalStops) * 100 : 0}%`,
+                }}
+              />
             </div>
             {jobProgress.errorMessage && (
               <div className="mt-2 text-red-700">
@@ -2527,23 +2586,33 @@ setTimeout(() => map.getViewPort().resize(), 800);
 )}
           {view === "results" && rows.length > 0 && (
   <div className="w-full px-2 sm:px-0">
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-  <div className="text-sm text-slate-600">
-    Total: <b className="text-slate-900">{rows.length}</b> • Exibindo:{" "}
-    <b className="text-slate-900">{groupedRows.length}</b>
-  </div>
+              <div className="mb-4 rounded-[32px] border border-slate-200/80 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+  <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(31,90,107,0.08),transparent_30%),linear-gradient(180deg,#fbfcfc_0%,#f5f8f8_100%)] p-4 md:p-6">
+  <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+    <div className="max-w-2xl">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
+        Resultado Operacional
+      </div>
+      <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 md:text-[30px]">
+        Revise, valide e organize os pontos processados.
+      </h2>
+      <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[15px]">
+        Total de pontos: <b className="text-slate-900">{rows.length}</b> • Exibindo:{" "}
+        <b className="text-slate-900">{groupedRows.length}</b> após consolidação operacional.
+      </div>
+    </div>
 
-  <div className="flex items-center gap-2">
+  <div className="flex flex-wrap items-center gap-2.5 xl:max-w-[560px] xl:justify-end">
     <button
       type="button"
      onClick={() => {
   setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
   setAutoGrouped((v) => !v);
 }}
-      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+      className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
         autoGrouped
-          ? "bg-indigo-600 text-white border-indigo-600"
-          : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+          ? "border border-[#17313b] bg-[#17313b] text-white shadow-[0_14px_28px_rgba(23,49,59,0.24)]"
+          : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
       }`}
     >
       Auto Agrupar
@@ -2553,10 +2622,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
       type="button"
       onClick={() => setIsOverviewMapOpen(true)}
       disabled={overviewMapPoints.length === 0}
-      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+      className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
         overviewMapPoints.length === 0
-          ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-          : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+          ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+          : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
       }`}
       title={
         overviewMapPoints.length === 0
@@ -2570,7 +2639,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     <button
       type="button"
       onClick={openExportReview}
-      className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
+      className="inline-flex min-h-[50px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0f766e_0%,#14967f_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(15,118,110,0.28)] transition hover:-translate-y-0.5 hover:brightness-105 sm:flex-none"
     >
       Exportar
     </button>
@@ -2595,12 +2664,40 @@ setTimeout(() => map.getViewPort().resize(), 800);
   setHistoryId(null);
 }}
 
-      className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-200 hover:bg-slate-300 text-slate-800 transition"
+      className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-200 sm:flex-none"
     >
       Importar outra planilha
     </button>
   </div>
 </div>
+  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+    <div className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
+      <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
+      <div className="mt-1 text-xs text-slate-500">Pontos consolidados</div>
+    </div>
+    <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">OK</div>
+      <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
+      <div className="mt-1 text-xs text-emerald-700/80">Confirmados</div>
+    </div>
+    <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
+      <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
+      <div className="mt-1 text-xs text-amber-700/80">Exigem conferência</div>
+    </div>
+    <div className="rounded-[22px] border border-sky-200 bg-sky-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Manual</div>
+      <div className="mt-2 text-2xl font-black text-sky-900">{exportSummary.manual}</div>
+      <div className="mt-1 text-xs text-sky-700/80">Ajustados na revisão</div>
+    </div>
+    <div className="rounded-[22px] border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">Não Encontrado</div>
+      <div className="mt-2 text-2xl font-black text-rose-900">{exportSummary.notFound}</div>
+      <div className="mt-1 text-xs text-rose-700/80">Pendências críticas</div>
+    </div>
+  </div>
+            </div>
              <div className="md:hidden mt-3 space-y-3">
 {groupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
@@ -2612,16 +2709,16 @@ setTimeout(() => map.getViewPort().resize(), 800);
                           <div
                             key={g.id}
                             className={
-                              `rounded-2xl shadow-sm p-3 transition-colors ${
+                              `rounded-[26px] border p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition-all ${
                                 hasReview ? "text-red-700" : ""
                               } ${
                                 hasReview
-                                  ? "border-red-200 bg-red-50"
+                                  ? "border-red-200 bg-rose-50/90"
                                   : groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
-                                  ? "bg-slate-200"
+                                  ? "border-slate-300 bg-slate-200/80 shadow-[0_14px_32px_rgba(15,23,42,0.08)]"
                                   : g.idxs.some((i) => manualEdits[i]?.confirmed)
-                                  ? "bg-green-100"
-                                  : "border-slate-200 bg-white"
+                                  ? "border-emerald-200 bg-emerald-50/80"
+                                  : "border-slate-200 bg-white/95"
                               }`
                             }
                             onClick={() => {
@@ -2657,16 +2754,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span
-                                    className={
-                                      "px-2 py-1 rounded text-xs transition-colors " +
-                                      (g.status === "CONFIRMADO" || g.status === "OK"
-                                        ? "bg-green-100 text-green-900 hover:bg-green-200"
-                                        : g.status === "PARCIAL"
-                                        ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-                                        : g.status === "MANUAL"
-                                        ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-                                        : "bg-red-100 text-red-800 hover:bg-red-200")
-                                    }
+                                    className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(g.status)}`}
                                   >
                                     {g.statusLabel}
                                   </span>
@@ -2677,7 +2765,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                 </div>
 
                                 {isGrouped && (
-                                  <div className="text-xs text-slate-600 mt-2">
+                                  <div className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                                     Agrupado ({g.idxs.length})
                                   </div>
                                 )}
@@ -2691,7 +2779,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                       e.stopPropagation();
                                       openManualModalForIdx(baseIdx);
                                     }}
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Mapa / Correção"
                                   >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -2706,7 +2794,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Agrupar manualmente"
                                   >
                                     +
@@ -2722,7 +2810,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                       setMergeTargetGroupId(g.id);
                                       setSelectedIdxs(new Set(g.idxs));
                                     }}
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Adicionar mais linhas neste grupo"
                                   >
                                     <span className="text-xl leading-none font-medium">+</span>
@@ -2731,12 +2819,12 @@ setTimeout(() => map.getViewPort().resize(), 800);
                               </div>
                             </div>
 
-                            <div className="mt-3 text-sm text-slate-900 break-words">
+                            <div className="mt-4 text-sm leading-6 text-slate-900 break-words">
                               {g.addressDisplay}
                             </div>
 
-                              {!!String(g.notes || "").trim() && (
-                                <div className="mt-2 text-xs text-slate-700 break-words">
+                               {!!String(g.notes || "").trim() && (
+                                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700 break-words">
                                   <span className="font-semibold">Observação:</span> {g.notes}
                                 </div>
                               )}
@@ -2783,7 +2871,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
                             {groupMode && (
                               <label
-                                className="mt-3 text-xs flex items-center gap-2 select-none cursor-pointer"
+                                className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs select-none cursor-pointer"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <input
@@ -2800,31 +2888,31 @@ setTimeout(() => map.getViewPort().resize(), 800);
                       })}
             </div>
 
-             <div className="hidden md:block w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mt-3 md:mt-4">
+             <div className="hidden md:block w-full overflow-hidden rounded-[32px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)] mt-3 md:mt-4">
   <div className="w-full overflow-x-auto">
    <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
-      <thead className="bg-slate-100 text-slate-700">
-       <tr className="border-b border-slate-200">
-         <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[88px] md:w-[140px]">
+      <thead className="bg-[linear-gradient(180deg,#f9fbfb_0%,#f1f6f7_100%)] text-slate-600">
+       <tr className="border-b border-slate-200/80">
+         <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[88px] md:w-[140px]">
     Ação
   </th>
-  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[82px] md:w-[120px]">
+  <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[92px] md:w-[130px]">
     Status
   </th>
 
-  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide w-[82px] md:w-[120px]">
+  <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[82px] md:w-[120px]">
     Sequence
   </th>
 
-  <th className="px-2 md:px-4 py-3 text-left text-[11px] md:text-xs font-semibold uppercase tracking-wide min-w-[0] w-auto md:min-w-[360px]">
+  <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] min-w-[0] w-auto md:min-w-[360px]">
     Destination Address
   </th>
 
-  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[200px]">
+  <th className="hidden md:table-cell px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] w-[200px]">
     Bairro
   </th>
 
-  <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide w-[160px]">
+  <th className="hidden md:table-cell px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] w-[160px]">
     City
   </th>
 
@@ -2848,14 +2936,14 @@ setTimeout(() => map.getViewPort().resize(), 800);
   key={g.id}
   className={
     
-    `border-b border-slate-200 transition-colors
+    `border-b border-slate-100 transition-all duration-150
      ${hasReview ? "text-red-700" : ""}
      ${
        groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
-         ? "bg-slate-200"
+         ? "bg-slate-200/80 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.35)]"
          : g.idxs.some((i) => manualEdits[i]?.confirmed)
-         ? "bg-green-100 hover:bg-green-200"
-         : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
+         ? "bg-emerald-50/80 hover:bg-emerald-100/80"
+         : "odd:bg-white even:bg-slate-50/55 hover:bg-[#f2f7f7]"
      }`
   }
 onClick={() => {
@@ -2869,7 +2957,7 @@ onClick={() => {
   title={"Botão direito: Revisão / Limpar Revisão"}
 >
 
-<td className="px-2 md:px-4 py-3 md:py-4 align-top">
+<td className="px-3 md:px-4 py-4 align-top">
                               <div className="flex items-center gap-2">
 {!groupMode && (
   <button
@@ -2878,7 +2966,7 @@ onClick={() => {
       e.stopPropagation();
       openManualModalForIdx(baseIdx);
     }}
-    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
     title="Mapa / Correção"
   >
     {/* ícone do mapa (o seu svg atual pode ficar aqui dentro) */}
@@ -2894,7 +2982,7 @@ onClick={() => {
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Agrupar manualmente"
                                   >
                                     +
@@ -2928,7 +3016,7 @@ onClick={() => {
   // (seleciona todos do grupo como base)
   setSelectedIdxs(new Set(g.idxs));
 }}
-    className="w-9 h-9 md:w-10 md:h-10 rounded-lg flex items-center justify-center bg-slate-100 hover:bg-white border border-slate-200 shadow-sm transition text-slate-700"
+    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
     title="Adicionar mais linhas neste grupo"
   >
  <span className="text-xl leading-none font-medium">+</span>
@@ -2936,32 +3024,23 @@ onClick={() => {
 )}
                               </div>
                             </td>
-                            <td className="px-2 md:px-4 py-3 md:py-4 align-top">
+                            <td className="px-3 md:px-4 py-4 align-top">
                               <span
-  className={
-    "px-2 py-1 rounded text-xs transition-colors " +
-    (g.status === "CONFIRMADO" || g.status === "OK"
-      ? "bg-green-100 text-green-900 hover:bg-green-200"
-      : g.status === "PARCIAL"
-      ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-      : g.status === "MANUAL"
-      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-      : "bg-red-100 text-red-800 hover:bg-red-200")
-  }
+  className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(g.status)}`}
 >
   {g.statusLabel}
 </span>
                             </td>
 
-                            <td className="px-2 md:px-4 py-3 md:py-4 align-top font-medium text-sm md:text-base">{g.sequenceText}</td>
+                            <td className="px-3 md:px-4 py-4 align-top font-semibold text-sm md:text-[15px] text-slate-900">{g.sequenceText}</td>
 
-                           <td className="px-2 md:px-4 py-3 md:py-4 align-top whitespace-normal md:whitespace-nowrap overflow-hidden text-ellipsis max-w-none md:max-w-[520px] w-full">
-                              <span className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis">
+                           <td className="px-3 md:px-4 py-4 align-top whitespace-normal md:whitespace-nowrap overflow-hidden text-ellipsis max-w-none md:max-w-[520px] w-full">
+                              <span className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis leading-6">
   {g.addressDisplay}
 </span>
 
                               {!!String(g.notes || "").trim() && (
-                                <div className="mt-2 text-xs text-slate-700 break-words whitespace-normal">
+                                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700 break-words whitespace-normal">
                                   <span className="font-semibold">Observação:</span> {g.notes}
                                 </div>
                               )}
@@ -3000,7 +3079,7 @@ onClick={() => {
                                 </div>
                               )}
                               {isGrouped && (
-                                <div className="text-xs text-slate-600 mt-1">
+                                <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                                   Agrupado ({g.idxs.length})
                                 </div>
                               )}
@@ -3096,37 +3175,44 @@ onClick={() => {
 )}
               {/* Export review modal */}
               {isExportOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 md:p-4">
-                  <div className="w-full max-w-6xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200 max-h-[95vh] md:max-h-[90vh] flex flex-col">
+                <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[#0f172a]/55 p-2 md:p-4 backdrop-blur-sm">
+                  <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:max-h-[90vh]">
                     {/* Header */}
-                    <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="text-xl">📄</div>
-                        <div>
-                          <div className="text-base font-semibold text-slate-800">
-                            Exportação Circuit
+                    <div className="px-5 py-5 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(78,201,176,0.18),transparent_28%),linear-gradient(135deg,#17313b_0%,#1f5a6b_100%)] text-white">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/15 backdrop-blur">
+                            <span className="text-lg">↗</span>
                           </div>
-                          <div className="text-sm text-slate-500">
-                            Configure o formato das observações antes de gerar o CSV.
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/65">
+                              Finalização da Rota
+                            </div>
+                            <div className="mt-1 text-xl font-bold tracking-tight text-white">
+                              Central de Exportação
+                            </div>
+                            <div className="mt-1 text-sm text-white/75">
+                              Revise observações, valide dados e gere o arquivo final da operação.
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setIsExportOpen(false)}
-                        className="text-slate-500 hover:text-slate-800 text-xl px-2"
-                        title="Fechar"
-                      >
-                        ✕
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsExportOpen(false)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-lg text-white/75 transition hover:bg-white/14 hover:text-white"
+                          title="Fechar"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     {/* Step box (igual route planner) */}
                     <div className="px-6 pt-6">
-                      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+                      <div className="rounded-[26px] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] border border-slate-200 p-5">
                         <div className="flex items-center gap-3">
-                          <div className="h-7 w-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold">
+                          <div className="h-8 w-8 rounded-full bg-[#0f766e] text-white flex items-center justify-center text-sm font-bold shadow-sm">
                             ✓
                           </div>
                           <div className="font-semibold text-slate-800">
@@ -3137,7 +3223,7 @@ onClick={() => {
                         <div className="mt-4 flex flex-col sm:flex-row gap-3">
                           <button
                             type="button"
-                            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left opacity-60 cursor-not-allowed"
+                            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left opacity-60 cursor-not-allowed"
                             disabled
                           >
                             <div className="text-sm font-semibold text-slate-700">
@@ -3150,7 +3236,7 @@ onClick={() => {
 
                           <button
                             type="button"
-                            className="flex-1 rounded-xl border-2 border-indigo-300 bg-white px-4 py-3 text-left"
+                            className="flex-1 rounded-2xl border-2 border-[#8fd0bf] bg-white px-4 py-3 text-left shadow-sm"
                           >
                             <div className="text-sm font-semibold text-slate-800">
                               Endereço Completo
@@ -3163,15 +3249,45 @@ onClick={() => {
                       </div>
                     </div>
 
+                    <div className="px-6 pt-4">
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                        <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
+                          <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
+                          <div className="mt-1 text-xs text-slate-500">Pontos prontos</div>
+                        </div>
+                        <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">OK</div>
+                          <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
+                          <div className="mt-1 text-xs text-emerald-700/80">Confirmados e válidos</div>
+                        </div>
+                        <div className="rounded-[22px] border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
+                          <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
+                          <div className="mt-1 text-xs text-amber-700/80">Exigem conferência</div>
+                        </div>
+                        <div className="rounded-[22px] border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Manual</div>
+                          <div className="mt-2 text-2xl font-black text-sky-900">{exportSummary.manual}</div>
+                          <div className="mt-1 text-xs text-sky-700/80">Ajustados na operação</div>
+                        </div>
+                        <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Agrupados</div>
+                          <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.grouped}</div>
+                          <div className="mt-1 text-xs text-slate-500">Blocos consolidados</div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Table */}
-                    <div className="px-3 md:px-6 pt-4 pb-0 flex-1 min-h-0 overflow-y-auto">
+                    <div className="px-3 md:px-6 pt-5 pb-0 flex-1 min-h-0 overflow-y-auto">
                       <div className="md:hidden space-y-3 pb-4">
                         {exportDraft.map((r, idx) => {
                           return (
                             <div
                               key={r.groupId ?? idx}
                               className={
-                                "rounded-xl border border-slate-200 p-3 bg-white " +
+                                "rounded-[22px] border border-slate-200 p-4 bg-white shadow-sm " +
                                 (manualEdits[r.baseIdx]?.review ? "text-red-600" : "")
                               }
                             >
@@ -3190,7 +3306,7 @@ onClick={() => {
                                     });
                                   }}
                                   rows={4}
-                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-300 break-words"
+                                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-3 py-3 text-sm outline-none transition focus:border-[#1f5a6b] focus:bg-white break-words"
                                   placeholder="Observações (endereço original, referência, casa/apto...)"
                                 />
                               </div>
@@ -3200,11 +3316,11 @@ onClick={() => {
                       </div>
 
                       <div
-                        className="hidden md:block overflow-auto rounded-xl border border-slate-200"
+                        className="hidden md:block overflow-auto rounded-[24px] border border-slate-200 shadow-sm"
                         style={{ maxHeight: "60vh" }}
                       >
                         <table className="min-w-full text-sm">
-                          <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                          <thead className="bg-[linear-gradient(180deg,#f8fafb_0%,#eff5f6_100%)] text-slate-600 sticky top-0">
                             <tr>
                               <th className="p-3 text-left border-b w-[140px]">Latitude</th>
                               <th className="p-3 text-left border-b w-[140px]">Longitude</th>
@@ -3221,16 +3337,16 @@ onClick={() => {
                                 <tr
   key={r.groupId ?? idx}
   className={
-  "border-b transition-colors " +
+  "border-b border-slate-100 transition-colors " +
   (manualEdits[r.baseIdx]?.review
-    ? "text-red-600"
-    : "odd:bg-white even:bg-slate-50")
+    ? "bg-red-50/50 text-red-600"
+    : "odd:bg-white even:bg-slate-50/55 hover:bg-[#f3f8f8]")
 }
 >
-                                  <td className="p-3 border-b text-slate-700">{latStr}</td>
-                                  <td className="p-3 border-b text-slate-700">{lngStr}</td>
+                                  <td className="p-4 border-b border-slate-100 font-mono text-[13px] text-slate-700">{latStr}</td>
+                                  <td className="p-4 border-b border-slate-100 font-mono text-[13px] text-slate-700">{lngStr}</td>
 
-                                  <td className="p-3 border-b">
+                                  <td className="p-4 border-b border-slate-100">
                                     <input
                                       value={r.complemento || ""}
                                       onChange={(e) => {
@@ -3241,7 +3357,7 @@ onClick={() => {
                                           return next;
                                         });
                                       }}
-                                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-300"
+                                      className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm outline-none transition focus:border-[#1f5a6b] focus:bg-white"
                                       placeholder="Observações (endereço original, referência, casa/apto...)"
                                     />
                                   </td>
@@ -3254,17 +3370,17 @@ onClick={() => {
                     </div>
 
                     {/* Footer */}
-                    <div className="sticky bottom-0 border-t bg-white px-3 md:px-6 py-3 md:py-4">
+                    <div className="sticky bottom-0 border-t border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,#f4f8f8_100%)] px-3 md:px-6 py-4 backdrop-blur">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="text-sm text-slate-600">
-                          Total de <b>{exportDraft.length}</b> pontos agrupados
+                          Total de <b>{exportDraft.length}</b> pontos agrupados prontos para exportação.
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                           <button
                             type="button"
                             onClick={() => setIsExportOpen(false)}
-                            className="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-sm"
+                            className="px-5 py-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-700"
                           >
                             Cancelar
                           </button>
@@ -3272,7 +3388,7 @@ onClick={() => {
                           <button
                             type="button"
                             onClick={confirmExportCircuit}
-                            className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium"
+                            className="px-6 py-3 rounded-2xl bg-[linear-gradient(135deg,#0f766e_0%,#14967f_100%)] hover:brightness-105 text-white text-sm font-semibold shadow-[0_18px_34px_rgba(15,118,110,0.28)] transition"
                           >
                             Confirmar e Exportar
                           </button>
@@ -3700,6 +3816,7 @@ onClick={() => {
     </div>
   </div>
             </div>
+          </div>
           )}
         </div>   {/* fecha mx-auto max-w-6xl px-4 py-6 */}
       </main>
