@@ -6,9 +6,13 @@ import {
 import { prisma } from "@/app/lib/prisma";
 
 const HERE_DISCOVER_SERVICE = "HERE_DISCOVER";
-const RESERVE_RETRIES = 2;
+const RESERVE_RETRIES = 4;
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export type DiscoverBudgetDecision = {
   allowed: boolean;
@@ -37,8 +41,12 @@ function isAparecidaCityName(value: string) {
 }
 
 function getEnvInt(name: string, fallback: number) {
-  const raw = String(process.env[name] || "").trim();
-  const num = Number(raw);
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") {
+    return fallback;
+  }
+
+  const num = Number(String(raw).trim());
   return Number.isFinite(num) && num >= 0 ? Math.floor(num) : fallback;
 }
 
@@ -127,6 +135,11 @@ export function shouldAttemptDiscoverFromQuality(params: {
   bestGeocodeItem?: any;
   expectedCity?: string;
   expectedBairro?: string;
+  expectedRua?: string;
+  discoverQuery?: string;
+  geocodeConfidence?: number;
+  geocodeHardMismatch?: boolean;
+  geocodeFlags?: string[];
 }): { allowed: boolean; reason: string } {
   const {
     geocodeItemCount,
@@ -135,6 +148,11 @@ export function shouldAttemptDiscoverFromQuality(params: {
     bestGeocodeItem,
     expectedCity,
     expectedBairro,
+    expectedRua,
+    discoverQuery,
+    geocodeConfidence,
+    geocodeHardMismatch,
+    geocodeFlags,
   } = params;
 
   const bestAddress = bestGeocodeItem?.address || {};
@@ -152,6 +170,54 @@ export function shouldAttemptDiscoverFromQuality(params: {
     !!expectedCity &&
     !!bestCity &&
     isAparecidaCityName(expectedCity) !== isAparecidaCityName(bestCity);
+
+  const ruaNormalized = normalizeCompareText(expectedRua || "");
+  const bairroNormalized = normalizeCompareText(expectedBairro || "");
+  const cityNormalized = normalizeCompareText(expectedCity || "");
+  const queryNormalized = normalizeCompareText(discoverQuery || "");
+
+  const hasUsefulDiscoverQuery =
+    !!queryNormalized &&
+    (
+      (ruaNormalized.length >= 6 && cityNormalized.length >= 4) ||
+      (ruaNormalized.length >= 6 && bairroNormalized.length >= 5) ||
+      (bairroNormalized.length >= 5 && cityNormalized.length >= 4)
+    );
+
+  const flags = new Set(geocodeFlags || []);
+  const hasUsefulConfidenceFlag =
+    flags.has("HERE_SPREAD_HIGH") ||
+    flags.has("HERE_UNCERTAIN") ||
+    flags.has("BAIRRO_MISMATCH") ||
+    flags.has("CIDADE_MISMATCH") ||
+    flags.has("RUA_MISMATCH");
+
+  if (typeof geocodeConfidence === "number") {
+    if (geocodeConfidence >= 85 && !geocodeHardMismatch) {
+      return { allowed: false, reason: "CONFIDENCE_HIGH_SKIP_DISCOVER" };
+    }
+
+    if (geocodeHardMismatch) {
+      if (!hasUsefulDiscoverQuery) {
+        return { allowed: false, reason: "HARD_MISMATCH_QUERY_WEAK" };
+      }
+      return { allowed: true, reason: "HARD_MISMATCH_WITH_USEFUL_QUERY" };
+    }
+
+    if (geocodeConfidence >= 70 && geocodeConfidence <= 84) {
+      if (hasUsefulConfidenceFlag && hasUsefulDiscoverQuery) {
+        return { allowed: true, reason: "CONFIDENCE_MEDIUM_WITH_SIGNAL" };
+      }
+      return { allowed: false, reason: "CONFIDENCE_MEDIUM_SKIP_DISCOVER" };
+    }
+
+    if (geocodeConfidence < 70) {
+      if (hasUsefulDiscoverQuery) {
+        return { allowed: true, reason: "CONFIDENCE_LOW_WITH_USEFUL_QUERY" };
+      }
+      return { allowed: false, reason: "CONFIDENCE_LOW_QUERY_WEAK" };
+    }
+  }
 
   if (geocodeItemCount <= 0) {
     return { allowed: true, reason: "NO_GEOCODE_ITEMS" };
@@ -326,6 +392,7 @@ export async function reserveDiscoverUsage(
       );
     } catch (error: any) {
       if (error?.code === "P2034" && attempt + 1 < RESERVE_RETRIES) {
+        await sleep(25 * (attempt + 1) + Math.floor(Math.random() * 25));
         continue;
       }
 

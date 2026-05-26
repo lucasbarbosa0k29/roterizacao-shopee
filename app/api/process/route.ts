@@ -6,9 +6,18 @@ import {
   shouldAttemptDiscoverFromQuality,
 } from "@/app/lib/here-discover-budget";
 import {
+  auditApproximateMemoryOperationalRisk,
+  buildApproximateMemoryShadowHint,
+  type ApproxOperationalRisk,
   tryApproximateMemoryMatch,
   tryApproximateMemoryTextHint,
+  type ApproxMemorySearchHint,
+  type ApproxMemoryStrength,
 } from "@/app/lib/address-memory-approx";
+import {
+  computeGeocodeConfidence,
+  type GeocodeConfidenceLevel,
+} from "@/app/lib/geocode-confidence";
 import {
   incrementDailyMetric,
   METRIC_MEMORY_BATCH_SAVE_ERROR,
@@ -56,6 +65,61 @@ type MemoryDebugRow = {
   hereSkippedBecauseMemory: boolean;
   decisionReason: string;
   usedApproxMemory?: boolean;
+  geocodeConfidence?: number;
+  geocodeConfidenceLevel?: GeocodeConfidenceLevel;
+  geocodeConfidenceHardMismatch?: boolean;
+  geocodeConfidenceFlags?: string[];
+  approxMemoryStrength?: ApproxMemoryStrength | null;
+  approxMemoryScore?: number | null;
+  approxMemoryReasons?: string[];
+  approxMemoryUsedAsFinal?: boolean;
+  approxMemoryUsedAsHint?: boolean;
+  approxOperationalRisk?: ApproxOperationalRisk | null;
+  approxOperationalRiskReasons?: string[];
+  approxOperationalWouldStillSkipHere?: boolean;
+  approxOperationalSafeForAutoSave?: boolean;
+  approxOperationalRecommendedAction?: string | null;
+  approxHintApplied?: boolean;
+  approxHintReason?: string | null;
+  approxHintFieldsUsed?: string[];
+  approxHintSource?: "TEXT_HINT" | "SHADOW_MEDIUM" | null;
+  approxHintBecameBestGeocodeQuery?: boolean;
+  autoSaveWouldAllow?: boolean;
+  autoSaveWouldBlockReason?: string | null;
+  autoSaveWouldBlockReasons?: string[];
+  autoSaveCurrentBehaviorWouldSave?: boolean;
+  autoSaveHardeningApplied?: boolean;
+  autoSaveHardeningBlockedReason?: string | null;
+};
+
+type RankedHereEntry = {
+  it: any;
+  score: number;
+  from: string;
+  kind: "geocode" | "discover";
+};
+
+type RankedHereEntryWithArcgis = RankedHereEntry & {
+  arc?: any;
+  arcScore?: number;
+  total?: number;
+};
+
+type DiscoverGateDebugRow = {
+  preliminaryGeocodeConfidence: number | null;
+  preliminaryGeocodeHardMismatch: boolean;
+  preliminaryGeocodeFlags: string[];
+  discoverQualityAllowed: boolean;
+  discoverQualityReason: string;
+  acceptedEarly: boolean;
+  shouldBypassAcceptedEarly: boolean;
+  acceptedEarlyBypassReason: string | null;
+  budgetAllowed: boolean | null;
+  budgetReason: string | null;
+  discoverAttempted: boolean;
+  discoverReserved: boolean;
+  discoverSeenInTop5: boolean;
+  discoverWonFinalRanking: boolean;
 };
 
 function onlyDigits(s: string) {
@@ -241,6 +305,118 @@ function calcStatusLucas(n: { rua?: string; quadra?: string; lote?: string; bair
   if (usefulCount >= 2) return "PARCIAL";
   if (usefulCount === 0) return "NAO_ENCONTRADO";
   return "PARCIAL";
+}
+
+function auditAutoSaveMemory(params: {
+  currentBehaviorWouldSave: boolean;
+  status: string;
+  lat: number | null;
+  lng: number | null;
+  geocodeConfidenceLevel: GeocodeConfidenceLevel;
+  geocodeConfidenceHardMismatch: boolean;
+  geocodeConfidenceFlags: string[];
+  approxOperationalRisk: ApproxOperationalRisk | null;
+  approxMemoryStrength: ApproxMemoryStrength | null;
+  city: string;
+}) {
+  const blockedReasons: string[] = [];
+  const pushReason = (reason: string) => {
+    if (!blockedReasons.includes(reason)) blockedReasons.push(reason);
+  };
+
+  const structuralReasons: string[] = [];
+  const pushStructural = (reason: string) => {
+    if (!structuralReasons.includes(reason)) structuralReasons.push(reason);
+  };
+
+  if (params.status !== "OK") {
+    pushReason("STATUS_NOT_OK");
+    pushStructural("STATUS_NOT_OK");
+  }
+  if (params.lat == null || params.lng == null) {
+    pushReason("MISSING_COORDS");
+    pushStructural("MISSING_COORDS");
+  }
+  if (params.geocodeConfidenceHardMismatch) {
+    pushReason("HARD_MISMATCH");
+    pushStructural("HARD_MISMATCH");
+  }
+  if (params.geocodeConfidenceFlags.includes("HERE_SPREAD_HIGH")) {
+    pushReason("HERE_SPREAD_HIGH");
+    pushStructural("HERE_SPREAD_HIGH");
+  }
+  if (params.geocodeConfidenceFlags.includes("HERE_UNCERTAIN")) {
+    pushReason("HERE_UNCERTAIN");
+    pushStructural("HERE_UNCERTAIN");
+  }
+  if (params.geocodeConfidenceFlags.includes("RUA_MISMATCH")) {
+    pushReason("RUA_MISMATCH");
+    pushStructural("RUA_MISMATCH");
+  }
+  if (params.geocodeConfidenceFlags.includes("CIDADE_MISMATCH")) {
+    pushReason("CIDADE_MISMATCH");
+    pushStructural("CIDADE_MISMATCH");
+  }
+  if (params.geocodeConfidenceFlags.includes("BAIRRO_MISMATCH")) {
+    pushReason("BAIRRO_MISMATCH");
+    pushStructural("BAIRRO_MISMATCH");
+  }
+  if (params.geocodeConfidenceFlags.includes("QL_CONFLICT")) {
+    pushReason("QL_CONFLICT");
+    pushStructural("QL_CONFLICT");
+  }
+  if (params.approxOperationalRisk === "BAD") {
+    pushReason("APPROX_RISK_BAD");
+    pushStructural("APPROX_RISK_BAD");
+  }
+  if (params.approxOperationalRisk === "RISKY" && isAparecidaCity(params.city)) {
+    pushReason("APPROX_RISK_RISKY");
+    pushStructural("APPROX_RISK_RISKY");
+  }
+
+  if (params.geocodeConfidenceLevel === "LOW") {
+    pushReason("CONFIDENCE_LOW");
+  } else if (params.geocodeConfidenceLevel === "MEDIUM") {
+    if (isAparecidaCity(params.city)) {
+      pushReason("CONFIDENCE_MEDIUM_APARECIDA_BLOCKED");
+    }
+    if (params.approxMemoryStrength === "WEAK") {
+      pushReason("CONFIDENCE_MEDIUM_MEMORY_WEAK");
+    }
+  }
+
+  const hasRiskFlags =
+    params.geocodeConfidenceHardMismatch ||
+    params.geocodeConfidenceFlags.includes("HERE_SPREAD_HIGH") ||
+    params.geocodeConfidenceFlags.includes("HERE_UNCERTAIN") ||
+    params.geocodeConfidenceFlags.includes("RUA_MISMATCH") ||
+    params.geocodeConfidenceFlags.includes("CIDADE_MISMATCH") ||
+    params.geocodeConfidenceFlags.includes("BAIRRO_MISMATCH") ||
+    params.geocodeConfidenceFlags.includes("QL_CONFLICT") ||
+    params.approxOperationalRisk === "BAD" ||
+    params.approxOperationalRisk === "RISKY";
+
+  const futureWouldAllow =
+    params.status === "OK" &&
+    params.lat != null &&
+    params.lng != null &&
+    !hasRiskFlags &&
+    true;
+
+  const hardeningApplied = futureWouldAllow ? false : structuralReasons.length > 0;
+
+  return {
+    autoSaveWouldAllow: futureWouldAllow,
+    autoSaveWouldBlockReason: futureWouldAllow
+      ? null
+      : (blockedReasons[0] || "AUTO_SAVE_SHADOW_BLOCKED"),
+    autoSaveWouldBlockReasons: futureWouldAllow ? [] : blockedReasons,
+    autoSaveCurrentBehaviorWouldSave: params.currentBehaviorWouldSave,
+    autoSaveHardeningApplied: hardeningApplied,
+    autoSaveHardeningBlockedReason: hardeningApplied
+      ? (structuralReasons[0] || null)
+      : null,
+  };
 }
 
 function buildNormalizedLine(n: Normalized, fallback: string) {
@@ -837,6 +1013,23 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let matchedMemoryKey: string | null = null;
   let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
+  let approxShadowSearchHint: ApproxMemorySearchHint | null = null;
+  let approxMemoryStrength: ApproxMemoryStrength | null = null;
+  let approxMemoryScore: number | null = null;
+  let approxMemoryReasons: string[] = [];
+  let approxMemoryMatchedBy: string[] = [];
+  let approxMemoryUsedAsFinal = false;
+  let approxMemoryUsedAsHint = false;
+  let approxOperationalRisk: ApproxOperationalRisk | null = null;
+  let approxOperationalRiskReasons: string[] = [];
+  let approxOperationalWouldStillSkipHere = false;
+  let approxOperationalSafeForAutoSave = false;
+  let approxOperationalRecommendedAction: string | null = null;
+  let approxHintApplied = false;
+  let approxHintReason: string | null = null;
+  let approxHintFieldsUsed: string[] = [];
+  let approxHintSource: "TEXT_HINT" | "SHADOW_MEDIUM" | null = null;
+  let approxHintBecameBestGeocodeQuery = false;
 
   try {
     const candidates = [
@@ -1043,12 +1236,36 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       lote: normalized.lote,
     });
 
+    if (approx.shadow) {
+      approxMemoryStrength = approx.shadow.strength;
+      approxMemoryScore = approx.shadow.score;
+      approxMemoryReasons = approx.shadow.reasons;
+      approxMemoryMatchedBy = approx.shadow.matchedBy;
+      const approxOperationalAudit = auditApproximateMemoryOperationalRisk({
+        shadow: approx.shadow,
+        city: normalized.cidade || cityIn,
+        rua: normalized.rua,
+        lote: normalized.lote,
+      });
+      approxOperationalRisk = approxOperationalAudit.risk;
+      approxOperationalRiskReasons = approxOperationalAudit.reasons;
+      approxOperationalWouldStillSkipHere = approxOperationalAudit.wouldStillSkipHere;
+      approxOperationalSafeForAutoSave = approxOperationalAudit.safeForAutoSave;
+      approxOperationalRecommendedAction = approxOperationalAudit.recommendedAction;
+      approxShadowSearchHint = buildApproximateMemoryShadowHint({
+        shadow: approx.shadow,
+        city: normalized.cidade || cityIn,
+        rua: normalized.rua,
+      });
+    }
+
     if (approx.matched && approx.lat != null && approx.lng != null) {
       approxMemoryHit = {
         lat: approx.lat,
         lng: approx.lng,
         label: approx.label || null,
       };
+      approxMemoryUsedAsFinal = true;
     }
   }
 
@@ -1064,6 +1281,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
         suggestedAddressLine: hint.suggestedAddressLine,
         reason: hint.reason || "MEMORY_TEXT_HINT",
       };
+      approxMemoryUsedAsHint = true;
     }
   }
 
@@ -1088,16 +1306,37 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       ? "MEMORY_APPROX_HIT"
     : "OK_CONFIDENT";
   let bestHereScore = memoryHit || approxMemoryHit ? 999 : -999;
+  let bestItem: any = null;
+  let finalRankedKind: "geocode" | "discover" | null = null;
 
-  let enriched: any[] = [];
+  let enriched: RankedHereEntryWithArcgis[] = [];
   let bestArcgisFromTop: any = null;
 
   let hereUncertain = false;
+  let hereSpreadMeters = 0;
+  let discoverGateDebug: DiscoverGateDebugRow | null = null;
 
   // ✅ Só roda HERE quando NÃO tiver memória
-  const scored: Array<{ it: any; score: number; from: string; kind: "geocode" | "discover" }> = [];
+  const scored: RankedHereEntry[] = [];
 
   if (!memoryHit && !approxMemoryHit) {
+    discoverGateDebug = {
+      preliminaryGeocodeConfidence: null,
+      preliminaryGeocodeHardMismatch: false,
+      preliminaryGeocodeFlags: [],
+      discoverQualityAllowed: false,
+      discoverQualityReason: "DISCOVER_NOT_EVALUATED",
+      acceptedEarly: false,
+      shouldBypassAcceptedEarly: false,
+      acceptedEarlyBypassReason: null,
+      budgetAllowed: null,
+      budgetReason: null,
+      discoverAttempted: false,
+      discoverReserved: false,
+      discoverSeenInTop5: false,
+      discoverWonFinalRanking: false,
+    };
+
     // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
     const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
 
@@ -1115,13 +1354,33 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       normalizedLine,
     });
 
-    const queriesWithHint =
-      approxMemoryTextHint?.suggestedAddressLine
-        ? [
-            approxMemoryTextHint.suggestedAddressLine,
-            ...queries.filter((q) => q !== approxMemoryTextHint?.suggestedAddressLine),
-          ]
-        : queries;
+    let queriesWithHint = queries;
+
+    if (approxMemoryTextHint?.suggestedAddressLine) {
+      approxHintApplied = true;
+      approxHintReason = approxMemoryTextHint.reason || "MEMORY_TEXT_HINT";
+      approxHintFieldsUsed = ["street_text_hint", "bairro_text_hint"];
+      approxHintSource = "TEXT_HINT";
+
+      queriesWithHint = [
+        approxMemoryTextHint.suggestedAddressLine,
+        ...queries.filter((q) => q !== approxMemoryTextHint?.suggestedAddressLine),
+      ];
+    } else if (approxShadowSearchHint?.suggestedAddressLine) {
+      approxHintApplied = true;
+      approxHintReason = approxShadowSearchHint.reason;
+      approxHintFieldsUsed = approxShadowSearchHint.fieldsUsed;
+      approxHintSource = "SHADOW_MEDIUM";
+      approxMemoryUsedAsHint = true;
+
+      queriesWithHint = Array.from(
+        new Set([
+          queries[0] || "",
+          approxShadowSearchHint.suggestedAddressLine,
+          ...queries.slice(1),
+        ].filter(Boolean)),
+      ).slice(0, 3);
+    }
 
     const want = {
       cep: normalized.cep || cepIn,
@@ -1137,6 +1396,9 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     let bestGeocodeScoreOverall = -999;
     let bestGeocodeQuery = queriesWithHint[0] || "";
     let bestGeocodeItem: any = null;
+    let preliminaryGeocodeConfidence: number | null = null;
+    let preliminaryGeocodeHardMismatch = false;
+    let preliminaryGeocodeFlags: string[] = [];
     let acceptedEarly = false;
     let geocodeItemCount = 0;
     let geocodeItemsWithCoords = 0;
@@ -1175,10 +1437,81 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       }
     }
 
+    approxHintBecameBestGeocodeQuery =
+      approxHintApplied &&
+      !!bestGeocodeQuery &&
+      (
+        bestGeocodeQuery === approxMemoryTextHint?.suggestedAddressLine ||
+        bestGeocodeQuery === approxShadowSearchHint?.suggestedAddressLine
+      );
+
+    const geocodeOnlyTopPoints = scored
+      .filter((x) => x.kind === "geocode")
+      .slice(0, 2)
+      .map((x) => x.it?.position)
+      .filter(
+        (p): p is { lat: number; lng: number } =>
+          !!p && typeof p.lat === "number" && typeof p.lng === "number",
+      );
+
+    const preliminaryGeocodeSpreadMeters =
+      geocodeOnlyTopPoints.length >= 2 ? maxPairDistanceMeters(geocodeOnlyTopPoints) : 0;
+
+    if (bestGeocodeItem) {
+      const preliminaryConfidenceDiag = computeGeocodeConfidence({
+        source: "HERE_GEOCODE",
+        expected: {
+          rua: normalized.rua,
+          bairro: normalized.bairro || bairroIn,
+          cidade: normalized.cidade || cityIn,
+          cep: normalized.cep || cepIn,
+          quadra: normalized.quadra,
+          lote: normalized.lote,
+        },
+        actual: {
+          rua: String(bestGeocodeItem?.address?.street || ""),
+          bairro: String(
+            bestGeocodeItem?.address?.district ||
+              bestGeocodeItem?.address?.subdistrict ||
+              "",
+          ),
+          cidade: String(
+            bestGeocodeItem?.address?.city ||
+              bestGeocodeItem?.address?.county ||
+              "",
+          ),
+          cep: String(bestGeocodeItem?.address?.postalCode || ""),
+          resultType: String(bestGeocodeItem?.resultType || ""),
+        },
+        hasCoords:
+          typeof bestGeocodeItem?.position?.lat === "number" &&
+          typeof bestGeocodeItem?.position?.lng === "number",
+        hasQuadra: !!normalized.quadra,
+        hasLote: !!normalized.lote,
+        hereSpreadMeters: preliminaryGeocodeSpreadMeters,
+        memoryStrength: "NONE",
+        hardSignals: preliminaryGeocodeSpreadMeters > 250 ? ["HERE_UNCERTAIN"] : [],
+      });
+
+      preliminaryGeocodeConfidence = preliminaryConfidenceDiag.confidence;
+      preliminaryGeocodeHardMismatch = preliminaryConfidenceDiag.hardMismatch;
+      preliminaryGeocodeFlags = preliminaryConfidenceDiag.flags;
+    }
+
+    if (discoverGateDebug) {
+      discoverGateDebug.preliminaryGeocodeConfidence = preliminaryGeocodeConfidence;
+      discoverGateDebug.preliminaryGeocodeHardMismatch = preliminaryGeocodeHardMismatch;
+      discoverGateDebug.preliminaryGeocodeFlags = preliminaryGeocodeFlags;
+      discoverGateDebug.acceptedEarly = acceptedEarly;
+    }
+
     console.info("[DISCOVER_QUALITY_CHECK]", {
       geocodeItemCount,
       geocodeItemsWithCoords,
       bestGeocodeScoreOverall,
+      preliminaryGeocodeConfidence,
+      preliminaryGeocodeHardMismatch,
+      preliminaryGeocodeFlags,
     });
 
     const discoverQualityDecision = shouldAttemptDiscoverFromQuality({
@@ -1188,38 +1521,110 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       bestGeocodeItem,
       expectedCity: normalized.cidade || cityIn,
       expectedBairro: normalized.bairro || bairroIn,
+      expectedRua: normalized.rua,
+      discoverQuery: bestGeocodeQuery || queriesWithHint[0] || "",
+      geocodeConfidence: preliminaryGeocodeConfidence ?? undefined,
+      geocodeHardMismatch: preliminaryGeocodeHardMismatch,
+      geocodeFlags: preliminaryGeocodeFlags,
     });
+
+    if (discoverGateDebug) {
+      discoverGateDebug.discoverQualityAllowed = discoverQualityDecision.allowed;
+      discoverGateDebug.discoverQualityReason = discoverQualityDecision.reason;
+    }
+
+    const hasConfidenceOverrideFlag =
+      preliminaryGeocodeFlags.includes("HERE_SPREAD_HIGH") ||
+      preliminaryGeocodeFlags.includes("HERE_UNCERTAIN");
+
+    const confidenceOverrideAcceptedEarly =
+      preliminaryGeocodeHardMismatch &&
+      hasConfidenceOverrideFlag &&
+      discoverQualityDecision.allowed &&
+      bestGeocodeScoreOverall < 160;
+
+    const shouldBypassAcceptedEarly =
+      acceptedEarly && confidenceOverrideAcceptedEarly;
+
+    if (discoverGateDebug) {
+      discoverGateDebug.shouldBypassAcceptedEarly = shouldBypassAcceptedEarly;
+      discoverGateDebug.acceptedEarlyBypassReason = shouldBypassAcceptedEarly
+        ? "HARD_MISMATCH_SPREAD_WITH_SCORE_LT_160"
+        : null;
+    }
 
     console.info("[DISCOVER_QUALITY_RESULT]", {
       allowed: discoverQualityDecision.allowed,
       reason: discoverQualityDecision.reason,
+      acceptedEarly,
+      shouldBypassAcceptedEarly,
     });
 
-    if (!acceptedEarly && discoverQualityDecision.allowed) {
+    if (
+      (!acceptedEarly || shouldBypassAcceptedEarly) &&
+      discoverQualityDecision.allowed
+    ) {
       const discoverQuery = bestGeocodeQuery || queriesWithHint[0] || "";
 
       if (discoverQuery) {
         // 🔥 DISCOVER LAST RESORT ONLY
         console.info("[DISCOVER_BUDGET_CHECK]");
-        const budgetDecision = await getDiscoverBudgetDecision();
-        console.info("[DISCOVER_BUDGET_RESULT]", budgetDecision);
+        let budgetDecision:
+          | Awaited<ReturnType<typeof getDiscoverBudgetDecision>>
+          | null = null;
 
-        if (!budgetDecision.allowed) {
+        try {
+          budgetDecision = await getDiscoverBudgetDecision();
+          if (discoverGateDebug) {
+            discoverGateDebug.budgetAllowed = budgetDecision.allowed;
+            discoverGateDebug.budgetReason = budgetDecision.reason;
+          }
+          console.info("[DISCOVER_BUDGET_RESULT]", budgetDecision);
+        } catch (error) {
+          console.warn("[DISCOVER_BUDGET_ERROR]", error);
+          if (discoverGateDebug) {
+            discoverGateDebug.budgetAllowed = false;
+            discoverGateDebug.budgetReason = "DISCOVER_BUDGET_ERROR";
+          }
+        }
+
+        if (!budgetDecision?.allowed) {
           // 🔥 COST GUARD: Discover blocked by budget
           console.warn("[DISCOVER_BLOCKED]", {
-            reason: budgetDecision.reason,
+            reason: budgetDecision?.reason || "DISCOVER_BUDGET_ERROR",
           });
         } else {
           console.info("[DISCOVER_RESERVE_ATTEMPT]");
-          const reservation = await reserveDiscoverUsage();
-          console.info("[DISCOVER_RESERVED]", reservation);
+          let reservation:
+            | Awaited<ReturnType<typeof reserveDiscoverUsage>>
+            | null = null;
 
-          if (!reservation.allowed) {
+          try {
+            reservation = await reserveDiscoverUsage();
+            if (discoverGateDebug) {
+              discoverGateDebug.discoverReserved = reservation.allowed;
+              discoverGateDebug.budgetAllowed = reservation.allowed;
+              discoverGateDebug.budgetReason = reservation.reason;
+            }
+            console.info("[DISCOVER_RESERVED]", reservation);
+          } catch (error) {
+            console.warn("[DISCOVER_RESERVE_ERROR]", error);
+            if (discoverGateDebug) {
+              discoverGateDebug.discoverReserved = false;
+              discoverGateDebug.budgetAllowed = false;
+              discoverGateDebug.budgetReason = "DISCOVER_RESERVE_ERROR";
+            }
+          }
+
+          if (!reservation?.allowed) {
             // 🔥 COST GUARD: Discover blocked by budget
             console.warn("[DISCOVER_BLOCKED]", {
-              reason: reservation.reason,
+              reason: reservation?.reason || "DISCOVER_RESERVE_ERROR",
             });
           } else {
+            if (discoverGateDebug) {
+              discoverGateDebug.discoverAttempted = true;
+            }
             console.info("[DISCOVER_CALL]", {
               query: discoverQuery,
             });
@@ -1239,10 +1644,20 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     }
 
     scored.sort((a, b) => b.score - a.score);
+    if (discoverGateDebug) {
+      discoverGateDebug.discoverSeenInTop5 = scored
+        .slice(0, 5)
+        .some((x) => x.kind === "discover");
+    }
+    const bestScoredEntry = scored[0] ?? null;
 
     // melhor candidato inicial (HERE puro)
-    let bestItem = scored[0]?.it || null;
-    bestHereScore = scored[0]?.score ?? -999;
+    bestItem = bestScoredEntry?.it || null;
+    bestHereScore = bestScoredEntry?.score ?? -999;
+    finalRankedKind = bestScoredEntry?.kind ?? null;
+    if (discoverGateDebug) {
+      discoverGateDebug.discoverWonFinalRanking = bestScoredEntry?.kind === "discover";
+    }
 
     // ✅ Aparecida: re-rank TOP 3 do HERE usando ArcGIS
     if (isAparecida && scored.length) {
@@ -1275,6 +1690,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
         bestItem = enriched[0].it;
         bestArcgisFromTop = enriched[0].arc || null;
         bestHereScore = enriched[0].score ?? bestHereScore;
+        finalRankedKind = enriched[0].kind ?? finalRankedKind;
       }
     }
 
@@ -1303,7 +1719,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
           p && typeof p.lat === "number" && typeof p.lng === "number",
       );
 
-    const hereSpreadMeters = pts.length >= 2 ? maxPairDistanceMeters(pts) : 0;
+    hereSpreadMeters = pts.length >= 2 ? maxPairDistanceMeters(pts) : 0;
     hereUncertain = hereSpreadMeters > 250;
   }
 
@@ -1392,21 +1808,78 @@ if (status === "OK") {
     decisionReason = "MISSING_CORE";
   }
 }
+
+  const bestRankedAddress = bestItem?.address || {};
+
+  const geocodeConfidenceDiag = computeGeocodeConfidence({
+    source: memoryHit
+      ? memoryHitKind === "base"
+        ? "MEMORY_BASE"
+        : "MEMORY_EXACT"
+      : approxMemoryHit
+        ? "MEMORY_APPROX"
+        : finalRankedKind === "discover"
+          ? "HERE_DISCOVER"
+          : finalRankedKind === "geocode"
+            ? "HERE_GEOCODE"
+            : "NONE",
+    expected: {
+      rua: normalized.rua,
+      bairro: normalized.bairro || bairroIn,
+      cidade: normalized.cidade || cityIn,
+      cep: normalized.cep || cepIn,
+      quadra: normalized.quadra,
+      lote: normalized.lote,
+    },
+    actual: {
+      rua: String(bestRankedAddress?.street || ""),
+      bairro: String(bestRankedAddress?.district || bestRankedAddress?.subdistrict || ""),
+      cidade: String(bestRankedAddress?.city || bestRankedAddress?.county || ""),
+      cep: String(bestRankedAddress?.postalCode || ""),
+      resultType: String(bestItem?.resultType || ""),
+    },
+    hasCoords: lat != null && lng != null,
+    hasQuadra: !!quadraAuto,
+    hasLote: !!loteAuto,
+    hereSpreadMeters,
+    memoryStrength: memoryHit ? "STRONG" : approxMemoryHit ? "MEDIUM" : "NONE",
+    hardSignals: [
+      ...(conflictQL ? ["QL_CONFLICT"] : []),
+      ...(hereUncertain ? ["HERE_UNCERTAIN"] : []),
+      ...(decisionReason === "LOW_SCORE" ? ["LOW_SCORE"] : []),
+    ],
+  });
 // ✅ SALVAR NA MEMÓRIA GLOBAL (se válido)
-if (!memoryHit && lat != null && lng != null && status === "OK") {
+const autoSaveCurrentBehaviorWouldSave = !memoryHit && lat != null && lng != null && status === "OK";
+const autoSaveAudit = auditAutoSaveMemory({
+  currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
+  status,
+  lat,
+  lng,
+  geocodeConfidenceLevel: geocodeConfidenceDiag.level,
+  geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
+  geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+  approxOperationalRisk,
+  approxMemoryStrength,
+  city: cityForDecision,
+});
+
+if (autoSaveCurrentBehaviorWouldSave) {
+  const saveLat = lat as number;
+  const saveLng = lng as number;
   try {
     await prisma.addressMemory.upsert({
       where: { key: memoryKey },
       update: {
-        lat,
-        lng,
+        lat: saveLat,
+        lng: saveLng,
         label: normalizedLine || addressRaw,
         updatedAt: new Date(),
       },
       create: {
         key: memoryKey,
-        lat,
-        lng,
+        lat: saveLat,
+        lng: saveLng,
         label: normalizedLine || addressRaw,
         createdBy: null,
       },
@@ -1432,8 +1905,35 @@ if (!memoryHit && lat != null && lng != null && status === "OK") {
     status,
     lat,
     lng,
- 
-      decisionReason,
+    decisionReason,
+    geocodeConfidence: geocodeConfidenceDiag.confidence,
+    geocodeConfidenceLevel: geocodeConfidenceDiag.level,
+    geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
+    geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+    geocodeConfidenceReasons: geocodeConfidenceDiag.reasons,
+    approxMemoryStrength,
+    approxMemoryScore,
+    approxMemoryReasons,
+    approxMemoryMatchedBy,
+    approxMemoryUsedAsFinal,
+    approxMemoryUsedAsHint,
+    approxOperationalRisk,
+    approxOperationalRiskReasons,
+    approxOperationalWouldStillSkipHere,
+    approxOperationalSafeForAutoSave,
+    approxOperationalRecommendedAction,
+    approxHintApplied,
+    approxHintReason,
+    approxHintFieldsUsed,
+    approxHintSource,
+    approxHintBecameBestGeocodeQuery,
+    autoSaveWouldAllow: autoSaveAudit.autoSaveWouldAllow,
+    autoSaveWouldBlockReason: autoSaveAudit.autoSaveWouldBlockReason,
+    autoSaveWouldBlockReasons: autoSaveAudit.autoSaveWouldBlockReasons,
+    autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
+    autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
+    autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
+    ...(discoverGateDebug ? { discoverGateDebug } : {}),
 
     model: g.model,
     usedGemini: g.usedGemini,
@@ -1465,7 +1965,32 @@ if (!memoryHit && lat != null && lng != null && status === "OK") {
       matchedKey: matchedMemoryKey,
       hereSkippedBecauseMemory: !!memoryHit,
       decisionReason,
-    usedApproxMemory: !!approxMemoryHit,
+      usedApproxMemory: !!approxMemoryHit,
+      geocodeConfidence: geocodeConfidenceDiag.confidence,
+      geocodeConfidenceLevel: geocodeConfidenceDiag.level,
+      geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
+      geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      approxMemoryStrength,
+      approxMemoryScore,
+      approxMemoryReasons,
+      approxMemoryUsedAsFinal,
+      approxMemoryUsedAsHint,
+      approxOperationalRisk,
+      approxOperationalRiskReasons,
+      approxOperationalWouldStillSkipHere,
+      approxOperationalSafeForAutoSave,
+      approxOperationalRecommendedAction,
+      approxHintApplied,
+      approxHintReason,
+      approxHintFieldsUsed,
+      approxHintSource,
+      approxHintBecameBestGeocodeQuery,
+      autoSaveWouldAllow: autoSaveAudit.autoSaveWouldAllow,
+      autoSaveWouldBlockReason: autoSaveAudit.autoSaveWouldBlockReason,
+      autoSaveWouldBlockReasons: autoSaveAudit.autoSaveWouldBlockReasons,
+      autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
+      autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
+      autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
     } satisfies MemoryDebugRow;
   }
 

@@ -15,6 +15,46 @@ type ScoredApproxMemoryCandidate = {
   matchedBy: string[];
 };
 
+export type ApproxMemoryStrength = "STRONG" | "MEDIUM" | "WEAK";
+
+export type ApproxMemoryShadow = {
+  strength: ApproxMemoryStrength;
+  score: number;
+  reasons: string[];
+  matchedBy: string[];
+  candidateKey: string | null;
+  candidateLabel: string | null;
+};
+
+export type ApproxMemorySearchHint = {
+  suggestedAddressLine: string;
+  reason: string;
+  fieldsUsed: string[];
+};
+
+export type ApproxOperationalRisk = "SAFE" | "RISKY" | "BAD";
+
+export type ApproxOperationalAudit = {
+  risk: ApproxOperationalRisk;
+  reasons: string[];
+  wouldStillSkipHere: boolean;
+  safeForAutoSave: boolean;
+  recommendedAction: "KEEP_AS_IS" | "KEEP_BUT_REVIEW" | "DO_NOT_SKIP_HERE_FUTURE";
+};
+
+type ShadowScoredApproxMemoryCandidate = {
+  candidate: ApproxMemoryCandidate;
+  score: number;
+  matchedBy: string[];
+  reasons: string[];
+  streetExact: boolean;
+  streetPartial: boolean;
+  bairroExact: boolean;
+  quadraExact: boolean;
+  loteExact: boolean;
+  hasCoords: boolean;
+};
+
 function normalizeCompareText(value: string) {
   return String(value || "")
     .toUpperCase()
@@ -68,6 +108,11 @@ function getStreetSearchTerm(rua: string) {
   );
 
   return (meaningfulParts.length ? meaningfulParts : parts).slice(0, 2).join(" ").trim();
+}
+
+function isGenericAparecidaStreet(value: string) {
+  const street = normalizeStreetForMatch(value);
+  return /^(R|AV|TV|AL|VL)?\s*[HV]\s*\d+[A-Z]?$/.test(street);
 }
 
 function extractFromLabel(label: string) {
@@ -152,6 +197,356 @@ function scoreApproximateMemoryCandidate(params: {
   };
 }
 
+function scoreApproximateMemoryCandidateShadow(params: {
+  candidate: ApproxMemoryCandidate;
+  rua: string;
+  quadra: string;
+  lote: string;
+  bairro: string;
+  city: string;
+}) {
+  const label = String(params.candidate.label || "");
+  const labelRaw = normalizeCompareText(label);
+  const parsed = extractFromLabel(label);
+
+  const streetExact =
+    !!params.rua &&
+    !!parsed.rua &&
+    normalizeStreetForMatch(params.rua) === normalizeStreetForMatch(parsed.rua);
+  const streetPartial = includesEither(params.rua, parsed.rua || labelRaw);
+  const bairroExact = !!params.bairro && !!labelRaw && labelRaw.includes(params.bairro);
+  const quadraExact =
+    !!params.quadra &&
+    !!parsed.quadra &&
+    normalizeQuadraLoteValue(parsed.quadra) === params.quadra;
+  const loteExact =
+    !!params.lote &&
+    !!parsed.lote &&
+    normalizeQuadraLoteValue(parsed.lote) === params.lote;
+  const loteDivergente =
+    !!params.lote &&
+    !!parsed.lote &&
+    normalizeQuadraLoteValue(parsed.lote) !== params.lote;
+  const cityOk =
+    !params.city || isAparecidaCity(params.city) === isAparecidaCity(labelRaw);
+  const hasCoords =
+    typeof params.candidate.lat === "number" &&
+    typeof params.candidate.lng === "number";
+
+  let score = 0;
+  const matchedBy: string[] = [];
+  const reasons: string[] = [];
+
+  if (!cityOk) {
+    reasons.push("city_bucket_mismatch");
+    return {
+      candidate: params.candidate,
+      score: 0,
+      matchedBy,
+      reasons,
+      streetExact,
+      streetPartial,
+      bairroExact,
+      quadraExact,
+      loteExact,
+      hasCoords,
+    };
+  }
+
+  if (streetExact) {
+    score += 35;
+    matchedBy.push("street_exact");
+  } else if (streetPartial) {
+    score += 22;
+    matchedBy.push("street_partial");
+  } else {
+    reasons.push("street_mismatch");
+  }
+
+  if (bairroExact) {
+    score += 20;
+    matchedBy.push("bairro_exact");
+  } else {
+    reasons.push("bairro_missing_or_mismatch");
+  }
+
+  if (quadraExact) {
+    score += 25;
+    matchedBy.push("quadra_exact");
+  } else {
+    reasons.push("quadra_missing_or_mismatch");
+  }
+
+  if (!!params.lote) {
+    if (loteExact) {
+      score += 15;
+      matchedBy.push("lote_exact");
+    } else if (loteDivergente) {
+      score -= 25;
+      reasons.push("lote_mismatch");
+    } else {
+      reasons.push("lote_missing");
+    }
+  }
+
+  if (hasCoords) {
+    score += 5;
+    matchedBy.push("has_coords");
+  }
+
+  return {
+    candidate: params.candidate,
+    score,
+    matchedBy,
+    reasons,
+    streetExact,
+    streetPartial,
+    bairroExact,
+    quadraExact,
+    loteExact,
+    hasCoords,
+  };
+}
+
+function classifyApproximateMemoryShadow(params: {
+  scored: ShadowScoredApproxMemoryCandidate | null;
+  rua: string;
+  lote: string;
+  city: string;
+}) {
+  if (!params.scored) {
+    return {
+      strength: "WEAK" as const,
+      score: 0,
+      reasons: ["no_shadow_candidate"],
+      matchedBy: [],
+      candidateKey: null,
+      candidateLabel: null,
+    };
+  }
+
+  const reasons = [...params.scored.reasons];
+  const isAparecida = isAparecidaCity(params.city);
+  const genericStreet = isGenericAparecidaStreet(params.rua);
+  const loteRequired = !!params.lote;
+
+  let strength: ApproxMemoryStrength = "WEAK";
+
+  const baseStrong =
+    params.scored.score >= 85 &&
+    params.scored.streetExact &&
+    params.scored.bairroExact &&
+    params.scored.quadraExact &&
+    (!loteRequired || params.scored.loteExact);
+
+  const baseMedium =
+    params.scored.score >= 65 &&
+    (params.scored.streetExact || params.scored.streetPartial) &&
+    params.scored.bairroExact &&
+    (params.scored.quadraExact || params.scored.loteExact);
+
+  if (baseStrong) {
+    strength = "STRONG";
+  } else if (baseMedium) {
+    strength = "MEDIUM";
+  }
+
+  if (isAparecida && genericStreet && !params.scored.loteExact && strength === "STRONG") {
+    strength = "MEDIUM";
+    reasons.push("aparecida_generic_street_downgrade");
+  }
+
+  if (strength === "WEAK" && !reasons.length) {
+    reasons.push("weak_structural_match");
+  }
+
+  return {
+    strength,
+    score: params.scored.score,
+    reasons,
+    matchedBy: params.scored.matchedBy,
+    candidateKey: params.scored.candidate.key,
+    candidateLabel: params.scored.candidate.label || null,
+  };
+}
+
+export function buildApproximateMemoryShadowHint(params: {
+  shadow: ApproxMemoryShadow | null;
+  city: string;
+  rua: string;
+}) {
+  const shadow = params.shadow;
+  if (!shadow?.candidateLabel) return null;
+  if (shadow.strength !== "MEDIUM") return null;
+  if (shadow.score < 65) return null;
+
+  const blockedReasons = new Set([
+    "lote_mismatch",
+    "city_bucket_mismatch",
+    "street_mismatch",
+  ]);
+
+  if (shadow.reasons.some((reason) => blockedReasons.has(reason))) {
+    return null;
+  }
+
+  const matched = new Set(shadow.matchedBy || []);
+  const hasBairro = matched.has("bairro_exact");
+  const hasQuadra = matched.has("quadra_exact");
+  const hasLote = matched.has("lote_exact");
+
+  if (!hasBairro || !hasQuadra) {
+    return null;
+  }
+
+  const isAparecida = isAparecidaCity(params.city);
+  const genericStreet = isGenericAparecidaStreet(params.rua);
+
+  // Em Aparecida o hint precisa ser ainda mais forte.
+  if (isAparecida) {
+    if (!hasLote) return null;
+    if (genericStreet && !hasLote) return null;
+  }
+
+  return {
+    suggestedAddressLine: shadow.candidateLabel,
+    reason: isAparecida
+      ? "APPROX_SHADOW_MEDIUM_HINT_APARECIDA"
+      : "APPROX_SHADOW_MEDIUM_HINT",
+    fieldsUsed: shadow.matchedBy.filter((field) =>
+      [
+        "street_exact",
+        "street_partial",
+        "bairro_exact",
+        "quadra_exact",
+        "lote_exact",
+      ].includes(field),
+    ),
+  } satisfies ApproxMemorySearchHint;
+}
+
+export function auditApproximateMemoryOperationalRisk(params: {
+  shadow: ApproxMemoryShadow | null;
+  city: string;
+  rua: string;
+  lote: string;
+}) {
+  const shadow = params.shadow;
+  const reasons: string[] = [];
+
+  if (!shadow) {
+    return {
+      risk: "BAD" as const,
+      reasons: ["no_shadow_data"],
+      wouldStillSkipHere: false,
+      safeForAutoSave: false,
+      recommendedAction: "DO_NOT_SKIP_HERE_FUTURE" as const,
+    };
+  }
+
+  const matched = new Set(shadow.matchedBy || []);
+  const shadowReasons = new Set(shadow.reasons || []);
+
+  const hasStreetExact = matched.has("street_exact");
+  const hasStreetPartial = matched.has("street_partial");
+  const hasBairro = matched.has("bairro_exact");
+  const hasQuadra = matched.has("quadra_exact");
+  const hasLote = matched.has("lote_exact");
+  const hasCoords = matched.has("has_coords");
+  const isAparecida = isAparecidaCity(params.city);
+  const genericStreet = isGenericAparecidaStreet(params.rua);
+  const loteRequired = !!normalizeQuadraLoteValue(params.lote);
+  const hasStreetStructure = hasStreetExact || hasStreetPartial;
+  const hasStrongBlockStructure =
+    hasStreetStructure &&
+    hasBairro &&
+    hasQuadra &&
+    hasCoords;
+  const hasLoteMismatch = shadowReasons.has("lote_mismatch");
+
+  if (shadowReasons.has("street_mismatch")) reasons.push("street_mismatch");
+  if (shadowReasons.has("quadra_missing_or_mismatch")) reasons.push("quadra_missing_or_mismatch");
+  if (shadowReasons.has("city_bucket_mismatch")) reasons.push("city_bucket_mismatch");
+
+  if (hasLoteMismatch) {
+    if (hasStrongBlockStructure) {
+      reasons.push("same_block_candidate");
+      reasons.push("lote_mismatch_with_strong_structure");
+
+      if (isAparecida && genericStreet && !hasStreetExact) {
+        reasons.push("aparecida_generic_street_partial_only");
+      }
+
+      return {
+        risk: "RISKY" as const,
+        reasons,
+        wouldStillSkipHere: true,
+        safeForAutoSave: false,
+        recommendedAction: "KEEP_BUT_REVIEW" as const,
+      };
+    }
+
+    reasons.push("lote_mismatch_with_weak_structure");
+  }
+
+  if (
+    shadowReasons.has("street_mismatch") ||
+    shadowReasons.has("quadra_missing_or_mismatch") ||
+    shadowReasons.has("city_bucket_mismatch")
+  ) {
+    return {
+      risk: "BAD" as const,
+      reasons,
+      wouldStillSkipHere: false,
+      safeForAutoSave: false,
+      recommendedAction: "DO_NOT_SKIP_HERE_FUTURE" as const,
+    };
+  }
+
+  if (!hasBairro) reasons.push("bairro_not_exact");
+  if (!hasQuadra) reasons.push("quadra_not_exact");
+  if (loteRequired && !hasLote) reasons.push("lote_not_exact");
+  if (!hasStreetExact && hasStreetPartial) reasons.push("street_partial_only");
+  if (!hasCoords) reasons.push("missing_coords");
+
+  if (isAparecida && genericStreet && !hasLote) {
+    reasons.push("aparecida_generic_street_without_lote");
+    return {
+      risk: "BAD" as const,
+      reasons,
+      wouldStillSkipHere: false,
+      safeForAutoSave: false,
+      recommendedAction: "DO_NOT_SKIP_HERE_FUTURE" as const,
+    };
+  }
+
+  const safe =
+    hasBairro &&
+    hasQuadra &&
+    hasCoords &&
+    (hasStreetExact || hasStreetPartial) &&
+    (!loteRequired || hasLote) &&
+    (!isAparecida || hasLote);
+
+  if (safe && (hasStreetExact || (hasStreetPartial && !isAparecida))) {
+    return {
+      risk: "SAFE" as const,
+      reasons: reasons.length ? reasons : ["structurally_consistent"],
+      wouldStillSkipHere: true,
+      safeForAutoSave: true,
+      recommendedAction: "KEEP_AS_IS" as const,
+    };
+  }
+
+  return {
+    risk: "RISKY" as const,
+    reasons: reasons.length ? reasons : ["partial_structural_match"],
+    wouldStillSkipHere: true,
+    safeForAutoSave: false,
+    recommendedAction: "KEEP_BUT_REVIEW" as const,
+  };
+}
+
 function pickBestApproximateMemoryCandidate(
   candidates: ApproxMemoryCandidate[],
   params: {
@@ -195,6 +590,40 @@ function pickBestApproximateMemoryCandidate(
   return best;
 }
 
+function pickBestApproximateMemoryShadowCandidate(
+  candidates: ApproxMemoryCandidate[],
+  params: {
+    rua: string;
+    quadra: string;
+    lote: string;
+    bairro: string;
+    city: string;
+  },
+) {
+  const scored = candidates.map((candidate) =>
+    scoreApproximateMemoryCandidateShadow({
+      candidate,
+      rua: params.rua,
+      quadra: params.quadra,
+      lote: params.lote,
+      bairro: params.bairro,
+      city: params.city,
+    }),
+  );
+
+  if (!scored.length) return null;
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.candidate.hitCount !== a.candidate.hitCount) {
+      return b.candidate.hitCount - a.candidate.hitCount;
+    }
+    return b.candidate.updatedAt.getTime() - a.candidate.updatedAt.getTime();
+  });
+
+  return scored[0] || null;
+}
+
 export async function tryApproximateMemoryMatch(params: {
   addressRaw: string;
   city: string;
@@ -212,7 +641,11 @@ export async function tryApproximateMemoryMatch(params: {
   const quadraSearchTerm = normalizeQuadraLoteValue(params.quadra);
 
   if (!rua || !quadra || !bairro || !streetSearchTerm) {
-    return { matched: false as const, reason: "INSUFFICIENT_DATA" };
+    return {
+      matched: false as const,
+      reason: "INSUFFICIENT_DATA",
+      shadow: null,
+    };
   }
 
   const candidates = await prisma.addressMemory.findMany({
@@ -244,6 +677,21 @@ export async function tryApproximateMemoryMatch(params: {
     orderBy: [{ hitCount: "desc" }, { updatedAt: "desc" }],
   });
 
+  const shadowBest = pickBestApproximateMemoryShadowCandidate(candidates, {
+    rua,
+    quadra,
+    lote,
+    bairro,
+    city,
+  });
+
+  const shadow = classifyApproximateMemoryShadow({
+    scored: shadowBest,
+    rua,
+    lote,
+    city,
+  });
+
   const best = pickBestApproximateMemoryCandidate(candidates, {
     rua,
     quadra,
@@ -262,10 +710,15 @@ export async function tryApproximateMemoryMatch(params: {
       reason: "APPROX_STRONG_MATCH",
       score: best.score,
       matchedBy: best.matchedBy,
+      shadow,
     };
   }
 
-  return { matched: false as const, reason: "NO_APPROX_MATCH" };
+  return {
+    matched: false as const,
+    reason: "NO_APPROX_MATCH",
+    shadow,
+  };
 }
 
 export async function tryApproximateMemoryTextHint(params: {
