@@ -187,7 +187,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
                   rel="noreferrer"
                   className="block rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 >
-                  Pagar BASIC
+                  Assinar BASIC
                 </a>
               ) : (
                 <button
@@ -213,7 +213,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
                   rel="noreferrer"
                   className="block rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 >
-                  Pagar PRO
+                  Assinar PRO
                 </a>
               ) : (
                 <button
@@ -241,7 +241,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
                   rel="noreferrer"
                   className="block rounded-2xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
                 >
-                  Comprar rota avulsa
+                  Comprar Rota Avulsa
                 </a>
               ) : (
                 <button

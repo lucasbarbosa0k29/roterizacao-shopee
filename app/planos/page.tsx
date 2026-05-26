@@ -195,7 +195,7 @@ export default function PlanosPage() {
                   <li>Ideal para operação de menor volume</li>
                 </ul>
                 <div className="mt-6">
-                  <PaymentButton href={basicUrl} label="Pagar BASIC" />
+                  <PaymentButton href={basicUrl} label="Assinar BASIC" />
                 </div>
               </section>
 
@@ -210,7 +210,7 @@ export default function PlanosPage() {
                   <li>Melhor para uso recorrente</li>
                 </ul>
                 <div className="mt-6">
-                  <PaymentButton href={proUrl} label="Pagar PRO" />
+                  <PaymentButton href={proUrl} label="Assinar PRO" />
                 </div>
               </section>
 
@@ -225,7 +225,7 @@ export default function PlanosPage() {
                   <li>Liberação manual pelo administrador após confirmação</li>
                 </ul>
                 <div className="mt-6">
-                  <PaymentButton href={extraUrl} label="Comprar rota avulsa" />
+                  <PaymentButton href={extraUrl} label="Comprar Rota Avulsa" />
                 </div>
               </section>
             </div>
