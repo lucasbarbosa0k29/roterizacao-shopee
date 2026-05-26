@@ -45,6 +45,17 @@ function CardIcon() {
   );
 }
 
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M6 5.5A2.5 2.5 0 0 1 8.5 3H19v15.5H8.5A2.5 2.5 0 0 0 6 21V5.5Z" strokeLinejoin="round" />
+      <path d="M6 5.5V21H5a1.5 1.5 0 0 1-1.5-1.5v-12A1.5 1.5 0 0 1 5 6h1" strokeLinejoin="round" />
+      <path d="M9 7.5h6.5" strokeLinecap="round" />
+      <path d="M9 11h6.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -216,12 +227,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <div className="flex items-center gap-3.5">
               <div className="flex h-13 w-13 items-center justify-center rounded-[22px] bg-[linear-gradient(145deg,#f7fffd_0%,#dff5ef_65%,#bfe6da_100%)] shadow-[0_16px_24px_rgba(9,26,31,0.18)]">
                 <span className="bg-[linear-gradient(180deg,#17313b_0%,#1f5a6b_100%)] bg-clip-text text-2xl font-black leading-none text-transparent">
-                  RH
+                  R
                 </span>
               </div>
 
               <div className="min-w-0 leading-tight">
-                <div className="text-[20px] font-black tracking-tight text-white">RottaHub</div>
+                <div className="text-[20px] font-black tracking-tight text-white">Rotta</div>
                 <div className="mt-1 text-[12px] font-medium text-white/62">
                   Console Operacional
                 </div>
@@ -286,6 +297,26 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   {chevron}
                 </Link>
               )}
+
+              <Link
+                href="/tutorial"
+                onClick={onClose}
+                className={[
+                  itemRowBase,
+                  isActive("/tutorial") ? activeRow : idleRow,
+                ].join(" ")}
+              >
+                <div className={leftSide}>
+                  <div className={iconBox}>
+                    <BookIcon />
+                  </div>
+                  <div className="leading-tight">
+                    <div className="text-[15px] font-semibold text-white">Tutorial</div>
+                    <div className="mt-1 text-[12px] text-white/48">Guia de Uso</div>
+                  </div>
+                </div>
+                {chevron}
+              </Link>
 
               <Link
                 href="/planos"
@@ -390,7 +421,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
 
           <div className="mt-3 px-2 text-[11px] text-white/42">
-            RottaHub Console (c) 2026
+            Rotta (c) 2026
           </div>
         </div>
       </aside>

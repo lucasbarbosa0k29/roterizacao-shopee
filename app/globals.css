@@ -1,3 +1,4 @@
+@import "driver.js/dist/driver.css";
 @import "tailwindcss";
 
 /* ===============================
@@ -144,4 +145,53 @@ aside.sidebar a:hover {
 .arcgis-modal .esri-view-root,
 .arcgis-modal .esri-view-surface {
   overflow: hidden !important;
+}
+
+.rottahub-driver-popover {
+  max-width: 360px !important;
+  border: 1px solid rgba(20, 35, 43, 0.1) !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at top, rgba(31, 90, 107, 0.08), transparent 34%),
+    #ffffff !important;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.18) !important;
+  color: #14232b !important;
+  padding: 8px !important;
+}
+
+.rottahub-driver-popover .driver-popover-title {
+  color: #14232b !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.rottahub-driver-popover .driver-popover-description {
+  color: rgba(20, 35, 43, 0.72) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.rottahub-driver-popover .driver-popover-progress-text {
+  color: rgba(20, 35, 43, 0.48) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.rottahub-driver-popover .driver-popover-footer button {
+  border-radius: 14px !important;
+  border: 1px solid rgba(20, 35, 43, 0.12) !important;
+  background: #ffffff !important;
+  color: #17313b !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  padding: 10px 14px !important;
+  font-weight: 700 !important;
+}
+
+.rottahub-driver-popover .driver-popover-footer .driver-popover-next-btn,
+.rottahub-driver-popover .driver-popover-footer .driver-popover-done-btn {
+  border-color: #17313b !important;
+  background: linear-gradient(135deg, #17313b 0%, #1f5a6b 100%) !important;
+  color: #ffffff !important;
 }

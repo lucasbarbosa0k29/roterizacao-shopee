@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Roteirização Shopee",
-  description: "Sistema de roteirização com HERE Maps",
+  title: "Rotta",
+  description: "Rotta — sistema de roteirização",
 };
 
 export const viewport: Viewport = {
@@ -44,7 +44,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* HERE MAPS */}
         <Script
           src="https://js.api.here.com/v3/3.1/mapsjs-core.js"
           strategy="beforeInteractive"
@@ -66,11 +65,8 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
-        {/* PROVIDERS GLOBAIS */}
         <Providers>
-          <AppShell>
-            {children}
-          </AppShell>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

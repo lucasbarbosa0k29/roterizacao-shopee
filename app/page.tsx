@@ -5,6 +5,19 @@ import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { updateHistoryDb } from "./lib/history-db";
+import {
+  TUTORIAL_ACTIVE_KEY,
+  startFinalExportTutorial,
+  startMapReviewTutorial,
+  startPostProcessTutorial,
+  startPreProcessTutorial,
+  TUTORIAL_EXPORT_FINAL_EVENT,
+  TUTORIAL_PENDING_AFTER_PROCESS_KEY,
+  TUTORIAL_MAP_CONFIRMED_KEY,
+  TUTORIAL_PENDING_EXPORT_FINAL_KEY,
+  TUTORIAL_PENDING_MAP_REVIEW_KEY,
+  TUTORIAL_START_PREPROCESS_KEY,
+} from "./lib/tutorial";
 
 const AparecidaArcgisMap = dynamic(
   () => import("./components/AparecidaArcgisMap"),
@@ -328,6 +341,10 @@ function makeId(prefix = "grp") {
 }
 
 function HomeInner() {
+  const tutorialPostStartedRef = useRef(false);
+  const tutorialMapStartedRef = useRef(false);
+  const [tutorialExportFinalRequestedAt, setTutorialExportFinalRequestedAt] =
+    useState(0);
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -1131,6 +1148,10 @@ useEffect(() => {
     if (!overviewSelectedGroupId) return null;
     return groupedRows.find((group) => group.id === overviewSelectedGroupId) || null;
   }, [groupedRows, overviewSelectedGroupId]);
+  const contextTargetGroup = useMemo(() => {
+    if (!ctx.groupId) return null;
+    return groupedRows.find((group) => group.id === ctx.groupId) || null;
+  }, [ctx.groupId, groupedRows]);
 
   useEffect(() => {
     overviewSelectedPointRef.current = overviewSelectedPoint
@@ -1729,10 +1750,15 @@ if (!hasPickedLabel && !sameCoordAsRow) {
   reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
 }
 
-    await applyConfirmedCoordToGroup({
-      baseIdx: modalIdx,
-      coord,
-      afterConfirm: closeManualModal,
+    if (typeof window !== "undefined" && tutorialMapStartedRef.current) {
+      window.sessionStorage.setItem(TUTORIAL_MAP_CONFIRMED_KEY, "true");
+      setTutorialExportFinalRequestedAt(Date.now());
+    }
+
+     await applyConfirmedCoordToGroup({
+       baseIdx: modalIdx,
+       coord,
+       afterConfirm: closeManualModal,
     });
   }
 
@@ -2455,6 +2481,132 @@ setTimeout(() => map.getViewPort().resize(), 800);
       syncOverviewCardPosition(pointForCard);
     }, [overviewSelectedPoint, overviewMoveDraft]);
 
+  useEffect(() => {
+    if (view !== "results" || rows.length === 0) {
+      tutorialPostStartedRef.current = false;
+      return;
+    }
+
+    if (tutorialPostStartedRef.current) return;
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+
+    const pending = window.sessionStorage.getItem(
+      TUTORIAL_PENDING_AFTER_PROCESS_KEY
+    );
+
+    if (pending !== "true") return;
+
+    tutorialPostStartedRef.current = true;
+    window.sessionStorage.removeItem(TUTORIAL_PENDING_AFTER_PROCESS_KEY);
+
+    window.setTimeout(() => {
+      startPostProcessTutorial();
+    }, 250);
+  }, [view, rows.length]);
+
+  useEffect(() => {
+    if (view !== "upload" || rows.length !== 0) return;
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+
+    const shouldStart = window.sessionStorage.getItem(
+      TUTORIAL_START_PREPROCESS_KEY
+    );
+
+    if (shouldStart !== "true") return;
+
+    window.sessionStorage.removeItem(TUTORIAL_START_PREPROCESS_KEY);
+
+    window.setTimeout(() => {
+      startPreProcessTutorial();
+    }, 250);
+  }, [view, rows.length]);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      tutorialMapStartedRef.current = false;
+      return;
+    }
+
+    if (tutorialMapStartedRef.current) return;
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+
+    const pending = window.sessionStorage.getItem(
+      TUTORIAL_PENDING_MAP_REVIEW_KEY
+    );
+
+    if (pending !== "true") return;
+
+    tutorialMapStartedRef.current = true;
+    window.sessionStorage.removeItem(TUTORIAL_PENDING_MAP_REVIEW_KEY);
+    window.sessionStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
+    window.sessionStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
+
+    window.setTimeout(() => {
+      startMapReviewTutorial();
+    }, 250);
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleTutorialExportFinalRequest = () => {
+      setTutorialExportFinalRequestedAt(Date.now());
+    };
+
+    window.addEventListener(
+      TUTORIAL_EXPORT_FINAL_EVENT,
+      handleTutorialExportFinalRequest
+    );
+
+    return () => {
+      window.removeEventListener(
+        TUTORIAL_EXPORT_FINAL_EVENT,
+        handleTutorialExportFinalRequest
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tutorialExportFinalRequestedAt) return;
+    if (isModalOpen) return;
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+
+    const pendingExport = window.sessionStorage.getItem(
+      TUTORIAL_PENDING_EXPORT_FINAL_KEY
+    );
+    const confirmed = window.sessionStorage.getItem(
+      TUTORIAL_MAP_CONFIRMED_KEY
+    );
+
+    if (pendingExport !== "true" || confirmed !== "true") return;
+
+    const startedAt = Date.now();
+    const tryStart = () => {
+      const exportButton = document.querySelector('[data-tour="export-button"]');
+
+      if (!exportButton) {
+        if (Date.now() - startedAt < 1200) {
+          window.setTimeout(tryStart, 80);
+        }
+        return;
+      }
+
+      window.sessionStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
+      window.sessionStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
+      setTutorialExportFinalRequestedAt(0);
+
+      window.setTimeout(() => {
+        startFinalExportTutorial();
+      }, 120);
+    };
+
+    window.setTimeout(tryStart, 150);
+  }, [isModalOpen, tutorialExportFinalRequestedAt]);
+
     // ===== UI =====
     if (!mounted) return null;
     if (accessLoading) {
@@ -2484,7 +2636,6 @@ setTimeout(() => map.getViewPort().resize(), 800);
     if (access && !access.canStartRoute) {
       return <NoAccessHomeState access={access} />;
     }
-
     return (
       <main className="min-h-screen bg-transparent">
         <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
@@ -2514,7 +2665,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <div
+        data-tour="upload-area"
+        className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]"
+      >
         <div className="flex flex-col md:flex-row gap-4">
           {/* INPUT PLANILHA */}
           <label className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white">
@@ -2545,6 +2699,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
           <button
             type="submit"
             disabled={loading}
+            data-tour="start-analysis-button"
             className="min-h-[56px] w-full md:w-[220px] rounded-[20px] bg-[#17313b] text-white font-semibold text-base shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50"
           >
             {loading ? "Processando..." : "Iniciar Análise"}
@@ -2586,7 +2741,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
 )}
           {view === "results" && rows.length > 0 && (
   <div className="w-full px-2 sm:px-0">
-              <div className="mb-4 rounded-[32px] border border-slate-200/80 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+              <div
+                data-tour="results-panel"
+                className="mb-4 rounded-[32px] border border-slate-200/80 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.08)]"
+              >
   <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(31,90,107,0.08),transparent_30%),linear-gradient(180deg,#fbfcfc_0%,#f5f8f8_100%)] p-4 md:p-6">
   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
     <div className="max-w-2xl">
@@ -2605,6 +2763,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
   <div className="flex flex-wrap items-center gap-2.5 xl:max-w-[560px] xl:justify-end">
     <button
       type="button"
+      data-tour="auto-group-button"
      onClick={() => {
   setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
   setAutoGrouped((v) => !v);
@@ -2622,6 +2781,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
       type="button"
       onClick={() => setIsOverviewMapOpen(true)}
       disabled={overviewMapPoints.length === 0}
+      data-tour="open-map-button"
       className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
         overviewMapPoints.length === 0
           ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
@@ -2639,6 +2799,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     <button
       type="button"
       onClick={openExportReview}
+      data-tour="export-button"
       className="inline-flex min-h-[50px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0f766e_0%,#14967f_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(15,118,110,0.28)] transition hover:-translate-y-0.5 hover:brightness-105 sm:flex-none"
     >
       Exportar
@@ -2646,6 +2807,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
     <button
       type="button"
+      data-tour="new-import-button"
       onClick={() => {
   setFile(null);
   setRows([]);
@@ -2934,6 +3096,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                         return (
                          <tr
   key={g.id}
+  data-tour="row-context-menu"
   className={
     
     `border-b border-slate-100 transition-all duration-150
@@ -2950,9 +3113,9 @@ onClick={() => {
   if (!groupMode) return;
   toggleSelectMany(idxsToToggle);
 }}
-  onContextMenu={(e) => {
-    e.preventDefault();
-    setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
+onContextMenu={(e) => {
+  e.preventDefault();
+  setCtx({ open: true, x: e.clientX, y: e.clientY, groupId: g.id });
   }}
   title={"Botão direito: Revisão / Limpar Revisão"}
 >
@@ -2964,8 +3127,17 @@ onClick={() => {
     type="button"
     onClick={(e) => {
       e.stopPropagation();
+      if (typeof window !== "undefined") {
+        if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) === "true") {
+          window.sessionStorage.setItem(
+            TUTORIAL_PENDING_MAP_REVIEW_KEY,
+            "true"
+          );
+        }
+      }
       openManualModalForIdx(baseIdx);
     }}
+    data-tour="row-map-button"
     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
     title="Mapa / Correção"
   >
@@ -2979,12 +3151,13 @@ onClick={() => {
 
 
                                {!groupMode && !isGrouped && (
-                                  <button
-                                    type="button"
-                                    onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                    title="Agrupar manualmente"
-                                  >
+                                   <button
+                                     type="button"
+                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
+                                     data-tour="manual-group-button"
+                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+                                     title="Agrupar manualmente"
+                                   >
                                     +
                                   </button>
                                 )}
@@ -3130,10 +3303,12 @@ onClick={() => {
 {ctx.open && ctx.groupId && (
   <div
     style={{ position: "fixed", left: ctx.x, top: ctx.y, zIndex: 9999 }}
+    data-tour="context-menu"
     className="bg-white border shadow-lg rounded-md overflow-hidden text-sm"
     onMouseDown={(e) => e.stopPropagation()}
   >
     <button
+      data-tour="context-ungroup"
       className="px-4 py-2 hover:bg-slate-100 w-full text-left"
       onClick={() => {
         ungroup(ctx.groupId!);
@@ -3144,6 +3319,7 @@ onClick={() => {
     </button>
 
     <button
+      data-tour="context-observation"
       className="px-4 py-2 hover:bg-slate-100 w-full text-left"
       onClick={() => {
         openNotesEditorForGroup(ctx.groupId!);
@@ -3153,6 +3329,7 @@ onClick={() => {
     </button>
 
     <button
+      data-tour="context-flag-review"
       className="px-4 py-2 hover:bg-slate-100 w-full text-left text-red-600"
       onClick={() => {
         signalReview(ctx.groupId!);
@@ -3163,6 +3340,7 @@ onClick={() => {
     </button>
 
     <button
+      data-tour="context-clear-review"
       className="px-4 py-2 hover:bg-slate-100 w-full text-left"
       onClick={() => {
         clearReview(ctx.groupId!);
@@ -3562,6 +3740,7 @@ onClick={() => {
     transition-opacity duration-200
     ${isModalOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
   `}
+  data-tour="map-modal"
 >
     <div className="absolute inset-0 bg-white">
       {/* TOP BAR (igual print) */}
@@ -3660,7 +3839,7 @@ onClick={() => {
                   title={
                     arcgisAvailable
                       ? "Usar mapa ArcGIS"
-                      : "ArcGIS ainda nao disponivel para esta cidade"
+                      : "ArcGIS ainda não disponível para esta cidade"
                   }
                   className={[
                     "px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold transition-colors",
@@ -3678,6 +3857,7 @@ onClick={() => {
 
           <div ref={searchBoxWrapRef} className="relative">
             <input
+              data-tour="map-search-input"
               value={modalValue}
               onChange={(e) => {
                 const v = e.target.value;
@@ -3761,6 +3941,7 @@ onClick={() => {
             <button
               type="button"
               onClick={confirmManualModal}
+              data-tour="map-confirm-button"
               className="flex-1 rounded-lg md:rounded-xl bg-emerald-600 text-white text-xs md:text-sm font-semibold py-2 hover:bg-emerald-700 flex items-center justify-center gap-2"
               title="Confirmar"
             >
