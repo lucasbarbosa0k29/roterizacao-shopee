@@ -15,6 +15,11 @@ import {
   type ApproxMemoryStrength,
 } from "@/app/lib/address-memory-approx";
 import {
+  applyUrbanPatternToRealQueries,
+  buildUrbanPatternQueries,
+  type UrbanPatternType,
+} from "@/app/lib/urban-normalization";
+import {
   computeGeocodeConfidence,
   type GeocodeConfidenceLevel,
 } from "@/app/lib/geocode-confidence";
@@ -90,6 +95,18 @@ type MemoryDebugRow = {
   autoSaveCurrentBehaviorWouldSave?: boolean;
   autoSaveHardeningApplied?: boolean;
   autoSaveHardeningBlockedReason?: string | null;
+  urbanPatternDetected?: boolean;
+  urbanPatternType?: string | null;
+  urbanPatternQuery?: string | null;
+  urbanPatternImprovedRanking?: boolean;
+  urbanPatternBestCandidateKind?: string | null;
+  urbanPatternSpreadReduction?: number | null;
+  urbanPatternWouldReplaceWeakQuery?: boolean;
+  urbanPatternAppliedToRealQueries?: boolean;
+  urbanPatternAppliedReason?: string | null;
+  urbanPatternReplacedQuery?: string | null;
+  urbanPatternRealQueryIndex?: number | null;
+  urbanPatternBecameBestGeocodeQuery?: boolean;
 };
 
 type RankedHereEntry = {
@@ -1030,6 +1047,18 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let approxHintFieldsUsed: string[] = [];
   let approxHintSource: "TEXT_HINT" | "SHADOW_MEDIUM" | null = null;
   let approxHintBecameBestGeocodeQuery = false;
+  let urbanPatternDetected = false;
+  let urbanPatternType: UrbanPatternType | null = null;
+  let urbanPatternQuery: string | null = null;
+  let urbanPatternImprovedRanking = false;
+  let urbanPatternBestCandidateKind: string | null = null;
+  let urbanPatternSpreadReduction: number | null = null;
+  let urbanPatternWouldReplaceWeakQuery = false;
+  let urbanPatternAppliedToRealQueries = false;
+  let urbanPatternAppliedReason: string | null = null;
+  let urbanPatternReplacedQuery: string | null = null;
+  let urbanPatternRealQueryIndex: number | null = null;
+  let urbanPatternBecameBestGeocodeQuery = false;
 
   try {
     const candidates = [
@@ -1343,7 +1372,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     const atByCep = normalized.cep ? await getAtByCep(normalized.cep, normalized.cidade || cityIn) : null;
     const at = atByCep || atBase;
 
-    const queries = buildHereQueryVariants({
+    const baseQueries = buildHereQueryVariants({
       rua: normalized.rua,
       numero: normalized.numero,
       bairro: normalized.bairro || bairroIn,
@@ -1354,7 +1383,30 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       normalizedLine,
     });
 
-    let queriesWithHint = queries;
+    const urbanPattern = buildUrbanPatternQueries({
+      original: addressRaw,
+      rua: normalized.rua,
+      bairro: normalized.bairro || bairroIn,
+      cidade: normalized.cidade || cityIn,
+      estado: normalized.estado || "GO",
+      cep: normalized.cep || cepIn,
+      quadra: normalized.quadra,
+      lote: normalized.lote,
+    });
+
+    const urbanPatternRealQueryApplication = applyUrbanPatternToRealQueries({
+      queries: baseQueries,
+      urbanPattern: urbanPattern,
+      city: normalized.cidade || cityIn,
+    });
+
+    const queriesForHere = urbanPatternRealQueryApplication.updatedQueries;
+    urbanPatternAppliedToRealQueries = urbanPatternRealQueryApplication.appliedToRealQueries;
+    urbanPatternAppliedReason = urbanPatternRealQueryApplication.appliedReason;
+    urbanPatternReplacedQuery = urbanPatternRealQueryApplication.replacedQuery;
+    urbanPatternRealQueryIndex = urbanPatternRealQueryApplication.realQueryIndex;
+
+    let queriesWithHint = queriesForHere;
 
     if (approxMemoryTextHint?.suggestedAddressLine) {
       approxHintApplied = true;
@@ -1364,7 +1416,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
       queriesWithHint = [
         approxMemoryTextHint.suggestedAddressLine,
-        ...queries.filter((q) => q !== approxMemoryTextHint?.suggestedAddressLine),
+        ...queriesForHere.filter((q) => q !== approxMemoryTextHint?.suggestedAddressLine),
       ];
     } else if (approxShadowSearchHint?.suggestedAddressLine) {
       approxHintApplied = true;
@@ -1375,9 +1427,9 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
       queriesWithHint = Array.from(
         new Set([
-          queries[0] || "",
+          queriesForHere[0] || "",
           approxShadowSearchHint.suggestedAddressLine,
-          ...queries.slice(1),
+          ...queriesForHere.slice(1),
         ].filter(Boolean)),
       ).slice(0, 3);
     }
@@ -1445,6 +1497,11 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
         bestGeocodeQuery === approxShadowSearchHint?.suggestedAddressLine
       );
 
+    urbanPatternBecameBestGeocodeQuery =
+      urbanPatternAppliedToRealQueries &&
+      !!bestGeocodeQuery &&
+      bestGeocodeQuery === urbanPatternQuery;
+
     const geocodeOnlyTopPoints = scored
       .filter((x) => x.kind === "geocode")
       .slice(0, 2)
@@ -1456,6 +1513,64 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
     const preliminaryGeocodeSpreadMeters =
       geocodeOnlyTopPoints.length >= 2 ? maxPairDistanceMeters(geocodeOnlyTopPoints) : 0;
+
+    if (debugMemory) {
+      urbanPatternDetected = urbanPattern.detected;
+      urbanPatternType = urbanPattern.type;
+      urbanPatternQuery = urbanPattern.query;
+
+      const urbanQueryNormalized = cleanAddressForHere(urbanPattern.query || "");
+      const existingQueriesNormalized = new Set(
+        baseQueries.map((q) => cleanAddressForHere(q || "")),
+      );
+
+      if (urbanPattern.detected && urbanPattern.query && urbanQueryNormalized && !existingQueriesNormalized.has(urbanQueryNormalized)) {
+        const urbanGeocode = await hereGeocode(urbanPattern.query, at);
+        let urbanBestScore = -999;
+        let urbanBestItem: any = null;
+        const urbanSeen = new Set<string>();
+        const urbanScored: RankedHereEntry[] = [];
+
+        if (Array.isArray(urbanGeocode.all) && urbanGeocode.all.length) {
+          for (const it of urbanGeocode.all) {
+            const key = dedupeKeyForHere(it);
+            if (urbanSeen.has(key)) continue;
+            urbanSeen.add(key);
+            const sc = scoreHereItemSmart(it, want);
+            if (sc > urbanBestScore) {
+              urbanBestScore = sc;
+              urbanBestItem = it;
+            }
+            urbanScored.push({ it, score: sc, from: urbanPattern.query, kind: "geocode" });
+          }
+        }
+
+        const urbanTopPoints = urbanScored
+          .slice(0, 2)
+          .map((x) => x.it?.position)
+          .filter(
+            (p): p is { lat: number; lng: number } =>
+              !!p && typeof p.lat === "number" && typeof p.lng === "number",
+          );
+
+        const urbanSpreadMeters =
+          urbanTopPoints.length >= 2 ? maxPairDistanceMeters(urbanTopPoints) : null;
+
+        urbanPatternImprovedRanking = urbanBestScore > bestGeocodeScoreOverall;
+        urbanPatternBestCandidateKind = urbanBestItem ? "geocode" : null;
+        urbanPatternSpreadReduction =
+          preliminaryGeocodeSpreadMeters > 0 && urbanSpreadMeters != null
+            ? preliminaryGeocodeSpreadMeters - urbanSpreadMeters
+            : null;
+        urbanPatternWouldReplaceWeakQuery =
+          urbanPatternImprovedRanking && bestGeocodeScoreOverall < 70;
+      } else {
+        urbanPatternImprovedRanking = false;
+        urbanPatternBestCandidateKind = null;
+        urbanPatternSpreadReduction = null;
+        urbanPatternWouldReplaceWeakQuery = false;
+      }
+    }
 
     if (bestGeocodeItem) {
       const preliminaryConfidenceDiag = computeGeocodeConfidence({
@@ -1933,6 +2048,18 @@ if (autoSaveCurrentBehaviorWouldSave) {
     autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
     autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
     autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
+    urbanPatternDetected,
+    urbanPatternType,
+    urbanPatternQuery,
+    urbanPatternImprovedRanking,
+    urbanPatternBestCandidateKind,
+    urbanPatternSpreadReduction,
+    urbanPatternWouldReplaceWeakQuery,
+    urbanPatternAppliedToRealQueries,
+    urbanPatternAppliedReason,
+    urbanPatternReplacedQuery,
+    urbanPatternRealQueryIndex,
+    urbanPatternBecameBestGeocodeQuery,
     ...(discoverGateDebug ? { discoverGateDebug } : {}),
 
     model: g.model,
@@ -1991,6 +2118,18 @@ if (autoSaveCurrentBehaviorWouldSave) {
       autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
       autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
       autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
+      urbanPatternDetected,
+      urbanPatternType,
+      urbanPatternQuery,
+      urbanPatternImprovedRanking,
+      urbanPatternBestCandidateKind,
+      urbanPatternSpreadReduction,
+      urbanPatternWouldReplaceWeakQuery,
+      urbanPatternAppliedToRealQueries,
+      urbanPatternAppliedReason,
+      urbanPatternReplacedQuery,
+      urbanPatternRealQueryIndex,
+      urbanPatternBecameBestGeocodeQuery,
     } satisfies MemoryDebugRow;
   }
 
