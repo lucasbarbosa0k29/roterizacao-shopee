@@ -1751,7 +1751,7 @@ if (!hasPickedLabel && !sameCoordAsRow) {
 }
 
     if (typeof window !== "undefined" && tutorialMapStartedRef.current) {
-      window.sessionStorage.setItem(TUTORIAL_MAP_CONFIRMED_KEY, "true");
+      window.localStorage.setItem(TUTORIAL_MAP_CONFIRMED_KEY, "true");
       setTutorialExportFinalRequestedAt(Date.now());
     }
 
@@ -2489,16 +2489,16 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
     if (tutorialPostStartedRef.current) return;
     if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+    if (window.localStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
 
-    const pending = window.sessionStorage.getItem(
+    const pending = window.localStorage.getItem(
       TUTORIAL_PENDING_AFTER_PROCESS_KEY
     );
 
     if (pending !== "true") return;
 
     tutorialPostStartedRef.current = true;
-    window.sessionStorage.removeItem(TUTORIAL_PENDING_AFTER_PROCESS_KEY);
+    window.localStorage.removeItem(TUTORIAL_PENDING_AFTER_PROCESS_KEY);
 
     window.setTimeout(() => {
       startPostProcessTutorial();
@@ -2508,19 +2508,30 @@ setTimeout(() => map.getViewPort().resize(), 800);
   useEffect(() => {
     if (view !== "upload" || rows.length !== 0) return;
     if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+    if (window.localStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
 
-    const shouldStart = window.sessionStorage.getItem(
+    const shouldStart = window.localStorage.getItem(
       TUTORIAL_START_PREPROCESS_KEY
     );
 
     if (shouldStart !== "true") return;
 
-    window.sessionStorage.removeItem(TUTORIAL_START_PREPROCESS_KEY);
+    const startedAt = Date.now();
+    const tryStart = () => {
+      const uploadArea = document.querySelector('[data-tour="upload-area"]');
 
-    window.setTimeout(() => {
+      if (!uploadArea) {
+        if (Date.now() - startedAt < 1500) {
+          window.setTimeout(tryStart, 80);
+        }
+        return;
+      }
+
+      window.localStorage.removeItem(TUTORIAL_START_PREPROCESS_KEY);
       startPreProcessTutorial();
-    }, 250);
+    };
+
+    window.setTimeout(tryStart, 120);
   }, [view, rows.length]);
 
   useEffect(() => {
@@ -2531,18 +2542,18 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
     if (tutorialMapStartedRef.current) return;
     if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+    if (window.localStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
 
-    const pending = window.sessionStorage.getItem(
+    const pending = window.localStorage.getItem(
       TUTORIAL_PENDING_MAP_REVIEW_KEY
     );
 
     if (pending !== "true") return;
 
     tutorialMapStartedRef.current = true;
-    window.sessionStorage.removeItem(TUTORIAL_PENDING_MAP_REVIEW_KEY);
-    window.sessionStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
-    window.sessionStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
+    window.localStorage.removeItem(TUTORIAL_PENDING_MAP_REVIEW_KEY);
+    window.localStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
+    window.localStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
 
     window.setTimeout(() => {
       startMapReviewTutorial();
@@ -2575,10 +2586,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
     if (typeof window === "undefined") return;
     if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
 
-    const pendingExport = window.sessionStorage.getItem(
+    const pendingExport = window.localStorage.getItem(
       TUTORIAL_PENDING_EXPORT_FINAL_KEY
     );
-    const confirmed = window.sessionStorage.getItem(
+    const confirmed = window.localStorage.getItem(
       TUTORIAL_MAP_CONFIRMED_KEY
     );
 
@@ -2595,8 +2606,8 @@ setTimeout(() => map.getViewPort().resize(), 800);
         return;
       }
 
-      window.sessionStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
-      window.sessionStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
+      window.localStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
+      window.localStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
       setTutorialExportFinalRequestedAt(0);
 
       window.setTimeout(() => {
@@ -3128,8 +3139,8 @@ onContextMenu={(e) => {
     onClick={(e) => {
       e.stopPropagation();
       if (typeof window !== "undefined") {
-        if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) === "true") {
-          window.sessionStorage.setItem(
+        if (window.localStorage.getItem(TUTORIAL_ACTIVE_KEY) === "true") {
+          window.localStorage.setItem(
             TUTORIAL_PENDING_MAP_REVIEW_KEY,
             "true"
           );

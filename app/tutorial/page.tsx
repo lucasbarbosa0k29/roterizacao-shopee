@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   activateTutorialSession,
   TUTORIAL_PENDING_AFTER_PROCESS_KEY,
@@ -55,6 +56,8 @@ const checklist = [
 ];
 
 export default function TutorialPage() {
+  const router = useRouter();
+
   return (
     <main className="min-h-screen bg-transparent">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -128,24 +131,25 @@ export default function TutorialPage() {
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/"
+            <button
+              type="button"
               onClick={() => {
                 if (typeof window === "undefined") return;
                 activateTutorialSession();
-                window.sessionStorage.setItem(
+                window.localStorage.setItem(
                   TUTORIAL_START_PREPROCESS_KEY,
                   "true"
                 );
-                window.sessionStorage.setItem(
+                window.localStorage.setItem(
                   TUTORIAL_PENDING_AFTER_PROCESS_KEY,
                   "true"
                 );
+                router.push("/");
               }}
               className="inline-flex min-h-[50px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#17313b_0%,#1f5a6b_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(23,49,59,0.24)] transition hover:brightness-105"
             >
               Começar tutorial agora
-            </Link>
+            </button>
             <Link
               href="/planos"
               className="inline-flex min-h-[50px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"

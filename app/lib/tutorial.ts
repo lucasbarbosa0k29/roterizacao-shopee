@@ -3,19 +3,19 @@
 import { driver } from "driver.js";
 
 export const TUTORIAL_PENDING_AFTER_PROCESS_KEY =
-  "rottahub_tutorial_pending_after_process";
+  "rotta_tutorial_pending_after_process";
 export const TUTORIAL_START_PREPROCESS_KEY =
-  "rottahub_tutorial_start_preprocess";
+  "rotta_tutorial_pending";
 export const TUTORIAL_PENDING_MAP_REVIEW_KEY =
-  "rottahub_tutorial_pending_map_review";
+  "rotta_tutorial_pending_map_review";
 export const TUTORIAL_MAP_CONFIRMED_KEY =
-  "rottahub_tutorial_map_confirmed";
+  "rotta_tutorial_map_confirmed";
 export const TUTORIAL_PENDING_EXPORT_FINAL_KEY =
-  "rottahub_tutorial_pending_export_final";
+  "rotta_tutorial_pending_export_final";
 export const TUTORIAL_EXPORT_FINAL_EVENT =
   "rottahub:tutorial-export-final-request";
-export const TUTORIAL_ACTIVE_KEY = "rottahub_tutorial_active";
-export const TUTORIAL_COMPLETED_KEY = "rottahub_tutorial_completed";
+export const TUTORIAL_ACTIVE_KEY = "rotta_tutorial_active";
+export const TUTORIAL_COMPLETED_KEY = "rotta_tutorial_completed";
 
 let activeTutorial: ReturnType<typeof driver> | null = null;
 
@@ -53,27 +53,35 @@ export function destroyActiveTutorial() {
 export function clearTutorialSessionFlags() {
   if (typeof window === "undefined") return;
 
+  window.localStorage.removeItem(TUTORIAL_PENDING_AFTER_PROCESS_KEY);
+  window.localStorage.removeItem(TUTORIAL_START_PREPROCESS_KEY);
+  window.localStorage.removeItem(TUTORIAL_PENDING_MAP_REVIEW_KEY);
+  window.localStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
+  window.localStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
+  window.localStorage.removeItem(TUTORIAL_ACTIVE_KEY);
+  window.localStorage.removeItem(TUTORIAL_COMPLETED_KEY);
+
   window.sessionStorage.removeItem(TUTORIAL_PENDING_AFTER_PROCESS_KEY);
   window.sessionStorage.removeItem(TUTORIAL_START_PREPROCESS_KEY);
   window.sessionStorage.removeItem(TUTORIAL_PENDING_MAP_REVIEW_KEY);
   window.sessionStorage.removeItem(TUTORIAL_MAP_CONFIRMED_KEY);
   window.sessionStorage.removeItem(TUTORIAL_PENDING_EXPORT_FINAL_KEY);
   window.sessionStorage.removeItem(TUTORIAL_ACTIVE_KEY);
+  window.sessionStorage.removeItem(TUTORIAL_COMPLETED_KEY);
 }
 
 export function activateTutorialSession() {
   if (typeof window === "undefined") return;
 
   clearTutorialSessionFlags();
-  window.sessionStorage.setItem(TUTORIAL_ACTIVE_KEY, "true");
-  window.sessionStorage.removeItem(TUTORIAL_COMPLETED_KEY);
+  window.localStorage.setItem(TUTORIAL_ACTIVE_KEY, "true");
 }
 
 export function finishTutorialSession() {
   if (typeof window === "undefined") return;
 
   clearTutorialSessionFlags();
-  window.sessionStorage.setItem(TUTORIAL_COMPLETED_KEY, "true");
+  window.localStorage.setItem(TUTORIAL_COMPLETED_KEY, "true");
 }
 
 function createStep(
@@ -292,7 +300,7 @@ export function startMapReviewTutorial() {
             return;
           }
 
-          window.sessionStorage.setItem(
+          window.localStorage.setItem(
             TUTORIAL_PENDING_EXPORT_FINAL_KEY,
             "true"
           );
