@@ -289,7 +289,7 @@ export function startMapReviewTutorial() {
         onNextClick: () => {
           if (typeof window === "undefined") return;
 
-          const confirmed = window.sessionStorage.getItem(
+          const confirmed = window.localStorage.getItem(
             TUTORIAL_MAP_CONFIRMED_KEY
           );
 

@@ -2584,7 +2584,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     if (!tutorialExportFinalRequestedAt) return;
     if (isModalOpen) return;
     if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
+    if (window.localStorage.getItem(TUTORIAL_ACTIVE_KEY) !== "true") return;
 
     const pendingExport = window.localStorage.getItem(
       TUTORIAL_PENDING_EXPORT_FINAL_KEY
