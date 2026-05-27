@@ -85,6 +85,29 @@ export default function TutorialPage() {
           </div>
         </section>
 
+        <section className="mt-8 rounded-[30px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.06)] sm:p-6">
+          <div className="mb-5">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
+              Tutorial em vídeo
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600 md:text-base">
+              Assista ao passo a passo completo para aprender a usar o Rotta.
+            </p>
+          </div>
+
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-lg">
+            <iframe
+              src="https://embed.app.guidde.com/playbooks/sNnU8yWJRLPREbMhTNHt9z?mode=videoOnly"
+              title="Tutorial Rotta"
+              frameBorder="0"
+              allowFullScreen
+              loading="lazy"
+              allow="clipboard-write"
+              className="block h-[420px] w-full max-w-full lg:h-[720px]"
+            />
+          </div>
+        </section>
+
         <section className="mt-8 grid gap-4 lg:grid-cols-2">
           {steps.map((step) => (
             <article
