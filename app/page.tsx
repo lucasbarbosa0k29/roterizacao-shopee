@@ -1605,7 +1605,13 @@ function clearReview(groupId: string) {
     setManualEdits((prev) => {
       const next = { ...prev };
       for (const idx of args.idxsToApply) {
-        next[idx] = { lat: args.coord.lat, lng: args.coord.lng, confirmed: true };
+        const current = prev[idx] || {};
+        next[idx] = {
+          ...current,
+          lat: args.coord.lat,
+          lng: args.coord.lng,
+          confirmed: true,
+        };
       }
       return next;
     });

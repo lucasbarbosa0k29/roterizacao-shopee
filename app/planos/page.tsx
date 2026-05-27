@@ -186,51 +186,56 @@ export default function PlanosPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-3">
-              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+            <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-3">
+              <section className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-blue-600">
                   BASIC
                 </div>
-                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 39,99</div>
-                <h2 className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</h2>
-                <p className="mt-2 text-sm text-slate-600">1 rota por dia</p>
-                <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                  <li>Liberação comercial manual pelo administrador</li>
-                  <li>Ideal para operação de menor volume</li>
+                <div className="mt-3 text-3xl font-black tracking-tight text-slate-900">R$ 39,99</div>
+                <h2 className="mt-2 text-lg font-semibold text-slate-900">30 dias</h2>
+                <p className="mt-1 text-sm text-slate-600">1 rota por dia</p>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-slate-600">
+                  <li>Ideal para operação de menor volume.</li>
+                  <li>Liberação comercial manual pelo administrador.</li>
                 </ul>
-                <div className="mt-6">
+                <div className="mt-auto pt-8">
                   <PaymentButton href={basicUrl} label="Assinar BASIC" />
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-[#8fd0bf] bg-[linear-gradient(180deg,#ffffff_0%,#f4fbf8_100%)] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-                <div className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-                  PRO
+              <section className="flex h-full flex-col rounded-[28px] border border-emerald-300 bg-[linear-gradient(180deg,#ffffff_0%,#f4fbf8_100%)] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)] ring-1 ring-emerald-100">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+                    PRO
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                    Recomendado
+                  </span>
                 </div>
-                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 69,99</div>
-                <h2 className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</h2>
-                <p className="mt-2 text-sm text-slate-600">2 rotas por dia</p>
-                <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                  <li>Liberação comercial manual pelo administrador</li>
-                  <li>Melhor para uso recorrente</li>
+                <div className="mt-3 text-3xl font-black tracking-tight text-slate-900">R$ 69,99</div>
+                <h2 className="mt-2 text-lg font-semibold text-slate-900">30 dias</h2>
+                <p className="mt-1 text-sm text-slate-600">2 rotas por dia</p>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-slate-600">
+                  <li>Melhor opção para uso recorrente.</li>
+                  <li>Liberação comercial manual pelo administrador.</li>
                 </ul>
-                <div className="mt-6">
+                <div className="mt-auto pt-8">
                   <PaymentButton href={proUrl} label="Assinar PRO" />
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+              <section className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-amber-600">
-                  Rota avulsa
+                  ROTA AVULSA
                 </div>
-                <h2 className="mt-2 text-2xl font-extrabold text-slate-900">Uso extra</h2>
-                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 1,99</div>
-                <p className="mt-2 text-sm text-slate-600">1 crédito adicional</p>
-                <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                  <li>Compra pontual quando o limite diário acabar</li>
-                  <li>Liberação manual pelo administrador após confirmação</li>
+                <div className="mt-3 text-3xl font-black tracking-tight text-slate-900">R$ 1,99</div>
+                <h2 className="mt-2 text-lg font-semibold text-slate-900">Uso extra</h2>
+                <p className="mt-1 text-sm text-slate-600">1 crédito adicional</p>
+                <ul className="mt-5 space-y-2 text-sm leading-6 text-slate-600">
+                  <li>Use quando atingir o limite diário.</li>
+                  <li>Liberação manual pelo administrador após confirmação.</li>
                 </ul>
-                <div className="mt-6">
+                <div className="mt-auto pt-8">
                   <PaymentButton href={extraUrl} label="Comprar Rota Avulsa" />
                 </div>
               </section>
