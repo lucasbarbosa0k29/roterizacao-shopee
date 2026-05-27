@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
@@ -576,7 +576,7 @@ setHistoryId(job.id);
         console.error(e);
         setLoading(false);
         setJobProgress(null);
-        alert("Erro ao abrir histÃ³rico.");
+        alert("Erro ao abrir histórico.");
       }
     })();
   }, [jobId]);
@@ -754,6 +754,8 @@ useEffect(() => {
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
   const arcgisCityKey = getArcgisCityKey(modalCity);
   const canShowArcgisOption = isModalOpen && !!arcgisCityKey;
+  const forceArcgisOnly = isModalOpen && isAparecidaCity(modalCity);
+  const showProviderToggle = canShowArcgisOption && !forceArcgisOnly;
   const arcgisAvailable =
     isModalOpen &&
     !!arcgisCityKey &&
@@ -1569,6 +1571,7 @@ function clearReview(groupId: string) {
     setPickedCep("");
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
+    setManualMapProvider(isAparecidaCity(rows[idx]?.city) ? "arcgis" : "here");
 
     const manual = manualEdits[idx];
     const baseLat = manual?.lat ?? rows[idx]?.lat ?? null;
@@ -2843,7 +2846,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     </button>
   </div>
 </div>
-  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
     <div className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
       <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
@@ -2857,12 +2860,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
       <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
-      <div className="mt-1 text-xs text-amber-700/80">Exigem conferência</div>
-    </div>
-    <div className="rounded-[22px] border border-sky-200 bg-sky-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Manual</div>
-      <div className="mt-2 text-2xl font-black text-sky-900">{exportSummary.manual}</div>
-      <div className="mt-1 text-xs text-sky-700/80">Ajustados na revisão</div>
+      <div className="mt-1 text-xs text-amber-700/80">Localização aproximada</div>
     </div>
     <div className="rounded-[22px] border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">Não Encontrado</div>
@@ -3439,7 +3437,7 @@ onContextMenu={(e) => {
                     </div>
 
                     <div className="px-6 pt-4">
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <div className="px-6 pt-4">
                         <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
                           <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
@@ -3453,12 +3451,7 @@ onContextMenu={(e) => {
                         <div className="rounded-[22px] border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
                           <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
-                          <div className="mt-1 text-xs text-amber-700/80">Exigem conferência</div>
-                        </div>
-                        <div className="rounded-[22px] border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Manual</div>
-                          <div className="mt-2 text-2xl font-black text-sky-900">{exportSummary.manual}</div>
-                          <div className="mt-1 text-xs text-sky-700/80">Ajustados na operação</div>
+                          <div className="mt-1 text-xs text-amber-700/80">Localização aproximada</div>
                         </div>
                         <div className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Agrupados</div>
@@ -3821,7 +3814,7 @@ onContextMenu={(e) => {
         
 
           {/* INPUT de busca (mantém sua lógica atual) */}
-          {canShowArcgisOption && (
+          {showProviderToggle && (
             <div className="mb-2 md:mb-3 flex items-center justify-between gap-2">
               <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">
                 MAPA
@@ -3859,6 +3852,25 @@ onContextMenu={(e) => {
                       : "text-slate-600 hover:text-slate-900",
                     !arcgisAvailable ? "opacity-50 cursor-not-allowed" : "",
                   ].join(" ")}
+                >
+                  ArcGIS
+                </button>
+              </div>
+            </div>
+          )}
+
+          {forceArcgisOnly && (
+            <div className="mb-2 md:mb-3 flex items-center justify-between gap-2">
+              <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">
+                MAPA
+              </div>
+
+              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold bg-white text-emerald-700 shadow-sm"
+                  disabled
+                  title="ArcGIS obrigatório para Aparecida de Goiânia"
                 >
                   ArcGIS
                 </button>

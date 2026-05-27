@@ -1,6 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
+
+const WHATSAPP_BUSINESS_URL =
+  process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_URL || "https://wa.me/SEU_NUMERO_AQUI";
 
 type AccessSnapshot = {
   userId: string;
@@ -188,6 +191,7 @@ export default function PlanosPage() {
                 <div className="text-sm font-semibold uppercase tracking-wide text-blue-600">
                   BASIC
                 </div>
+                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 39,99</div>
                 <h2 className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</h2>
                 <p className="mt-2 text-sm text-slate-600">1 rota por dia</p>
                 <ul className="mt-4 space-y-2 text-sm text-slate-600">
@@ -203,6 +207,7 @@ export default function PlanosPage() {
                 <div className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
                   PRO
                 </div>
+                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 69,99</div>
                 <h2 className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</h2>
                 <p className="mt-2 text-sm text-slate-600">2 rotas por dia</p>
                 <ul className="mt-4 space-y-2 text-sm text-slate-600">
@@ -219,6 +224,7 @@ export default function PlanosPage() {
                   Rota avulsa
                 </div>
                 <h2 className="mt-2 text-2xl font-extrabold text-slate-900">Uso extra</h2>
+                <div className="mt-2 text-xl font-extrabold text-slate-900">R$ 1,99</div>
                 <p className="mt-2 text-sm text-slate-600">1 crédito adicional</p>
                 <ul className="mt-4 space-y-2 text-sm text-slate-600">
                   <li>Compra pontual quando o limite diário acabar</li>
@@ -231,7 +237,17 @@ export default function PlanosPage() {
             </div>
 
             <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Após o pagamento, a liberação é feita manualmente pelo administrador.
+              Após o pagamento, a liberação é feita manualmente pelo administrador. Entre em contato para liberar seu acesso.
+              <div className="mt-4">
+                <a
+                  href={WHATSAPP_BUSINESS_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#17313b] px-4 py-3 text-sm font-semibold text-white hover:bg-[#10242c]"
+                >
+                  Entrar em contato pelo WhatsApp
+                </a>
+              </div>
             </div>
           </>
         )}
