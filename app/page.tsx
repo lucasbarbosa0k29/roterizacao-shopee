@@ -672,6 +672,7 @@ if (rows.length > 0 && jobProgress?.status === "DONE") return;
   const [pickedCep, setPickedCep] = useState("");
   const [pickedQuadra, setPickedQuadra] = useState("");
   const [pickedLote, setPickedLote] = useState("");
+  const [isMobileMapSearchOpen, setIsMobileMapSearchOpen] = useState(false);
 
   const [pinLatLng, setPinLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [manualMapProvider, setManualMapProvider] = useState<ManualMapProvider>("here");
@@ -1572,6 +1573,7 @@ function clearReview(groupId: string) {
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
     setManualMapProvider(isAparecidaCity(rows[idx]?.city) ? "arcgis" : "here");
+    setIsMobileMapSearchOpen(false);
 
     const manual = manualEdits[idx];
     const baseLat = manual?.lat ?? rows[idx]?.lat ?? null;
@@ -1595,6 +1597,7 @@ function clearReview(groupId: string) {
     setSuggestOpen(false);
     setSuggestItems([]);
     setSuggestActive(-1);
+    setIsMobileMapSearchOpen(false);
   }
 
   async function applyConfirmedCoordToIdxs(args: {
@@ -2883,8 +2886,9 @@ setTimeout(() => map.getViewPort().resize(), 800);
                         const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
 
                         return (
-                          <div
+                         <div
                             key={g.id}
+                            data-tour="mobile-stop-card"
                             className={
                               `rounded-[26px] border p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition-all ${
                                 hasReview ? "text-red-700" : ""
@@ -2956,6 +2960,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                       e.stopPropagation();
                                       openManualModalForIdx(baseIdx);
                                     }}
+                                    data-tour="mobile-stop-map-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Mapa / Correção"
                                   >
@@ -2971,6 +2976,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                                   <button
                                     type="button"
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
+                                    data-tour="mobile-stop-group-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Agrupar manualmente"
                                   >
@@ -3040,7 +3046,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                               </div>
                             )}
 
-                            {String(g.bairro || "").trim() && (
+                             {String(g.bairro || "").trim() && (
                               <div className="mt-1 text-xs text-slate-600 break-words">
                                 {String(g.bairro || "").trim()}
                               </div>
@@ -3169,10 +3175,10 @@ onContextMenu={(e) => {
                                    <button
                                      type="button"
                                      onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                     data-tour="manual-group-button"
-                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                     title="Agrupar manualmente"
-                                   >
+                                    data-tour="manual-group-button"
+                                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+                                   title="Agrupar manualmente"
+                                 >
                                     +
                                   </button>
                                 )}
@@ -3223,7 +3229,10 @@ onContextMenu={(e) => {
                             <td className="px-3 md:px-4 py-4 align-top font-semibold text-sm md:text-[15px] text-slate-900">{g.sequenceText}</td>
 
                            <td className="px-3 md:px-4 py-4 align-top whitespace-normal md:whitespace-nowrap overflow-hidden text-ellipsis max-w-none md:max-w-[520px] w-full">
-                              <span className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis leading-6">
+                              <span
+                                data-tour="mobile-stop-address"
+                                className="block whitespace-normal md:whitespace-nowrap break-words overflow-hidden text-ellipsis leading-6"
+                              >
   {g.addressDisplay}
 </span>
 
@@ -3312,7 +3321,7 @@ onContextMenu={(e) => {
       </div>
     </div>
   </div>
-)}
+          )} 
 
               {/* Context menu */}
 {ctx.open && ctx.groupId && (
@@ -3368,8 +3377,8 @@ onContextMenu={(e) => {
 )}
               {/* Export review modal */}
               {isExportOpen && (
-                <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-[#0f172a]/55 p-2 md:p-4 backdrop-blur-sm">
-                  <div className="flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:max-h-[90vh]">
+                <div className="fixed inset-0 z-[9998] flex items-stretch justify-center bg-[#0f172a]/55 p-2 backdrop-blur-sm md:items-center md:p-4">
+                  <div className="flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:h-auto md:max-h-[90vh] md:rounded-[34px]">
                     {/* Header */}
                     <div className="px-5 py-5 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(78,201,176,0.18),transparent_28%),linear-gradient(135deg,#17313b_0%,#1f5a6b_100%)] text-white">
                       <div className="flex items-start justify-between gap-4">
@@ -3402,7 +3411,7 @@ onContextMenu={(e) => {
                     </div>
 
                     {/* Step box (igual route planner) */}
-                    <div className="px-6 pt-6">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-4 md:px-6 md:pt-6">
                       <div className="rounded-[26px] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] border border-slate-200 p-5">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-full bg-[#0f766e] text-white flex items-center justify-center text-sm font-bold shadow-sm">
@@ -3442,8 +3451,7 @@ onContextMenu={(e) => {
                       </div>
                     </div>
 
-                    <div className="px-6 pt-4">
-                    <div className="px-6 pt-4">
+                    <div className="hidden grid-cols-2 gap-3 px-4 pt-4 md:grid md:grid-cols-4 md:px-6">
                         <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
                           <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
@@ -3465,10 +3473,9 @@ onContextMenu={(e) => {
                           <div className="mt-1 text-xs text-slate-500">Blocos consolidados</div>
                         </div>
                       </div>
-                    </div>
 
                     {/* Table */}
-                    <div className="px-3 md:px-6 pt-5 pb-0 flex-1 min-h-0 overflow-y-auto">
+                    <div className="px-3 md:px-6 pt-5 pb-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
                       <div className="md:hidden space-y-3 pb-4">
                         {exportDraft.map((r, idx) => {
                           return (
@@ -3558,7 +3565,7 @@ onContextMenu={(e) => {
                     </div>
 
                     {/* Footer */}
-                    <div className="sticky bottom-0 border-t border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,#f4f8f8_100%)] px-3 md:px-6 py-4 backdrop-blur">
+                    <div className="sticky bottom-0 border-t border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,#f4f8f8_100%)] px-3 md:px-6 py-4 pb-[calc(env(safe-area-inset-bottom)+16px)] backdrop-blur">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="text-sm text-slate-600">
                           Total de <b>{exportDraft.length}</b> pontos agrupados prontos para exportação.
@@ -3811,18 +3818,16 @@ onContextMenu={(e) => {
         )}
       </div>
 
-      {/* CARD "BUSCA E CAPTURA" (flutuante igual print) */}
-      <div className="absolute left-2 right-2 top-[60px] md:left-4 md:right-auto md:top-[80px] z-30 w-auto md:w-[420px] md:max-w-[calc(100vw-32px)]">
-        <div className="rounded-xl md:rounded-2xl border bg-white/95 backdrop-blur shadow-lg p-2 md:p-3">
-          <div className="text-[10px] md:text-[11px] font-semibold text-emerald-700 mb-1.5 md:mb-2">
+      {/* CARD "BUSCA E CAPTURA" (desktop) */}
+      <div className="absolute left-2 right-2 top-[60px] z-30 hidden w-auto md:left-4 md:right-auto md:top-[80px] md:block md:w-[420px] md:max-w-[calc(100vw-32px)]">
+        <div className="rounded-xl border bg-white/95 p-2 shadow-lg backdrop-blur md:rounded-2xl md:p-3">
+          <div className="mb-1.5 text-[10px] font-semibold text-emerald-700 md:mb-2 md:text-[11px]">
             BUSCA E CAPTURA
           </div>
-        
 
-          {/* INPUT de busca (mantém sua lógica atual) */}
           {showProviderToggle && (
-            <div className="mb-2 md:mb-3 flex items-center justify-between gap-2">
-              <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">
+            <div className="mb-2 flex items-center justify-between gap-2 md:mb-3">
+              <div className="text-[10px] font-semibold text-slate-500 md:text-[11px]">
                 MAPA
               </div>
 
@@ -3831,7 +3836,7 @@ onContextMenu={(e) => {
                   type="button"
                   onClick={() => setManualMapProvider("here")}
                   className={[
-                    "px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold transition-colors",
+                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
                     activeMapProvider === "here"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-slate-600 hover:text-slate-900",
@@ -3852,11 +3857,11 @@ onContextMenu={(e) => {
                       : "ArcGIS ainda não disponível para esta cidade"
                   }
                   className={[
-                    "px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold transition-colors",
+                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
                     activeMapProvider === "arcgis"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-slate-600 hover:text-slate-900",
-                    !arcgisAvailable ? "opacity-50 cursor-not-allowed" : "",
+                    !arcgisAvailable ? "cursor-not-allowed opacity-50" : "",
                   ].join(" ")}
                 >
                   ArcGIS
@@ -3866,15 +3871,15 @@ onContextMenu={(e) => {
           )}
 
           {forceArcgisOnly && (
-            <div className="mb-2 md:mb-3 flex items-center justify-between gap-2">
-              <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">
+            <div className="mb-2 flex items-center justify-between gap-2 md:mb-3">
+              <div className="text-[10px] font-semibold text-slate-500 md:text-[11px]">
                 MAPA
               </div>
 
               <div className="inline-flex rounded-lg border bg-slate-50 p-1">
                 <button
                   type="button"
-                  className="px-3 py-1 rounded-md text-[11px] md:text-xs font-semibold bg-white text-emerald-700 shadow-sm"
+                  className="rounded-md bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm md:text-xs"
                   disabled
                   title="ArcGIS obrigatório para Aparecida de Goiânia"
                 >
@@ -3934,12 +3939,11 @@ onContextMenu={(e) => {
                 }
               }}
               placeholder="Buscar ou Lat/Lng..."
-              className="w-full border rounded-lg md:rounded-xl px-3 py-2 text-xs md:text-sm outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-200 md:rounded-xl md:text-sm"
             />
 
-            {/* LISTA DE SUGESTÕES (mantém sua lógica atual) */}
             {suggestOpen && suggestItems.length > 0 && (
-              <div className="absolute z-50 mt-1.5 md:mt-2 w-full overflow-hidden rounded-lg md:rounded-xl border bg-white shadow-lg">
+              <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-white shadow-lg md:mt-2 md:rounded-xl">
                 {suggestItems.map((it, idx) => (
                   <button
                     key={`${it.id ?? idx}`}
@@ -3947,7 +3951,7 @@ onContextMenu={(e) => {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => selectSuggestItem(it)}
                     className={[
-                      "w-full text-left px-3 py-2 text-xs md:text-sm hover:bg-slate-50",
+                      "w-full px-3 py-2 text-left text-xs hover:bg-slate-50 md:text-sm",
                       idx === suggestActive ? "bg-slate-50" : "",
                     ].join(" ")}
                   >
@@ -3958,11 +3962,11 @@ onContextMenu={(e) => {
             )}
           </div>
 
-          <div className="mt-2 md:mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="mt-2 flex flex-col gap-2 md:mt-3 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={() => runHereSearch(modalValue)}
-              className="flex-1 rounded-lg md:rounded-xl bg-emerald-600 text-white text-xs md:text-sm font-semibold py-2 hover:bg-emerald-700"
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 md:rounded-xl md:text-sm"
             >
               Buscar
             </button>
@@ -3971,15 +3975,14 @@ onContextMenu={(e) => {
               type="button"
               onClick={confirmManualModal}
               data-tour="map-confirm-button"
-              className="flex-1 rounded-lg md:rounded-xl bg-emerald-600 text-white text-xs md:text-sm font-semibold py-2 hover:bg-emerald-700 flex items-center justify-center gap-2"
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 md:rounded-xl md:text-sm"
               title="Confirmar"
             >
               CONFIRMAR <span>✓</span>
             </button>
           </div>
 
-          {/* “GPS CAPTURADO” (mantém seus dados atuais) */}
-          <div className="mt-2 rounded-lg md:rounded-xl border bg-white px-2.5 md:px-3 py-2 text-[10px] md:text-xs text-slate-700 flex items-center justify-between gap-2">
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border bg-white px-2.5 py-2 text-[10px] text-slate-700 md:mt-3 md:rounded-xl md:px-3 md:text-xs">
             <div className="truncate">
               <span className="font-semibold">GPS:</span>{" "}
               {pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "-"}
@@ -3991,19 +3994,212 @@ onContextMenu={(e) => {
             <button
               type="button"
               onClick={() => {
-                const txt =
-                  pinLatLng
-                    ? `${pinLatLng.lat}, ${pinLatLng.lng}`
-                    : "";
+                const txt = pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "";
                 if (txt) navigator.clipboard?.writeText(txt);
               }}
-              className="shrink-0 px-2.5 md:px-3 py-1 rounded-lg border bg-white hover:bg-slate-50 text-[10px] md:text-xs"
+              className="shrink-0 rounded-lg border bg-white px-2.5 py-1 text-[10px] hover:bg-slate-50 md:px-3 md:text-xs"
             >
               Copiar
             </button>
           </div>
         </div>
       </div>
+
+      <div className="md:hidden absolute inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+        <div className="flex gap-2 rounded-[22px] border border-slate-200 bg-white/95 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setIsMobileMapSearchOpen((cur) => !cur)}
+            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700"
+          >
+            {isMobileMapSearchOpen ? "Fechar busca" : "Abrir busca"}
+          </button>
+
+          <button
+            type="button"
+            onClick={confirmManualModal}
+            data-tour="map-confirm-button"
+            className="flex-1 rounded-2xl bg-emerald-600 px-3 py-3 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(15,118,110,0.22)] hover:bg-emerald-700"
+            title="Confirmar"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+
+      {isMobileMapSearchOpen && (
+        <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-40 max-h-[44dvh] overflow-y-auto overscroll-contain rounded-[22px] border border-slate-200 bg-white/95 p-3 shadow-2xl backdrop-blur">
+          <div className="mb-2 text-[10px] font-semibold text-emerald-700">
+            BUSCA E CAPTURA
+          </div>
+
+          {showProviderToggle && (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold text-slate-500">MAPA</div>
+
+              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setManualMapProvider("here")}
+                  className={[
+                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                    activeMapProvider === "here"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                  ].join(" ")}
+                >
+                  HERE
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (arcgisAvailable) setManualMapProvider("arcgis");
+                  }}
+                  disabled={!arcgisAvailable}
+                  title={
+                    arcgisAvailable
+                      ? "Usar mapa ArcGIS"
+                      : "ArcGIS ainda não disponível para esta cidade"
+                  }
+                  className={[
+                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                    activeMapProvider === "arcgis"
+                      ? "bg-white text-emerald-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                    !arcgisAvailable ? "cursor-not-allowed opacity-50" : "",
+                  ].join(" ")}
+                >
+                  ArcGIS
+                </button>
+              </div>
+            </div>
+          )}
+
+          {forceArcgisOnly && (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold text-slate-500">MAPA</div>
+
+              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                <button
+                  type="button"
+                  className="rounded-md bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm"
+                  disabled
+                  title="ArcGIS obrigatório para Aparecida de Goiânia"
+                >
+                  ArcGIS
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div ref={searchBoxWrapRef} className="relative">
+            <input
+              data-tour="map-search-input"
+              value={modalValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                setModalValue(v);
+                setSuggestOpen(true);
+                setSuggestActive(-1);
+                scheduleSuggest(v);
+              }}
+              onFocus={() => {
+                setSuggestOpen(true);
+                scheduleSuggest(modalValue);
+              }}
+              onKeyDown={(e) => {
+                if (!suggestOpen) {
+                  if (e.key === "ArrowDown" && suggestItems.length) {
+                    setSuggestOpen(true);
+                    setSuggestActive(0);
+                  }
+                  return;
+                }
+
+                if (e.key === "Escape") {
+                  setSuggestOpen(false);
+                  setSuggestActive(-1);
+                  return;
+                }
+
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSuggestActive((cur) =>
+                    Math.min((cur < 0 ? 0 : cur + 1), suggestItems.length - 1)
+                  );
+                }
+
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSuggestActive((cur) => Math.max((cur <= 0 ? 0 : cur - 1), 0));
+                }
+
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (suggestActive >= 0 && suggestItems[suggestActive]) {
+                    selectSuggestItem(suggestItems[suggestActive]);
+                  }
+                }
+              }}
+              placeholder="Buscar ou Lat/Lng..."
+              className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+
+            {suggestOpen && suggestItems.length > 0 && (
+              <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
+                {suggestItems.map((it, idx) => (
+                  <button
+                    key={`${it.id ?? idx}`}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestItem(it)}
+                    className={[
+                      "w-full px-3 py-2 text-left text-xs hover:bg-slate-50",
+                      idx === suggestActive ? "bg-slate-50" : "",
+                    ].join(" ")}
+                  >
+                    {it.address?.label || it.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => runHereSearch(modalValue)}
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+            >
+              Buscar
+            </button>
+          </div>
+
+          <div className="mt-2 rounded-lg border bg-white px-2.5 py-2 text-[10px] text-slate-700">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 truncate">
+                <span className="font-semibold">GPS:</span>{" "}
+                {pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "-"}
+                {pickedCep ? `  • CEP: ${pickedCep}` : ""}
+                {pickedQuadra ? `  • Quadra: ${pickedQuadra}` : ""}
+                {pickedLote ? `  • Lote: ${pickedLote}` : ""}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const txt = pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "";
+                  if (txt) navigator.clipboard?.writeText(txt);
+                }}
+                className="shrink-0 rounded-lg border bg-white px-2.5 py-1 text-[10px] hover:bg-slate-50"
+              >
+                Copiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOTÕES inferiores (se quiser manter como estava) */}
       <div className="hidden md:flex absolute left-2 right-2 md:left-auto md:right-4 bottom-2 md:bottom-4 z-30 flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -4023,13 +4219,13 @@ onContextMenu={(e) => {
           Confirmar
         </button>
       </div>
+      </div>
     </div>
-  </div>
-            </div>
-          </div>
-          )}
-        </div>   {/* fecha mx-auto max-w-6xl px-4 py-6 */}
-      </main>
+    </div>
+    </div>
+    )}
+        </div>
+        </main>
     );
     }
 export default function Page() {

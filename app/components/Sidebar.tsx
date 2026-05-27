@@ -205,12 +205,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <aside
         className={[
           "sidebar",
-          "fixed inset-y-0 left-0 z-50 flex min-h-screen w-[288px] flex-shrink-0 flex-col text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(88vw,320px)] flex-shrink-0 flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:h-screen md:translate-x-0",
           "bg-[radial-gradient(circle_at_top,rgba(73,164,161,0.16),transparent_24%),linear-gradient(180deg,#17313b_0%,#132932_52%,#0d1d24_100%)]",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         ].join(" ")}
       >
-        <div className="px-5 pt-4 md:hidden">
+        <div className="sticky top-0 z-10 bg-[linear-gradient(180deg,rgba(23,49,59,0.98)_0%,rgba(19,41,50,0.96)_100%)] px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2 md:hidden">
           <div className="flex justify-end">
             <button
               type="button"
@@ -222,7 +222,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
         </div>
 
-        <div className="px-5 pt-6">
+        <div className="px-5 pt-6 md:pt-6">
           <div className="rounded-[30px] border border-white/10 bg-white/[0.07] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur">
             <div className="flex items-center gap-3.5">
               <div className="flex h-13 w-13 items-center justify-center rounded-[22px] bg-[linear-gradient(145deg,#f7fffd_0%,#dff5ef_65%,#bfe6da_100%)] shadow-[0_16px_24px_rgba(9,26,31,0.18)]">
@@ -389,7 +389,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
         <div className="flex-1" />
 
-        <div className="px-5 pb-5 pt-5">
+        <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5">
           <div className="rounded-[28px] border border-white/8 bg-white/[0.05] p-4 backdrop-blur">
             <button
               type="button"
