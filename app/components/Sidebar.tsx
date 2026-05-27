@@ -183,14 +183,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     "group flex items-center justify-between rounded-[22px] px-4 py-3.5 text-white/88 transition-all duration-200";
   const leftSide = "flex items-center gap-3.5";
   const iconBox =
-    "flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/82 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-200 group-hover:border-white/18 group-hover:bg-white/12 group-hover:text-white";
+    "flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-200/10 bg-white/10 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_24px_rgba(0,0,0,0.14)] transition-all duration-200 group-hover:border-cyan-200/25 group-hover:bg-cyan-200/12 group-hover:text-white";
   const chevron = (
     <span className="text-sm text-white/38 transition group-hover:text-white/70">{">"}</span>
   );
 
   const activeRow =
-    "bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] ring-1 ring-white/14 shadow-[0_12px_30px_rgba(0,0,0,0.18)]";
-  const idleRow = "hover:bg-white/[0.06]";
+    "bg-[linear-gradient(135deg,rgba(45,212,191,0.22),rgba(255,255,255,0.09))] ring-1 ring-cyan-200/24 shadow-[0_18px_34px_rgba(20,184,166,0.16)]";
+  const idleRow = "hover:bg-white/[0.075] hover:shadow-[0_12px_26px_rgba(0,0,0,0.14)]";
 
   return (
     <>
@@ -206,11 +206,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         className={[
           "sidebar",
           "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(88vw,320px)] flex-shrink-0 flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:h-screen md:translate-x-0",
-          "bg-[radial-gradient(circle_at_top,rgba(73,164,161,0.16),transparent_24%),linear-gradient(180deg,#17313b_0%,#132932_52%,#0d1d24_100%)]",
+          "relative bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.24),transparent_26%),linear-gradient(180deg,#07161d_0%,#102a32_48%,#071217_100%)]",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         ].join(" ")}
       >
-        <div className="sticky top-0 z-10 bg-[linear-gradient(180deg,rgba(23,49,59,0.98)_0%,rgba(19,41,50,0.96)_100%)] px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2 md:hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[url('/rotta-sidebar-bg.png')] bg-cover bg-[50%_4%] opacity-[0.06]" />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(3,10,14,0.84)_0%,rgba(7,22,29,0.9)_42%,rgba(3,10,14,0.96)_100%)]" />
+
+        <div className="sticky top-0 z-20 bg-[linear-gradient(180deg,rgba(7,22,29,0.98)_0%,rgba(7,22,29,0.82)_100%)] px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2 backdrop-blur md:hidden">
           <div className="flex justify-end">
             <button
               type="button"
@@ -222,27 +225,29 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
         </div>
 
-        <div className="px-5 pt-6 md:pt-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.07] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur">
+        <div className="relative z-10 px-5 pt-6 md:pt-6">
+          <div className="rounded-[30px] border border-cyan-200/14 bg-white/[0.075] p-5 shadow-[0_22px_46px_rgba(0,0,0,0.28)] backdrop-blur-xl">
             <div className="flex items-center gap-3.5">
-              <div className="flex h-13 w-13 items-center justify-center rounded-[22px] bg-[linear-gradient(145deg,#f7fffd_0%,#dff5ef_65%,#bfe6da_100%)] shadow-[0_16px_24px_rgba(9,26,31,0.18)]">
-                <span className="bg-[linear-gradient(180deg,#17313b_0%,#1f5a6b_100%)] bg-clip-text text-2xl font-black leading-none text-transparent">
-                  R
-                </span>
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[24px] border border-cyan-100/40 bg-slate-950 shadow-[0_0_34px_rgba(45,212,191,0.28),0_18px_28px_rgba(0,0,0,0.24)]">
+                <img
+                  src="/rotta-logo.png"
+                  alt="Rotta"
+                  className="h-full w-full object-contain"
+                />
               </div>
 
               <div className="min-w-0 leading-tight">
                 <div className="text-[20px] font-black tracking-tight text-white">Rotta</div>
-                <div className="mt-1 text-[12px] font-medium text-white/62">
-                  Console Operacional
+                <div className="mt-1 text-[12px] font-medium text-cyan-100/72">
+                  Roteirização Inteligente
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 px-5">
-          <div className="rounded-[28px] border border-white/8 bg-white/[0.05] p-4 backdrop-blur">
+        <div className="relative z-10 mt-5 px-5">
+          <div className="rounded-[28px] border border-white/10 bg-black/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
             <div className="px-2 pb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
               Operação
             </div>
@@ -389,8 +394,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
         <div className="flex-1" />
 
-        <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5">
-          <div className="rounded-[28px] border border-white/8 bg-white/[0.05] p-4 backdrop-blur">
+        <div className="relative z-10 px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-5">
+          <div className="rounded-[28px] border border-white/10 bg-black/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
             <button
               type="button"
               className="group flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-white/86 transition hover:bg-white/[0.06]"
@@ -421,7 +426,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           </div>
 
           <div className="mt-3 px-2 text-[11px] text-white/42">
-            Rotta (c) 2026
+            Rotta © 2026
           </div>
         </div>
       </aside>

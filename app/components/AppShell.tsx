@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
+  const pathname = usePathname();
   const isAuthed = status === "authenticated";
+  const isLoginPage = pathname === "/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Ã¢Å“â€¦ Deslogado: sem menu, tela inteira
-  if (!isAuthed) {
+  if (!isAuthed || isLoginPage) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
         {children}

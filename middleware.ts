@@ -5,13 +5,15 @@ import { getToken } from "next-auth/jwt";
 const PUBLIC_PATHS = ["/login"];
 const ADMIN_PATHS = ["/admin"];
 const ADMIN_API_PREFIX = "/api/admin";
+const PUBLIC_FILE = /\.(png|jpg|jpeg|webp|svg|ico)$/i;
 
 function isPublicPath(pathname: string) {
   return (
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/api/auth") || // só NextAuth público
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
+    pathname === "/favicon.ico" ||
+    PUBLIC_FILE.test(pathname) ||
     pathname.startsWith("/images") ||
     pathname.startsWith("/public")
   );
