@@ -29,11 +29,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setIsSidebarOpen(false)}
       />
       <main className="app-page px-0 py-0 md:p-6 w-full">
-        <div className="md:hidden mb-3">
+        <div className="md:hidden mb-2 px-3 pt-[calc(env(safe-area-inset-top)+8px)]">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="ml-3 mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10"
           >
             <span>☰</span>
             <span>Menu</span>

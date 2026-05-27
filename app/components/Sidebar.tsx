@@ -196,7 +196,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     <>
       <div
         className={[
-          "fixed inset-0 z-40 bg-black/40 transition-opacity md:hidden",
+          "fixed inset-0 z-40 bg-slate-950/50 transition-opacity md:hidden",
           isOpen ? "opacity-100" : "pointer-events-none opacity-0",
         ].join(" ")}
         onClick={onClose}
@@ -205,8 +205,8 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       <aside
         className={[
           "sidebar",
-          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(88vw,320px)] flex-shrink-0 flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:h-screen md:translate-x-0",
-          "relative bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.24),transparent_26%),linear-gradient(180deg,#07161d_0%,#102a32_48%,#071217_100%)]",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] max-h-[100dvh] w-[min(86vw,360px)] flex-shrink-0 flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 md:relative md:sticky md:top-0 md:h-screen md:w-[320px] md:translate-x-0",
+          "bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.24),transparent_26%),linear-gradient(180deg,#07161d_0%,#102a32_48%,#071217_100%)]",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         ].join(" ")}
       >
