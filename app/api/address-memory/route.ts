@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
+import { authOptions } from "@/app/lib/auth";
 import {
   incrementDailyMetric,
   METRIC_MEMORY_CREATE_OK,
@@ -60,6 +62,13 @@ export async function POST(req: Request) {
   };
 
   try {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id as string | undefined;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = (await req.json()) as {
       address?: unknown;
       city?: unknown;
@@ -67,12 +76,11 @@ export async function POST(req: Request) {
       district?: unknown;
       lat?: unknown;
       lng?: unknown;
-      createdBy?: unknown;
     };
     payload = body;
     const address = typeof body.address === "string" ? body.address.trim() : "";
     const city = typeof body.city === "string" ? body.city.trim() : "";
-    const createdBy = typeof body.createdBy === "string" ? body.createdBy : null;
+    const createdBy = userId;
     const { lat, lng } = body;
 
     if (!address || typeof lat !== "number" || typeof lng !== "number") {
@@ -114,7 +122,7 @@ export async function POST(req: Request) {
           label: address,
           lat,
           lng,
-          createdBy: createdBy || null,
+          createdBy,
           hitCount: 1,
         },
       });
@@ -149,7 +157,7 @@ export async function POST(req: Request) {
         lat,
         lng,
         hitCount: { increment: 1 },
-        createdBy: createdBy || null,
+        createdBy,
       },
     });
     await incrementDailyMetric(METRIC_MEMORY_UPDATE_OK).catch(() => {});

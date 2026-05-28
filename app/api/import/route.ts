@@ -8,6 +8,7 @@ import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 
 export const runtime = "nodejs";
+const MAX_ROUTE_STOPS = 200;
 
 function pickFirst(row: any, keys: string[]) {
   for (const k of keys) {
@@ -103,6 +104,13 @@ export async function POST(req: Request) {
     const sheet = workbook.Sheets[sheetName];
 
     const rawRows = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
+
+    if (rawRows.length > MAX_ROUTE_STOPS) {
+      return NextResponse.json(
+        { error: "A planilha excede o limite máximo de 200 paradas." },
+        { status: 400 }
+      );
+    }
 
     const rows = rawRows.map((row: any) => {
       const sequence = String(

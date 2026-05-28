@@ -40,6 +40,7 @@ import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 const PROGRESS_BATCH_SIZE = 25;
+const MAX_ROUTE_STOPS = 200;
 
 type Normalized = {
   rua: string;
@@ -2181,6 +2182,13 @@ export async function POST(req: Request) {
     const debugMemory = body?.debugMemory === true;
     if (!rowsIn.length) {
       return NextResponse.json({ error: "Envie { rows: [...] }" }, { status: 400 });
+    }
+
+    if (rowsIn.length > MAX_ROUTE_STOPS) {
+      return NextResponse.json(
+        { error: "A planilha excede o limite máximo de 200 paradas." },
+        { status: 400 }
+      );
     }
 
     jobId = String(body?.jobId || "").trim();

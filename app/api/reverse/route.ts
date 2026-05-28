@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/auth";
 
 export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as any)?.id as string | undefined;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const lat = searchParams.get("lat");
     const lng = searchParams.get("lng");
@@ -12,7 +21,10 @@ export async function GET(req: Request) {
 
     const apiKey = process.env.HERE_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "HERE_API_KEY não configurada no .env.local" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Serviço de geocodificação indisponível." },
+        { status: 500 }
+      );
     }
 
     const url =
@@ -40,6 +52,7 @@ export async function GET(req: Request) {
       position: item?.position || null,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: "Falha no reverse", details: String(e) }, { status: 500 });
+    console.error("Erro /api/reverse:", e);
+    return NextResponse.json({ error: "Falha ao consultar endereço." }, { status: 500 });
   }
 }
