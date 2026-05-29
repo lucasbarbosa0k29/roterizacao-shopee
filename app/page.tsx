@@ -29,7 +29,12 @@ const GoianiaArcgisMap = dynamic(
   { ssr: false }
 );
 
-type ManualMapProvider = "here" | "arcgis";
+const GoogleValidationMap = dynamic(
+  () => import("./components/GoogleValidationMap"),
+  { ssr: false }
+);
+
+type ManualMapProvider = "here" | "arcgis" | "google";
 type ArcgisCityKey = "aparecida" | "goiania";
 
 type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "REVISAO";
@@ -108,6 +113,13 @@ type HereSuggestItem = {
   };
   position?: { lat: number; lng: number };
   distance?: number;
+};
+
+type GoogleSearchResult = {
+  id: string;
+  name: string;
+  address: string;
+  pos: { lat: number; lng: number };
 };
 
 type AccessSnapshot = {
@@ -673,6 +685,11 @@ if (rows.length > 0 && jobProgress?.status === "DONE") return;
   const [pickedQuadra, setPickedQuadra] = useState("");
   const [pickedLote, setPickedLote] = useState("");
   const [isMobileMapSearchOpen, setIsMobileMapSearchOpen] = useState(false);
+  const [googleSearchQuery, setGoogleSearchQuery] = useState("");
+  const [googleSearchRequestId, setGoogleSearchRequestId] = useState(0);
+  const [googleSearchLoading, setGoogleSearchLoading] = useState(false);
+  const [googleSearchMessage, setGoogleSearchMessage] = useState("");
+  const [googleSearchResults, setGoogleSearchResults] = useState<GoogleSearchResult[]>([]);
 
   const [pinLatLng, setPinLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [manualMapProvider, setManualMapProvider] = useState<ManualMapProvider>("here");
@@ -754,16 +771,28 @@ useEffect(() => {
 
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
   const arcgisCityKey = getArcgisCityKey(modalCity);
-  const canShowArcgisOption = isModalOpen && !!arcgisCityKey;
   const forceArcgisOnly = isModalOpen && isAparecidaCity(modalCity);
-  const showProviderToggle = canShowArcgisOption && !forceArcgisOnly;
+  const showProviderToggle = isModalOpen;
   const arcgisAvailable =
     isModalOpen &&
     !!arcgisCityKey &&
     (arcgisCityKey === "aparecida" || arcgisCityKey === "goiania");
 
   const activeMapProvider: ManualMapProvider =
-    manualMapProvider === "arcgis" && arcgisAvailable ? "arcgis" : "here";
+    manualMapProvider === "google"
+      ? "google"
+      : manualMapProvider === "arcgis" && arcgisAvailable
+        ? "arcgis"
+        : forceArcgisOnly
+          ? "arcgis"
+          : "here";
+
+  useEffect(() => {
+    if (activeMapProvider === "google") return;
+    setGoogleSearchResults([]);
+    setGoogleSearchMessage("");
+    setGoogleSearchLoading(false);
+  }, [activeMapProvider]);
 
   // ===== AUTOSUGGEST (dropdown estilo Waze) =====
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -1587,6 +1616,10 @@ function clearReview(groupId: string) {
     setSuggestOpen(false);
     setSuggestItems([]);
     setSuggestActive(-1);
+    setGoogleSearchMessage("");
+    setGoogleSearchQuery("");
+    setGoogleSearchResults([]);
+    setGoogleSearchLoading(false);
 
     setIsModalOpen(true);
   }
@@ -1598,6 +1631,10 @@ function clearReview(groupId: string) {
     setSuggestItems([]);
     setSuggestActive(-1);
     setIsMobileMapSearchOpen(false);
+    setGoogleSearchMessage("");
+    setGoogleSearchQuery("");
+    setGoogleSearchResults([]);
+    setGoogleSearchLoading(false);
   }
 
   async function applyConfirmedCoordToIdxs(args: {
@@ -2169,6 +2206,27 @@ if (!hasPickedLabel && !sameCoordAsRow) {
   runHereSearch(label);
 }
     // ===== cria mapa 1 vez =====
+    function runGoogleManualSearch() {
+      setSuggestOpen(false);
+      setSuggestItems([]);
+      setSuggestActive(-1);
+      setGoogleSearchMessage("");
+      setGoogleSearchResults([]);
+      setGoogleSearchQuery(modalValue);
+      setGoogleSearchRequestId((cur) => cur + 1);
+    }
+
+    function handleGoogleSearchResults(results: GoogleSearchResult[]) {
+      setGoogleSearchResults(results);
+    }
+
+    function selectGoogleSearchResult(result: GoogleSearchResult) {
+      setPinLatLng(result.pos);
+      setPickedLabel("");
+      setGoogleSearchResults([]);
+      setGoogleSearchMessage("");
+    }
+
     useEffect(() => {
       if (!isModalOpen || activeMapProvider !== "here" || !mapRef.current) return;
 
@@ -3813,6 +3871,22 @@ onContextMenu={(e) => {
               setPickedLabel("");
             }}
           />
+        ) : activeMapProvider === "google" ? (
+          <GoogleValidationMap
+            center={pinLatLng}
+            searchText={googleSearchQuery}
+            searchRequestId={googleSearchRequestId}
+            queryContext={modalOriginal}
+            city={String(modalCity || "")}
+            district={modalIdx !== null ? String(rows?.[modalIdx]?.bairro || "") : ""}
+            onSearchLoading={setGoogleSearchLoading}
+            onSearchMessage={setGoogleSearchMessage}
+            onSearchResults={handleGoogleSearchResults}
+            onPick={({ lat, lng }) => {
+              setPinLatLng({ lat, lng });
+              setPickedLabel("");
+            }}
+          />
         ) : (
           <div ref={mapRef} className="w-full h-full bg-white" />
         )}
@@ -3832,58 +3906,48 @@ onContextMenu={(e) => {
               </div>
 
               <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                {!forceArcgisOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setManualMapProvider("here")}
+                    className={[
+                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
+                      activeMapProvider === "here"
+                        ? "bg-white text-emerald-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                  >
+                    HERE
+                  </button>
+                )}
+
+                {arcgisAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => setManualMapProvider("arcgis")}
+                    title="Usar mapa ArcGIS"
+                    className={[
+                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
+                      activeMapProvider === "arcgis"
+                        ? "bg-white text-emerald-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                  >
+                    ArcGIS
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => setManualMapProvider("here")}
+                  onClick={() => setManualMapProvider("google")}
                   className={[
                     "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
-                    activeMapProvider === "here"
+                    activeMapProvider === "google"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-slate-600 hover:text-slate-900",
                   ].join(" ")}
                 >
-                  HERE
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (arcgisAvailable) setManualMapProvider("arcgis");
-                  }}
-                  disabled={!arcgisAvailable}
-                  title={
-                    arcgisAvailable
-                      ? "Usar mapa ArcGIS"
-                      : "ArcGIS ainda não disponível para esta cidade"
-                  }
-                  className={[
-                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
-                    activeMapProvider === "arcgis"
-                      ? "bg-white text-emerald-700 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900",
-                    !arcgisAvailable ? "cursor-not-allowed opacity-50" : "",
-                  ].join(" ")}
-                >
-                  ArcGIS
-                </button>
-              </div>
-            </div>
-          )}
-
-          {forceArcgisOnly && (
-            <div className="mb-2 flex items-center justify-between gap-2 md:mb-3">
-              <div className="text-[10px] font-semibold text-slate-500 md:text-[11px]">
-                MAPA
-              </div>
-
-              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
-                <button
-                  type="button"
-                  className="rounded-md bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm md:text-xs"
-                  disabled
-                  title="ArcGIS obrigatório para Aparecida de Goiânia"
-                >
-                  ArcGIS
+                  Google
                 </button>
               </div>
             </div>
@@ -3896,15 +3960,26 @@ onContextMenu={(e) => {
               onChange={(e) => {
                 const v = e.target.value;
                 setModalValue(v);
+                if (activeMapProvider === "google") {
+                  setGoogleSearchMessage("");
+                  setGoogleSearchResults([]);
+                  return;
+                }
                 setSuggestOpen(true);
                 setSuggestActive(-1);
                 scheduleSuggest(v);
               }}
               onFocus={() => {
+                if (activeMapProvider === "google") return;
                 setSuggestOpen(true);
                 scheduleSuggest(modalValue);
               }}
               onKeyDown={(e) => {
+                if (activeMapProvider === "google" && e.key === "Enter") {
+                  e.preventDefault();
+                  runGoogleManualSearch();
+                  return;
+                }
                 if (!suggestOpen) {
                   if (e.key === "ArrowDown" && suggestItems.length) {
                     setSuggestOpen(true);
@@ -3942,7 +4017,7 @@ onContextMenu={(e) => {
               className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-200 md:rounded-xl md:text-sm"
             />
 
-            {suggestOpen && suggestItems.length > 0 && (
+            {activeMapProvider !== "google" && suggestOpen && suggestItems.length > 0 && (
               <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-white shadow-lg md:mt-2 md:rounded-xl">
                 {suggestItems.map((it, idx) => (
                   <button
@@ -3962,13 +4037,23 @@ onContextMenu={(e) => {
             )}
           </div>
 
+          {activeMapProvider === "google" && googleSearchMessage && (
+            <div className="mt-2 text-xs font-medium text-slate-600">
+              {googleSearchMessage}
+            </div>
+          )}
+
           <div className="mt-2 flex flex-col gap-2 md:mt-3 sm:flex-row sm:items-center">
             <button
               type="button"
-              onClick={() => runHereSearch(modalValue)}
-              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 md:rounded-xl md:text-sm"
+              onClick={() => {
+                if (activeMapProvider === "google") runGoogleManualSearch();
+                else runHereSearch(modalValue);
+              }}
+              disabled={activeMapProvider === "google" && googleSearchLoading}
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 md:rounded-xl md:text-sm"
             >
-              Buscar
+              {activeMapProvider === "google" && googleSearchLoading ? "Buscando" : "Buscar"}
             </button>
 
             <button
@@ -3981,6 +4066,28 @@ onContextMenu={(e) => {
               CONFIRMAR <span>✓</span>
             </button>
           </div>
+
+          {activeMapProvider === "google" && googleSearchResults.length > 0 && (
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+              {googleSearchResults.map((result, idx) => (
+                <button
+                  key={`${result.id}-${idx}`}
+                  type="button"
+                  onClick={() => selectGoogleSearchResult(result)}
+                  className="block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                >
+                  <div className="text-xs font-semibold text-slate-900 md:text-sm">
+                    {idx + 1}. {result.name}
+                  </div>
+                  {result.address && (
+                    <div className="mt-0.5 line-clamp-2 text-[11px] font-medium text-slate-500 md:text-xs">
+                      {result.address}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border bg-white px-2.5 py-2 text-[10px] text-slate-700 md:mt-3 md:rounded-xl md:px-3 md:text-xs">
             <div className="truncate">
@@ -4038,56 +4145,48 @@ onContextMenu={(e) => {
               <div className="text-[10px] font-semibold text-slate-500">MAPA</div>
 
               <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+                {!forceArcgisOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setManualMapProvider("here")}
+                    className={[
+                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                      activeMapProvider === "here"
+                        ? "bg-white text-emerald-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                  >
+                    HERE
+                  </button>
+                )}
+
+                {arcgisAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => setManualMapProvider("arcgis")}
+                    title="Usar mapa ArcGIS"
+                    className={[
+                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                      activeMapProvider === "arcgis"
+                        ? "bg-white text-emerald-700 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900",
+                    ].join(" ")}
+                  >
+                    ArcGIS
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => setManualMapProvider("here")}
+                  onClick={() => setManualMapProvider("google")}
                   className={[
                     "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
-                    activeMapProvider === "here"
+                    activeMapProvider === "google"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-slate-600 hover:text-slate-900",
                   ].join(" ")}
                 >
-                  HERE
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (arcgisAvailable) setManualMapProvider("arcgis");
-                  }}
-                  disabled={!arcgisAvailable}
-                  title={
-                    arcgisAvailable
-                      ? "Usar mapa ArcGIS"
-                      : "ArcGIS ainda não disponível para esta cidade"
-                  }
-                  className={[
-                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
-                    activeMapProvider === "arcgis"
-                      ? "bg-white text-emerald-700 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900",
-                    !arcgisAvailable ? "cursor-not-allowed opacity-50" : "",
-                  ].join(" ")}
-                >
-                  ArcGIS
-                </button>
-              </div>
-            </div>
-          )}
-
-          {forceArcgisOnly && (
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-[10px] font-semibold text-slate-500">MAPA</div>
-
-              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
-                <button
-                  type="button"
-                  className="rounded-md bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm"
-                  disabled
-                  title="ArcGIS obrigatório para Aparecida de Goiânia"
-                >
-                  ArcGIS
+                  Google
                 </button>
               </div>
             </div>
@@ -4100,15 +4199,26 @@ onContextMenu={(e) => {
               onChange={(e) => {
                 const v = e.target.value;
                 setModalValue(v);
+                if (activeMapProvider === "google") {
+                  setGoogleSearchMessage("");
+                  setGoogleSearchResults([]);
+                  return;
+                }
                 setSuggestOpen(true);
                 setSuggestActive(-1);
                 scheduleSuggest(v);
               }}
               onFocus={() => {
+                if (activeMapProvider === "google") return;
                 setSuggestOpen(true);
                 scheduleSuggest(modalValue);
               }}
               onKeyDown={(e) => {
+                if (activeMapProvider === "google" && e.key === "Enter") {
+                  e.preventDefault();
+                  runGoogleManualSearch();
+                  return;
+                }
                 if (!suggestOpen) {
                   if (e.key === "ArrowDown" && suggestItems.length) {
                     setSuggestOpen(true);
@@ -4146,7 +4256,7 @@ onContextMenu={(e) => {
               className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-200"
             />
 
-            {suggestOpen && suggestItems.length > 0 && (
+            {activeMapProvider !== "google" && suggestOpen && suggestItems.length > 0 && (
               <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
                 {suggestItems.map((it, idx) => (
                   <button
@@ -4166,15 +4276,47 @@ onContextMenu={(e) => {
             )}
           </div>
 
+          {activeMapProvider === "google" && googleSearchMessage && (
+            <div className="mt-2 text-xs font-medium text-slate-600">
+              {googleSearchMessage}
+            </div>
+          )}
+
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => runHereSearch(modalValue)}
-              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              onClick={() => {
+                if (activeMapProvider === "google") runGoogleManualSearch();
+                else runHereSearch(modalValue);
+              }}
+              disabled={activeMapProvider === "google" && googleSearchLoading}
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Buscar
+              {activeMapProvider === "google" && googleSearchLoading ? "Buscando" : "Buscar"}
             </button>
           </div>
+
+          {activeMapProvider === "google" && googleSearchResults.length > 0 && (
+            <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+              {googleSearchResults.map((result, idx) => (
+                <button
+                  key={`${result.id}-${idx}`}
+                  type="button"
+                  onClick={() => selectGoogleSearchResult(result)}
+                  className="block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                >
+                  <div className="text-xs font-semibold text-slate-900">
+                    {idx + 1}. {result.name}
+                  </div>
+                  {result.address && (
+                    <div className="mt-0.5 line-clamp-2 text-[11px] font-medium text-slate-500">
+                      {result.address}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-2 rounded-lg border bg-white px-2.5 py-2 text-[10px] text-slate-700">
             <div className="flex items-start justify-between gap-2">
