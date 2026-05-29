@@ -2203,7 +2203,7 @@ export async function POST(req: Request) {
     if (jobId) {
       const job = await prisma.importJob.findUnique({
         where: { id: jobId },
-        select: { id: true, userId: true },
+        select: { id: true, userId: true, status: true },
       });
 
       if (!job) {
@@ -2214,22 +2214,31 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
+      if (job.status === "PROCESSING") {
+        return NextResponse.json(
+          { error: "Este processamento já está em andamento." },
+          { status: 409 }
+        );
+      }
+
+      if (job.status === "DONE") {
+        return NextResponse.json(
+          { error: "Este processamento já foi concluído." },
+          { status: 409 }
+        );
+      }
+
       await consumeRouteAllowance({
         userId,
         jobId: job.id,
         role,
       });
-    }
 
-    // ✅ Se não vier jobId, avisa no console (isso explica admin não atualizar)
-    if (!jobId) {
-      console.warn("⚠️ /api/process chamado SEM jobId — progresso não será salvo no banco.");
-    }
-
-    // ✅ Se veio jobId, marca PROCESSING e zera progresso
-    if (jobId) {
-      await prisma.importJob.update({
-        where: { id: jobId },
+      const started = await prisma.importJob.updateMany({
+        where: {
+          id: job.id,
+          status: { in: ["PENDING", "FAILED"] },
+        },
         data: {
           status: "PROCESSING",
           startedAt: new Date(),
@@ -2240,6 +2249,37 @@ export async function POST(req: Request) {
           errorStack: null,
         },
       });
+
+      if (!started.count) {
+        const currentJob = await prisma.importJob.findUnique({
+          where: { id: job.id },
+          select: { status: true },
+        });
+
+        if (currentJob?.status === "PROCESSING") {
+          return NextResponse.json(
+            { error: "Este processamento já está em andamento." },
+            { status: 409 }
+          );
+        }
+
+        if (currentJob?.status === "DONE") {
+          return NextResponse.json(
+            { error: "Este processamento já foi concluído." },
+            { status: 409 }
+          );
+        }
+
+        return NextResponse.json(
+          { error: "Este processamento não pode ser iniciado agora." },
+          { status: 409 }
+        );
+      }
+    }
+
+    // ✅ Se não vier jobId, avisa no console (isso explica admin não atualizar)
+    if (!jobId) {
+      console.warn("⚠️ /api/process chamado SEM jobId — progresso não será salvo no banco.");
     }
 
     const baseOrigin = new URL(req.url).origin;
