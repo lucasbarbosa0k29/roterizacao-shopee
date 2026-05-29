@@ -35,6 +35,7 @@ const GoogleValidationMap = dynamic(
 );
 
 type ManualMapProvider = "here" | "arcgis" | "google";
+type PrimaryManualMapProvider = "here" | "arcgis";
 type ArcgisCityKey = "aparecida" | "goiania";
 
 type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "REVISAO";
@@ -693,6 +694,8 @@ if (rows.length > 0 && jobProgress?.status === "DONE") return;
 
   const [pinLatLng, setPinLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [manualMapProvider, setManualMapProvider] = useState<ManualMapProvider>("here");
+  const [lastPrimaryManualMapProvider, setLastPrimaryManualMapProvider] =
+    useState<PrimaryManualMapProvider>("here");
 // 🔒 evita hydration mismatch
 const [mounted, setMounted] = useState(false);
 
@@ -767,6 +770,13 @@ useEffect(() => {
     if (s.includes("APARECIDA")) return "aparecida";
     if (s.includes("GOIANIA")) return "goiania";
     return null;
+  }
+
+  function getInitialManualMapProvider(city: any): ManualMapProvider {
+    const cityKey = getArcgisCityKey(city);
+    if (isAparecidaCity(city)) return "arcgis";
+    if (lastPrimaryManualMapProvider === "arcgis" && cityKey) return "arcgis";
+    return "here";
   }
 
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
@@ -891,7 +901,7 @@ useEffect(() => {
 
   function getStatusBadgeClass(status: Status) {
     if (status === "CONFIRMADO" || status === "OK") {
-      return "border border-emerald-200 bg-emerald-50 text-emerald-800";
+      return "border border-emerald-300 bg-emerald-100 text-emerald-950";
     }
     if (status === "PARCIAL") {
       return "border border-amber-200 bg-amber-50 text-amber-800";
@@ -1601,7 +1611,7 @@ function clearReview(groupId: string) {
     setPickedCep("");
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
-    setManualMapProvider(isAparecidaCity(rows[idx]?.city) ? "arcgis" : "here");
+    setManualMapProvider(getInitialManualMapProvider(rows[idx]?.city));
     setIsMobileMapSearchOpen(false);
 
     const manual = manualEdits[idx];
@@ -3181,11 +3191,11 @@ setTimeout(() => map.getViewPort().resize(), 800);
     `border-b border-slate-100 transition-all duration-150
      ${hasReview ? "text-red-700" : ""}
      ${
-       groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
-         ? "bg-slate-200/80 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.35)]"
-         : g.idxs.some((i) => manualEdits[i]?.confirmed)
-         ? "bg-emerald-50/80 hover:bg-emerald-100/80"
-         : "odd:bg-white even:bg-slate-50/55 hover:bg-[#f2f7f7]"
+        groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
+          ? "bg-slate-200/80 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.35)]"
+          : g.idxs.some((i) => manualEdits[i]?.confirmed)
+          ? "bg-emerald-100/90 shadow-[inset_3px_0_0_rgba(16,185,129,0.8)] hover:bg-emerald-200/70"
+          : "odd:bg-white even:bg-slate-50/55 hover:bg-[#f2f7f7]"
      }`
   }
 onClick={() => {
@@ -3909,7 +3919,10 @@ onContextMenu={(e) => {
                 {!forceArcgisOnly && (
                   <button
                     type="button"
-                    onClick={() => setManualMapProvider("here")}
+                    onClick={() => {
+                      setManualMapProvider("here");
+                      setLastPrimaryManualMapProvider("here");
+                    }}
                     className={[
                       "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
                       activeMapProvider === "here"
@@ -3924,7 +3937,10 @@ onContextMenu={(e) => {
                 {arcgisAvailable && (
                   <button
                     type="button"
-                    onClick={() => setManualMapProvider("arcgis")}
+                    onClick={() => {
+                      setManualMapProvider("arcgis");
+                      setLastPrimaryManualMapProvider("arcgis");
+                    }}
                     title="Usar mapa ArcGIS"
                     className={[
                       "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors md:text-xs",
@@ -4148,7 +4164,10 @@ onContextMenu={(e) => {
                 {!forceArcgisOnly && (
                   <button
                     type="button"
-                    onClick={() => setManualMapProvider("here")}
+                    onClick={() => {
+                      setManualMapProvider("here");
+                      setLastPrimaryManualMapProvider("here");
+                    }}
                     className={[
                       "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
                       activeMapProvider === "here"
@@ -4163,7 +4182,10 @@ onContextMenu={(e) => {
                 {arcgisAvailable && (
                   <button
                     type="button"
-                    onClick={() => setManualMapProvider("arcgis")}
+                    onClick={() => {
+                      setManualMapProvider("arcgis");
+                      setLastPrimaryManualMapProvider("arcgis");
+                    }}
                     title="Usar mapa ArcGIS"
                     className={[
                       "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
