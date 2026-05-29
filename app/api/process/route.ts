@@ -335,6 +335,8 @@ function auditAutoSaveMemory(params: {
   geocodeConfidenceFlags: string[];
   approxOperationalRisk: ApproxOperationalRisk | null;
   approxMemoryStrength: ApproxMemoryStrength | null;
+  usedApproxMemory: boolean;
+  approxMemoryUsedAsFinal: boolean;
   city: string;
 }) {
   const blockedReasons: string[] = [];
@@ -387,11 +389,18 @@ function auditAutoSaveMemory(params: {
     pushReason("APPROX_RISK_BAD");
     pushStructural("APPROX_RISK_BAD");
   }
-  if (params.approxOperationalRisk === "RISKY" && isAparecidaCity(params.city)) {
+  if (params.approxOperationalRisk === "RISKY") {
     pushReason("APPROX_RISK_RISKY");
     pushStructural("APPROX_RISK_RISKY");
   }
+  if (params.usedApproxMemory || params.approxMemoryUsedAsFinal) {
+    pushReason("MEMORY_APPROX_AUTO_SAVE_BLOCKED");
+    pushStructural("MEMORY_APPROX_AUTO_SAVE_BLOCKED");
+  }
 
+  if (params.geocodeConfidenceLevel !== "HIGH") {
+    pushStructural("CONFIDENCE_NOT_HIGH");
+  }
   if (params.geocodeConfidenceLevel === "LOW") {
     pushReason("CONFIDENCE_LOW");
   } else if (params.geocodeConfidenceLevel === "MEDIUM") {
@@ -412,12 +421,16 @@ function auditAutoSaveMemory(params: {
     params.geocodeConfidenceFlags.includes("BAIRRO_MISMATCH") ||
     params.geocodeConfidenceFlags.includes("QL_CONFLICT") ||
     params.approxOperationalRisk === "BAD" ||
-    params.approxOperationalRisk === "RISKY";
+    params.approxOperationalRisk === "RISKY" ||
+    params.usedApproxMemory ||
+    params.approxMemoryUsedAsFinal;
 
   const futureWouldAllow =
+    params.currentBehaviorWouldSave &&
     params.status === "OK" &&
     params.lat != null &&
     params.lng != null &&
+    params.geocodeConfidenceLevel === "HIGH" &&
     !hasRiskFlags &&
     true;
 
@@ -1977,10 +1990,20 @@ const autoSaveAudit = auditAutoSaveMemory({
   geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
   approxOperationalRisk,
   approxMemoryStrength,
+  usedApproxMemory: !!approxMemoryHit,
+  approxMemoryUsedAsFinal,
   city: cityForDecision,
 });
 
-if (autoSaveCurrentBehaviorWouldSave) {
+const shouldAutoSaveAddressMemory =
+  autoSaveCurrentBehaviorWouldSave &&
+  autoSaveAudit.autoSaveWouldAllow &&
+  !approxMemoryHit &&
+  !approxMemoryUsedAsFinal &&
+  geocodeConfidenceDiag.level === "HIGH" &&
+  geocodeConfidenceDiag.hardMismatch !== true;
+
+if (shouldAutoSaveAddressMemory) {
   const saveLat = lat as number;
   const saveLng = lng as number;
   try {
