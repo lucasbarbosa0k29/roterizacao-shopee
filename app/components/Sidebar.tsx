@@ -12,6 +12,8 @@ type SidebarProps = {
 };
 
 type AccessSnapshot = {
+  isAdmin?: boolean;
+  activeSubscription?: unknown | null;
   canStartRoute: boolean;
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
@@ -108,7 +110,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     () => (session?.user as any)?.role === "ADMIN",
     [session]
   );
-  const canUseTool = isAdmin || (!accessLoading && access?.canStartRoute === true);
+  const canStartNewRoute = isAdmin || (!accessLoading && access?.canStartRoute === true);
+  const hasActivePlan = !!access?.activeSubscription;
+  const hasHistoryJob = historyCount > 0;
+  const canUseExistingSystem =
+    isAdmin ||
+    (!accessLoading &&
+      access?.code !== "ACCESS_BLOCKED" &&
+      (hasActivePlan || access?.canStartRoute === true || hasHistoryJob));
 
   useEffect(() => {
     if (!isAuthed) {
@@ -149,19 +158,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   }, [isAuthed]);
 
   useEffect(() => {
-    if (!isAuthed) {
-      setHistoryCount(0);
-      return;
-    }
-
-    if (!canUseTool) {
+    if (!isAuthed || accessLoading || access?.code === "ACCESS_BLOCKED") {
       setHistoryCount(0);
       return;
     }
 
     let alive = true;
 
-    (async () => {
+    const refreshHistoryCount = async () => {
       try {
         const items = await listHistoryDb();
         if (!alive) return;
@@ -170,12 +174,16 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         if (!alive) return;
         setHistoryCount(0);
       }
-    })();
+    };
+
+    refreshHistoryCount();
+    window.addEventListener("history-db-changed", refreshHistoryCount);
 
     return () => {
       alive = false;
+      window.removeEventListener("history-db-changed", refreshHistoryCount);
     };
-  }, [pathname, isAuthed, canUseTool]);
+  }, [pathname, isAuthed, accessLoading, access?.code]);
 
   if (!isAuthed) return null;
 
@@ -253,7 +261,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </div>
 
             <nav className="flex flex-col gap-1.5">
-              {canUseTool && (
+              {canStartNewRoute && (
                 <Link
                   href="/"
                   onClick={onClose}
@@ -275,7 +283,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 </Link>
               )}
 
-              {canUseTool && (
+              {canUseExistingSystem && (
                 <Link
                   href="/historico"
                   onClick={onClose}
@@ -303,7 +311,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 </Link>
               )}
 
-              {canUseTool && (
+              {canUseExistingSystem && (
                 <Link
                   href="/tutorial"
                   onClick={onClose}
@@ -339,7 +347,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   </div>
                   <div className="leading-tight">
                     <div className="text-[15px] font-semibold text-white">
-                      {accessLoading ? "Conta" : canUseTool ? "Minha Assinatura" : "Planos"}
+                      {accessLoading ? "Conta" : canStartNewRoute ? "Minha Assinatura" : "Planos"}
                     </div>
                     <div className="mt-1 text-[12px] text-white/48">Conta e Acesso Comercial</div>
                   </div>

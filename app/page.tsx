@@ -4,7 +4,7 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { updateHistoryDb } from "./lib/history-db";
+import { listHistoryDb, updateHistoryDb } from "./lib/history-db";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -362,6 +362,7 @@ function HomeInner() {
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [hasHistoryJob, setHasHistoryJob] = useState<boolean | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RowItem[]>([]);
@@ -381,6 +382,11 @@ function HomeInner() {
   const [notesDraft, setNotesDraft] = useState("");
 const searchParams = useSearchParams();
 const jobId = searchParams.get("job");
+const hasActivePlan = !!access?.activeSubscription;
+const canUseExistingSystem =
+  !!access &&
+  access.code !== "ACCESS_BLOCKED" &&
+  (access.isAdmin || hasActivePlan || access.canStartRoute || hasHistoryJob === true);
 useEffect(() => {
   let alive = true;
 
@@ -414,6 +420,37 @@ useEffect(() => {
     alive = false;
   };
 }, []);
+useEffect(() => {
+  if (accessLoading || accessError || !access) return;
+
+  if (
+    access.isAdmin ||
+    access.canStartRoute ||
+    access.code === "ACCESS_BLOCKED" ||
+    access.activeSubscription
+  ) {
+    setHasHistoryJob(false);
+    return;
+  }
+
+  let alive = true;
+  setHasHistoryJob(null);
+
+  (async () => {
+    try {
+      const items = await listHistoryDb();
+      if (!alive) return;
+      setHasHistoryJob(Array.isArray(items) && items.length > 0);
+    } catch {
+      if (!alive) return;
+      setHasHistoryJob(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [access, accessError, accessLoading]);
 useEffect(() => {
   /*
 
@@ -590,10 +627,10 @@ setHistoryId(job.id);
         console.error(e);
         setLoading(false);
         setJobProgress(null);
-        alert("Erro ao abrir histórico.");
+        router.replace("/planos");
       }
     })();
-  }, [jobId]);
+  }, [jobId, router]);
 
 
 useEffect(() => {
@@ -1256,6 +1293,10 @@ useEffect(() => {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return alert("Selecione uma planilha");
+    if (access && !access.canStartRoute) {
+      router.replace("/planos");
+      return;
+    }
 
     setLoading(true);
     setManualEdits({});
@@ -2700,15 +2741,24 @@ setTimeout(() => map.getViewPort().resize(), 800);
 }, [isModalOpen, tutorialExportFinalRequestedAt]);
 
   useEffect(() => {
-    if (!mounted || accessLoading || accessError) return;
-    if (access && !access.canStartRoute) {
+    if (!mounted || accessLoading || accessError || jobId) return;
+    if (access && !canUseExistingSystem && hasHistoryJob !== null) {
       router.replace("/planos");
     }
-  }, [access, accessError, accessLoading, mounted, router]);
+  }, [
+    access,
+    accessError,
+    accessLoading,
+    canUseExistingSystem,
+    hasHistoryJob,
+    jobId,
+    mounted,
+    router,
+  ]);
 
     // ===== UI =====
     if (!mounted) return null;
-    if (accessLoading) {
+    if (accessLoading || (access && !canUseExistingSystem && hasHistoryJob === null && !jobId)) {
       return (
         <main className="min-h-screen bg-slate-100">
           <div className="mx-auto max-w-5xl px-4 py-8">
@@ -2732,7 +2782,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
       );
     }
 
-    if (access && !access.canStartRoute) {
+    if (access && !canUseExistingSystem && !jobId) {
       return (
         <main className="min-h-screen bg-slate-100">
           <div className="mx-auto max-w-5xl px-4 py-8">
@@ -2743,6 +2793,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
         </main>
       );
     }
+
     return (
       <main className="min-h-screen bg-transparent">
         <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">

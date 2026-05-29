@@ -11,16 +11,46 @@ import {
 
 type HistoryItem = DbHistoryListItem;
 
+type AccessSnapshot = {
+  isAdmin: boolean;
+  activeSubscription: unknown | null;
+  canStartRoute: boolean;
+  code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
+};
+
 export default function HistoricoPage() {
   const router = useRouter();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  async function loadAccess() {
+    const res = await fetch("/api/access/me", {
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Cache-Control": "no-store" },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Erro ao carregar acesso.");
+    return data as AccessSnapshot;
+  }
+
+  function canUseExistingSystem(access: AccessSnapshot, count: number) {
+    return (
+      access.isAdmin ||
+      (!!access.activeSubscription && access.code !== "ACCESS_BLOCKED") ||
+      access.canStartRoute ||
+      (access.code !== "ACCESS_BLOCKED" && count > 0)
+    );
+  }
+
   async function refresh() {
     try {
       setLoading(true);
-      const data = await listHistoryDb();
+      const [access, data] = await Promise.all([loadAccess(), listHistoryDb()]);
       setItems(data);
+      if (!canUseExistingSystem(access, data.length)) {
+        router.replace("/planos");
+      }
     } catch (e: any) {
       alert(e?.message || "Erro ao carregar histórico.");
       setItems([]);
@@ -62,6 +92,7 @@ export default function HistoricoPage() {
               if (!ok) return;
               try {
                 await clearHistoryDb();
+                window.dispatchEvent(new Event("history-db-changed"));
                 await refresh();
               } catch (e: any) {
                 alert(e?.message || "Erro ao limpar.");
@@ -111,6 +142,7 @@ export default function HistoricoPage() {
                       if (!ok) return;
                       try {
                         await deleteHistoryDb(it.id);
+                        window.dispatchEvent(new Event("history-db-changed"));
                         await refresh();
                       } catch (e: any) {
                         alert(e?.message || "Erro ao apagar.");
