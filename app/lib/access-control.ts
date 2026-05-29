@@ -31,6 +31,10 @@ export type UserAccessSnapshot = {
   };
   todayRouteUsage: number;
   planRouteUsageToday: number;
+  subscriptionCycleAllowance: number;
+  subscriptionCycleUsed: number;
+  subscriptionCycleRemaining: number;
+  subscriptionCycleAccrued: number;
   routeCreditsBalance: number;
   canStartRoute: boolean;
   allowanceSource: AllowanceSource;
@@ -72,6 +76,10 @@ function getSaoPauloDayKey(date = new Date()) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+function getSaoPauloDayIndex(date: Date) {
+  return Math.floor(Date.parse(`${getSaoPauloDayKey(date)}T00:00:00.000Z`) / 86_400_000);
 }
 
 function isUnlimitedPlan(plan: { code: AccessPlanCode; isUnlimited: boolean }) {
@@ -116,6 +124,63 @@ async function getDailySubscriptionUsageFromDb(
       source: "SUBSCRIPTION_DAILY",
     },
   });
+}
+
+function getAccruedCycleDays(startsAt: Date, expiresAt: Date | null, now = new Date()) {
+  const todayIndex = getSaoPauloDayIndex(now);
+  const startIndex = getSaoPauloDayIndex(startsAt);
+  const effectiveEndIndex = expiresAt
+    ? Math.min(todayIndex, getSaoPauloDayIndex(expiresAt))
+    : todayIndex;
+
+  return Math.max(0, effectiveEndIndex - startIndex + 1);
+}
+
+function getTotalCycleDays(startsAt: Date, expiresAt: Date | null, now = new Date()) {
+  if (expiresAt) {
+    return Math.max(0, Math.ceil((expiresAt.getTime() - startsAt.getTime()) / 86_400_000));
+  }
+
+  return getAccruedCycleDays(startsAt, null, now);
+}
+
+async function getSubscriptionCycleUsageFromDb(
+  db: AccessControlDb,
+  subscriptionId: string
+) {
+  return db.routeUsage.count({
+    where: {
+      subscriptionId,
+      source: "SUBSCRIPTION_DAILY",
+    },
+  });
+}
+
+async function getSubscriptionCycleAllowanceFromDb(
+  db: AccessControlDb,
+  subscription: {
+    id: string;
+    startsAt: Date;
+    expiresAt: Date | null;
+    plan: { dailyRouteLimit: number };
+  }
+) {
+  const cycleUsed = await getSubscriptionCycleUsageFromDb(db, subscription.id);
+  const rawCycleAccrued =
+    getAccruedCycleDays(subscription.startsAt, subscription.expiresAt) *
+    subscription.plan.dailyRouteLimit;
+  const cycleAllowance =
+    getTotalCycleDays(subscription.startsAt, subscription.expiresAt) *
+    subscription.plan.dailyRouteLimit;
+  const cycleAccrued = Math.min(rawCycleAccrued, cycleAllowance);
+  const cycleRemaining = Math.max(0, cycleAccrued - cycleUsed);
+
+  return {
+    cycleAllowance,
+    cycleUsed,
+    cycleRemaining,
+    cycleAccrued,
+  };
 }
 
 async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string) {
@@ -186,6 +251,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       activeSubscription: null,
       todayRouteUsage: 0,
       planRouteUsageToday: 0,
+      subscriptionCycleAllowance: 0,
+      subscriptionCycleUsed: 0,
+      subscriptionCycleRemaining: 0,
+      subscriptionCycleAccrued: 0,
       routeCreditsBalance: await getRouteCreditBalance(user.id),
       canStartRoute: true,
       allowanceSource: "ADMIN",
@@ -204,6 +273,14 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       getRouteCreditBalance(user.id),
       getDailySubscriptionUsageFromDb(prisma, user.id, usageDayKey),
     ]);
+  const subscriptionCycle = activeSubscription
+    ? await getSubscriptionCycleAllowanceFromDb(prisma, activeSubscription)
+    : {
+        cycleAllowance: 0,
+        cycleUsed: 0,
+        cycleRemaining: 0,
+        cycleAccrued: 0,
+      };
 
   if (isBlocked) {
     return {
@@ -227,6 +304,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
         : null,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
+      subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
+      subscriptionCycleUsed: subscriptionCycle.cycleUsed,
+      subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
+      subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
       canStartRoute: false,
       allowanceSource: "NONE",
@@ -247,6 +328,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       activeSubscription: null,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
+      subscriptionCycleAllowance: 0,
+      subscriptionCycleUsed: 0,
+      subscriptionCycleRemaining: 0,
+      subscriptionCycleAccrued: 0,
       routeCreditsBalance,
       canStartRoute: false,
       allowanceSource: "NONE",
@@ -267,6 +352,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       activeSubscription: null,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
+      subscriptionCycleAllowance: 0,
+      subscriptionCycleUsed: 0,
+      subscriptionCycleRemaining: 0,
+      subscriptionCycleAccrued: 0,
       routeCreditsBalance,
       canStartRoute: true,
       allowanceSource: "EXTRA_CREDIT",
@@ -283,7 +372,7 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
   }
   const isFree = isUnlimitedPlan(subscription.plan);
   const hasDailyAllowance =
-    isFree || dailySubscriptionUsage < subscription.plan.dailyRouteLimit;
+    isFree || subscriptionCycle.cycleRemaining > 0;
 
   if (hasDailyAllowance) {
     return {
@@ -295,6 +384,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       activeSubscription: serializeActiveSubscription(subscription),
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
+      subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
+      subscriptionCycleUsed: subscriptionCycle.cycleUsed,
+      subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
+      subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
       canStartRoute: true,
       allowanceSource: isFree ? "FREE" : "SUBSCRIPTION_DAILY",
@@ -315,6 +408,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       activeSubscription: serializeActiveSubscription(subscription),
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
+      subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
+      subscriptionCycleUsed: subscriptionCycle.cycleUsed,
+      subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
+      subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
       canStartRoute: true,
       allowanceSource: "EXTRA_CREDIT",
@@ -334,6 +431,10 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
     activeSubscription: serializeActiveSubscription(subscription),
     todayRouteUsage,
     planRouteUsageToday: dailySubscriptionUsage,
+    subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
+    subscriptionCycleUsed: subscriptionCycle.cycleUsed,
+    subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
+    subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
     routeCreditsBalance,
     canStartRoute: false,
     allowanceSource: "NONE",
@@ -439,8 +540,11 @@ export async function consumeRouteAllowance({
               };
             }
 
-            const dailyUsage = await getDailySubscriptionUsageFromDb(tx, userId, usageDayKey);
-            if (dailyUsage < activeSubscription.plan.dailyRouteLimit) {
+            const subscriptionCycle = await getSubscriptionCycleAllowanceFromDb(
+              tx,
+              activeSubscription
+            );
+            if (subscriptionCycle.cycleRemaining > 0) {
               const usage = await tx.routeUsage.create({
                 data: {
                   userId,
