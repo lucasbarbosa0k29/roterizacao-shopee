@@ -108,6 +108,33 @@ export default function TutorialPage() {
           </div>
         </section>
 
+        <section className="mt-8 rounded-[30px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.06)] sm:p-6">
+          <div className="mb-5">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
+              Importando rota no Circuit
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600 md:text-base">
+              Aprenda como abrir a planilha confirmada exportada pelo Rotta e importar corretamente no Circuit para gerar sua rota otimizada.
+            </p>
+          </div>
+
+          <div className="flex min-w-0 justify-center">
+            <div className="aspect-[420/690] w-full max-w-[420px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-lg">
+              <iframe
+                src="https://embed.app.guidde.com/playbooks/gw1xj1FoXrFQduUJina6Gb?mode=videoOnly"
+                title="Localizar E Otimizar Rotas Com Planilha Confirmada"
+                frameBorder="0"
+                referrerPolicy="unsafe-url"
+                allowFullScreen
+                loading="lazy"
+                allow="clipboard-write"
+                sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-forms allow-same-origin allow-presentation"
+                className="block h-full w-full"
+              />
+            </div>
+          </div>
+        </section>
+
         <section className="mt-8 grid gap-4 lg:grid-cols-2">
           {steps.map((step) => (
             <article
