@@ -142,6 +142,10 @@ type AccessSnapshot = {
   };
   todayRouteUsage: number;
   planRouteUsageToday: number;
+  subscriptionCycleAllowance: number;
+  subscriptionCycleUsed: number;
+  subscriptionCycleRemaining: number;
+  subscriptionCycleAccrued: number;
   routeCreditsBalance: number;
   canStartRoute: boolean;
   allowanceSource: "ADMIN" | "FREE" | "SUBSCRIPTION_DAILY" | "EXTRA_CREDIT" | "NONE";
@@ -174,7 +178,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
             </div>
           ) : access?.code === "NO_ROUTE_CREDITS" ? (
             <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              Seu limite diário foi atingido. Você pode comprar uma rota avulsa.
+              Seu saldo acumulado do ciclo foi utilizado. Você pode comprar uma rota avulsa.
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -204,7 +208,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold uppercase tracking-wide text-blue-600">BASIC</div>
             <div className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</div>
-            <div className="mt-2 text-sm text-slate-600">1 rota por dia</div>
+            <div className="mt-2 text-sm text-slate-600">Acumula 1 rota por dia do ciclo</div>
             <div className="mt-6">
               {basicUrl ? (
                 <a
@@ -230,7 +234,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="text-sm font-semibold uppercase tracking-wide text-emerald-600">PRO</div>
             <div className="mt-2 text-2xl font-extrabold text-slate-900">30 dias</div>
-            <div className="mt-2 text-sm text-slate-600">2 rotas por dia</div>
+            <div className="mt-2 text-sm text-slate-600">Acumula 2 rotas por dia do ciclo</div>
             <div className="mt-6">
               {proUrl ? (
                 <a

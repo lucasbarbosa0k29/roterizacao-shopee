@@ -20,6 +20,10 @@ type UserRow = {
       source: "ADMIN_GRANT" | "TRIAL" | "INFINITEPAY_LINK" | "MANUAL_PAYMENT";
     };
     routeCreditsBalance?: number;
+    subscriptionCycleAllowance?: number;
+    subscriptionCycleUsed?: number;
+    subscriptionCycleRemaining?: number;
+    subscriptionCycleAccrued?: number;
     code?: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
     canStartRoute?: boolean;
     allowanceSource?: "ADMIN" | "FREE" | "SUBSCRIPTION_DAILY" | "EXTRA_CREDIT" | "NONE";
@@ -48,6 +52,10 @@ export default function AdminUsersPage() {
       blockReason: user.access?.blockReason ?? user.accessBlockReason ?? null,
       activeSubscription: user.access?.activeSubscription ?? null,
       routeCreditsBalance: user.access?.routeCreditsBalance ?? 0,
+      subscriptionCycleAllowance: user.access?.subscriptionCycleAllowance ?? 0,
+      subscriptionCycleUsed: user.access?.subscriptionCycleUsed ?? 0,
+      subscriptionCycleRemaining: user.access?.subscriptionCycleRemaining ?? 0,
+      subscriptionCycleAccrued: user.access?.subscriptionCycleAccrued ?? 0,
       code: user.access?.code ?? "NO_ACTIVE_SUBSCRIPTION",
       canStartRoute: user.access?.canStartRoute ?? false,
       allowanceSource: user.access?.allowanceSource ?? "NONE",
@@ -400,7 +408,7 @@ export default function AdminUsersPage() {
           <div className="p-5 text-slate-600">Nenhum usuário encontrado.</div>
         ) : (
           <div className="p-5 overflow-auto">
-            <table className="min-w-[1320px] w-full text-sm">
+            <table className="min-w-[1420px] w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-600 border-b">
                   <th className="py-2 pr-3">Nome</th>
@@ -408,7 +416,8 @@ export default function AdminUsersPage() {
                   <th className="py-2 pr-3">Role</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Plano</th>
-                  <th className="py-2 pr-3">Créditos</th>
+                  <th className="py-2 pr-3">Saldo ciclo</th>
+                  <th className="py-2 pr-3">Créditos avulsos</th>
                   <th className="py-2 pr-3">Acesso comercial</th>
                   <th className="py-2 pr-3">Criado</th>
                   <th className="py-2 pr-3 text-right">Ações</th>
@@ -446,6 +455,22 @@ export default function AdminUsersPage() {
                           </div>
                         ) : (
                           <span className="text-slate-500">Sem plano</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {u.role === "ADMIN" ? (
+                          "-"
+                        ) : access.activeSubscription ? (
+                          <div className="leading-5">
+                            <div className="font-semibold">
+                              {access.subscriptionCycleRemaining} de {access.subscriptionCycleAccrued}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {access.subscriptionCycleUsed} usadas no ciclo
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">Sem ciclo</span>
                         )}
                       </td>
                       <td className="py-2 pr-3">
