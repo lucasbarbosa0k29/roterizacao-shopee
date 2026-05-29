@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { updateHistoryDb } from "./lib/history-db";
 import {
   TUTORIAL_ACTIVE_KEY,
@@ -354,6 +354,7 @@ function makeId(prefix = "grp") {
 }
 
 function HomeInner() {
+  const router = useRouter();
   const tutorialPostStartedRef = useRef(false);
   const tutorialMapStartedRef = useRef(false);
   const [tutorialExportFinalRequestedAt, setTutorialExportFinalRequestedAt] =
@@ -2696,7 +2697,14 @@ setTimeout(() => map.getViewPort().resize(), 800);
     };
 
     window.setTimeout(tryStart, 150);
-  }, [isModalOpen, tutorialExportFinalRequestedAt]);
+}, [isModalOpen, tutorialExportFinalRequestedAt]);
+
+  useEffect(() => {
+    if (!mounted || accessLoading || accessError) return;
+    if (access && !access.canStartRoute) {
+      router.replace("/planos");
+    }
+  }, [access, accessError, accessLoading, mounted, router]);
 
     // ===== UI =====
     if (!mounted) return null;
@@ -2725,7 +2733,15 @@ setTimeout(() => map.getViewPort().resize(), 800);
     }
 
     if (access && !access.canStartRoute) {
-      return <NoAccessHomeState access={access} />;
+      return (
+        <main className="min-h-screen bg-slate-100">
+          <div className="mx-auto max-w-5xl px-4 py-8">
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 text-slate-600 shadow-sm">
+              Redirecionando para Minha assinatura...
+            </div>
+          </div>
+        </main>
+      );
     }
     return (
       <main className="min-h-screen bg-transparent">
@@ -3179,7 +3195,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
                         const baseIdx = g.idxs[0];
                         const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
 
-                        // ✅ se qualquer item do grupo estiver em revisão, pinta o TEXTO
+                        // ✅ se qualquer item do grupo estiver em revisão, destaca a linha inteira
                         const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
 
                         return (
@@ -3189,9 +3205,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
   className={
     
     `border-b border-slate-100 transition-all duration-150
-     ${hasReview ? "text-red-700" : ""}
      ${
-        groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
+        hasReview
+          ? "bg-red-50/90 text-red-800 shadow-[inset_3px_0_0_rgba(220,38,38,0.75)] hover:bg-red-100/80"
+          : groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
           ? "bg-slate-200/80 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.35)]"
           : g.idxs.some((i) => manualEdits[i]?.confirmed)
           ? "bg-emerald-100/90 shadow-[inset_3px_0_0_rgba(16,185,129,0.8)] hover:bg-emerald-200/70"

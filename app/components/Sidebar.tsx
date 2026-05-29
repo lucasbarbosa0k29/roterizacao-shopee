@@ -303,25 +303,27 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 </Link>
               )}
 
-              <Link
-                href="/tutorial"
-                onClick={onClose}
-                className={[
-                  itemRowBase,
-                  isActive("/tutorial") ? activeRow : idleRow,
-                ].join(" ")}
-              >
-                <div className={leftSide}>
-                  <div className={iconBox}>
-                    <BookIcon />
+              {canUseTool && (
+                <Link
+                  href="/tutorial"
+                  onClick={onClose}
+                  className={[
+                    itemRowBase,
+                    isActive("/tutorial") ? activeRow : idleRow,
+                  ].join(" ")}
+                >
+                  <div className={leftSide}>
+                    <div className={iconBox}>
+                      <BookIcon />
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-[15px] font-semibold text-white">Tutorial</div>
+                      <div className="mt-1 text-[12px] text-white/48">Guia de Uso</div>
+                    </div>
                   </div>
-                  <div className="leading-tight">
-                    <div className="text-[15px] font-semibold text-white">Tutorial</div>
-                    <div className="mt-1 text-[12px] text-white/48">Guia de Uso</div>
-                  </div>
-                </div>
-                {chevron}
-              </Link>
+                  {chevron}
+                </Link>
+              )}
 
               <Link
                 href="/planos"
