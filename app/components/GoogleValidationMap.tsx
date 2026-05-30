@@ -25,7 +25,8 @@ type Props = {
 };
 
 const GOOGLE_MAPS_SCRIPT_ID = "google-maps-js-api";
-const DEFAULT_CENTER: LatLng = { lat: -16.6869, lng: -49.2643 };
+const DEFAULT_GOIANIA_CENTER: LatLng = { lat: -16.6869, lng: -49.2643 };
+const DEFAULT_APARECIDA_CENTER: LatLng = { lat: -16.8233, lng: -49.2439 };
 const GOOGLE_MAPS_UNAVAILABLE_MESSAGE =
   "Google Maps indisponivel no momento. Verifique se o faturamento e as restricoes da chave estao ativos no Google Cloud.";
 
@@ -117,6 +118,17 @@ function scoreGooglePlaceResult(params: {
   }
 
   return score;
+}
+
+function getFallbackCenter(city?: string): LatLng {
+  const normalizedCity = normalizeText(city);
+  if (normalizedCity.includes("aparecida")) {
+    return DEFAULT_APARECIDA_CENTER;
+  }
+  if (normalizedCity.includes("goiania")) {
+    return DEFAULT_GOIANIA_CENTER;
+  }
+  return DEFAULT_APARECIDA_CENTER;
 }
 
 function sortGoogleResults(
@@ -274,7 +286,7 @@ function GoogleValidationMap({
           return;
         }
 
-        const initial = center ?? DEFAULT_CENTER;
+        const initial = center ?? getFallbackCenter(city);
         let map: any = null;
         let marker: any = null;
 
@@ -368,52 +380,96 @@ function GoogleValidationMap({
     onSearchResults?.([]);
     if (!query || !service || !map || !marker) return;
 
-    onSearchLoading?.(true);
-    service.textSearch(
-      {
-        query,
-        location: center ? new (window as any).google.maps.LatLng(center.lat, center.lng) : undefined,
-        radius: 12000,
-      },
-      (results: any[], status: string) => {
-        if (searchRunIdRef.current !== runId) return;
-        onSearchLoading?.(false);
+    const searchCenter = center ?? getFallbackCenter(city);
 
-        const google = (window as any).google;
-        if (status !== google?.maps?.places?.PlacesServiceStatus?.OK || !results?.length) {
-          onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
-          return;
-        }
-
-        const mappedResults: GoogleSearchResult[] = results
-          .map((result: any, idx: number) => {
-            const location = result?.geometry?.location;
-            if (!location) return null;
-            return {
-              id: String(result?.place_id || idx),
-              name: String(result?.name || "Resultado sem nome"),
-              address: String(result?.formatted_address || result?.vicinity || ""),
-              pos: { lat: location.lat(), lng: location.lng() },
-            };
-          })
-          .filter(Boolean) as GoogleSearchResult[];
-
-        if (!mappedResults.length) {
-          onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
-          return;
-        }
-
-        onSearchResults?.(
-          sortGoogleResults(mappedResults, {
-            searchText,
-            queryContext,
-            city,
-            district,
-            center,
-          }).slice(0, 5)
-        );
+    let finished = false;
+    const timeoutMs = 12000;
+    const timeoutId = window.setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      onSearchLoading?.(false);
+      onSearchMessage?.("Não foi possível buscar no Google Maps. Tente novamente.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[GoogleValidationMap] textSearch timeout", { query });
       }
-    );
+    }, timeoutMs);
+
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeoutId);
+      onSearchLoading?.(false);
+    };
+
+    onSearchLoading?.(true);
+    try {
+      service.textSearch(
+        {
+          query,
+          location: new (window as any).google.maps.LatLng(searchCenter.lat, searchCenter.lng),
+          radius: 12000,
+        },
+        (results: any[], status: string) => {
+          if (searchRunIdRef.current !== runId) return;
+          done();
+
+          const google = (window as any).google;
+          const okStatus = google?.maps?.places?.PlacesServiceStatus?.OK;
+
+          if (status !== okStatus) {
+            if (status !== google?.maps?.places?.PlacesServiceStatus?.ZERO_RESULTS && process.env.NODE_ENV !== "production") {
+              console.warn("[GoogleValidationMap] textSearch non-OK status", { query, status });
+            }
+            if (status === google?.maps?.places?.PlacesServiceStatus?.ZERO_RESULTS) {
+              onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
+              return;
+            }
+            onSearchMessage?.("Não foi possível buscar no Google Maps. Tente novamente.");
+            return;
+          }
+
+          if (!results?.length) {
+            onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
+            return;
+          }
+
+          const mappedResults: GoogleSearchResult[] = results
+            .map((result: any, idx: number) => {
+              const location = result?.geometry?.location;
+              if (!location) return null;
+              return {
+                id: String(result?.place_id || idx),
+                name: String(result?.name || "Resultado sem nome"),
+                address: String(result?.formatted_address || result?.vicinity || ""),
+                pos: { lat: location.lat(), lng: location.lng() },
+              };
+            })
+            .filter(Boolean) as GoogleSearchResult[];
+
+          if (!mappedResults.length) {
+            onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
+            return;
+          }
+
+          onSearchResults?.(
+            sortGoogleResults(mappedResults, {
+              searchText,
+              queryContext,
+              city,
+              district,
+              center,
+            }).slice(0, 5)
+          );
+        }
+      );
+    } catch (error) {
+      if (searchRunIdRef.current !== runId) return;
+      done();
+      onSearchMessage?.("Não foi possível buscar no Google Maps. Tente novamente.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[GoogleValidationMap] textSearch threw", { query, error });
+      }
+    }
   }
 
   useEffect(() => {

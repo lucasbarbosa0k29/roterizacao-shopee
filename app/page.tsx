@@ -1750,6 +1750,7 @@ function clearReview(groupId: string) {
 
         return fetch("/api/address-memory", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           keepalive: true,
           body: JSON.stringify({
@@ -1764,7 +1765,13 @@ function clearReview(groupId: string) {
             if (!response.ok) {
               let errorText = "";
               try {
-                errorText = await response.text();
+                const contentType = response.headers.get("content-type") || "";
+                if (contentType.includes("application/json")) {
+                  const data = await response.json().catch(() => null);
+                  errorText = data ? JSON.stringify(data) : "";
+                } else {
+                  errorText = await response.text();
+                }
               } catch {}
 
               console.error("Falha ao salvar AddressMemory", {
@@ -1777,7 +1784,13 @@ function clearReview(groupId: string) {
 
             return response;
           })
-          .catch(() => {});
+          .catch((error) => {
+            console.error("Falha ao salvar AddressMemory (rede)", {
+              address,
+              city,
+              error,
+            });
+          });
       }
 
       const tasks: Array<Promise<any> | undefined> = [];
