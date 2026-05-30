@@ -96,6 +96,10 @@ type MemoryDebugRow = {
   autoSaveCurrentBehaviorWouldSave?: boolean;
   autoSaveHardeningApplied?: boolean;
   autoSaveHardeningBlockedReason?: string | null;
+  autoSaveDisabled?: boolean;
+  autoSaveDisabledReason?: string | null;
+  manualMemoryProtected?: boolean;
+  manualMemoryProtectionReason?: string | null;
   urbanPatternDetected?: boolean;
   urbanPatternType?: string | null;
   urbanPatternQuery?: string | null;
@@ -1995,13 +1999,27 @@ const autoSaveAudit = auditAutoSaveMemory({
   city: cityForDecision,
 });
 
+// Memória manual tem prioridade máxima: auto-save nunca pode sobrescrever um
+// registro já confirmado pelo usuário.
+const existingMemoryForAutoSave = autoSaveCurrentBehaviorWouldSave
+  ? await prisma.addressMemory.findUnique({
+      where: { key: memoryKey },
+      select: { createdBy: true },
+    })
+  : null;
+const manualMemoryProtected = !!existingMemoryForAutoSave?.createdBy;
+const autoSaveDisabled = true;
+const autoSaveDisabledReason = "MANUAL_MEMORY_ONLY_MODE";
+
 const shouldAutoSaveAddressMemory =
   autoSaveCurrentBehaviorWouldSave &&
   autoSaveAudit.autoSaveWouldAllow &&
   !approxMemoryHit &&
   !approxMemoryUsedAsFinal &&
   geocodeConfidenceDiag.level === "HIGH" &&
-  geocodeConfidenceDiag.hardMismatch !== true;
+  geocodeConfidenceDiag.hardMismatch !== true &&
+  !manualMemoryProtected &&
+  !autoSaveDisabled;
 
 if (shouldAutoSaveAddressMemory) {
   const saveLat = lat as number;
@@ -2072,6 +2090,10 @@ if (shouldAutoSaveAddressMemory) {
     autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
     autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
     autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
+    autoSaveDisabled,
+    autoSaveDisabledReason,
+    manualMemoryProtected,
+    manualMemoryProtectionReason: manualMemoryProtected ? "MANUAL_MEMORY_PROTECTED" : null,
     urbanPatternDetected,
     urbanPatternType,
     urbanPatternQuery,
@@ -2142,6 +2164,10 @@ if (shouldAutoSaveAddressMemory) {
       autoSaveCurrentBehaviorWouldSave: autoSaveAudit.autoSaveCurrentBehaviorWouldSave,
       autoSaveHardeningApplied: autoSaveAudit.autoSaveHardeningApplied,
       autoSaveHardeningBlockedReason: autoSaveAudit.autoSaveHardeningBlockedReason,
+      autoSaveDisabled,
+      autoSaveDisabledReason,
+      manualMemoryProtected,
+      manualMemoryProtectionReason: manualMemoryProtected ? "MANUAL_MEMORY_PROTECTED" : null,
       urbanPatternDetected,
       urbanPatternType,
       urbanPatternQuery,

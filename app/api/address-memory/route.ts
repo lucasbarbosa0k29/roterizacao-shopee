@@ -137,12 +137,15 @@ export async function POST(req: Request) {
     saveContext.distanceMeters = dist;
 
     // âœ… Se mudou pouco, sÃ³ incrementa uso (nÃ£o altera lat/lng)
+    // Manual confirmation always marks the record as manual, even when the
+    // coordinates are very close to the previous point.
     if (dist < THRESHOLD_METERS) {
       saveMode = "hit_only";
       const saved = await prisma.addressMemory.update({
         where: { key },
         data: {
           hitCount: { increment: 1 },
+          createdBy,
         },
       });
       await incrementDailyMetric(METRIC_MEMORY_HIT_ONLY).catch(() => {});
