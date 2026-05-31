@@ -1,0 +1,1 @@
+public/data/aparecida_lotes.geojson filter=lfs diff=lfs merge=lfs -text
