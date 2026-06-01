@@ -4,6 +4,7 @@ export type GeocodeConfidenceSource =
   | "MEMORY_EXACT"
   | "MEMORY_BASE"
   | "MEMORY_APPROX"
+  | "LOCAL_APARECIDA_LOT"
   | "HERE_GEOCODE"
   | "HERE_DISCOVER"
   | "NONE";
@@ -102,6 +103,11 @@ export function computeGeocodeConfidence(
       flags.add("SOURCE_MEMORY_APPROX");
       reasons.push("Origem principal: memória aproximada.");
       score += 4;
+      break;
+    case "LOCAL_APARECIDA_LOT":
+      flags.add("SOURCE_LOCAL_APARECIDA_LOT");
+      reasons.push("Origem principal: local lots de Aparecida.");
+      score += 10;
       break;
     case "HERE_DISCOVER":
       flags.add("SOURCE_HERE_DISCOVER");

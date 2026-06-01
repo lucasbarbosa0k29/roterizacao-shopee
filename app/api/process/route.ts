@@ -170,6 +170,17 @@ function cleanAddressForHere(s: string) {
   return t;
 }
 
+function stripQuadraLoteFromStreet(q: string) {
+  let t = String(q || "");
+  t = t.replace(
+    /\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
+    " ",
+  );
+  t = t.replace(/\b(LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
+  t = t.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+
 function normalizeKey(text: string) {
   return String(text || "")
     .toUpperCase()
@@ -191,8 +202,11 @@ function isWeakStreetForMemoryHint(value: string) {
 }
 function stripQuadraLoteFromQuery(q: string) {
   let t = String(q || "");
-  t = t.replace(/\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+\b/gi, " ");
-  t = t.replace(/\b(LOTE|LT|L\.)\s*[-:]?\s*[A-Z0-9\-]+\b/gi, " ");
+  t = t.replace(
+    /\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
+    " ",
+  );
+  t = t.replace(/\b(LOTE|LOT|LT|L\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
   t = t.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/\s{2,}/g, " ").trim();
   return t;
 }
@@ -228,7 +242,7 @@ function extractByRegex(raw: string) {
 
   let rua = "";
   const ruaMatch = up.match(
-    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+)/,
+    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+?)(?=\s*(?:,|$|\b(?:QD|QUADRA|Q\.|LT|LOTE|L\.)\b))/,
   );
   if (ruaMatch) {
     rua = `${ruaMatch[1]} ${ruaMatch[2]}`.replace(/\s{2,}/g, " ").trim();
@@ -246,36 +260,45 @@ function extractByRegex(raw: string) {
   }
 
   let quadra = "";
-  const qd = up.match(/\b(QD|QUADRA|Q\.)\s*([A-Z0-9\-]+)/);
+  const qd = up.match(/\b(QD|QUADRA|Q\.)\s*([A-Z0-9\-]+)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (qd) quadra = String(qd[2] || "").trim();
 
   let lote = "";
-  const lt = up.match(/\b(LT|LOTE|L\.)\s*([A-Z0-9\-]+)/);
-  if (lt) lote = String(lt[2] || "").trim();
+  const lt = up.match(/\b(LT|LOTE|LOT|L\.)\s*([A-Z0-9\-]+)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  if (lt) {
+    const base = String(lt[2] || "").trim();
+    const suffix = String(lt[3] || "").trim();
+    lote = `${base}${suffix}`.trim();
+  }
 
   return { rua, quadra, lote };
 }
 // ✅ Regex SMART: pega Q/L em vários formatos (Q40 L27, QD40LT27, QUADRA 40 LOTE 27, etc)
-function normalizeQLValue(v: string) {
+function normalizeQLValue(v: string, suffix = "") {
   let t = String(v || "")
     .toUpperCase()
     .trim()
     .replace(/^[\s\-:]+|[\s\-:]+$/g, "")
     .replace(/[^A-Z0-9\-]/g, "");
 
+  const extra = String(suffix || "")
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9]/g, "");
+
   if (/^\d/.test(t)) {
     const compact = t.replace(/-/g, "");
     const m = compact.match(/^0*(\d+)([A-Z][A-Z0-9]*)?$/);
-    if (m) return `${String(Number(m[1]))}${m[2] || ""}`;
+    if (m) return `${String(Number(m[1]))}${m[2] || extra}`;
     if (/^\d+$/.test(compact)) return String(Number(compact));
     return compact;
   }
 
   const m = t.match(/^0*(\d+)([A-Z][A-Z0-9\-]*)?$/);
-  if (m) return `${String(Number(m[1]))}${m[2] || ""}`;
+  if (m) return `${String(Number(m[1]))}${m[2] || extra}`;
 
   if (/^\d+$/.test(t)) return String(Number(t));
-  return t;
+  return `${t}${extra}`.trim();
 }
 
 function extractQuadraLoteSmart(raw: string) {
@@ -286,29 +309,29 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
-  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)\b/);
-  if (qMatch) quadra = normalizeQLValue(qMatch[1]);
+  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
-  const lMatch = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)\b/);
-  if (lMatch) lote = normalizeQLValue(lMatch[1]);
+  const lMatch = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  if (lMatch) lote = normalizeQLValue(lMatch[1], lMatch[2]);
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
   if (!quadra || !lote) {
-    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})\b/);
+    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})(?:\s+([A-Z]))?\b/);
     if (glued) {
       if (!quadra) quadra = normalizeQLValue(glued[1]);
-      if (!lote) lote = normalizeQLValue(glued[2]);
+      if (!lote) lote = normalizeQLValue(glued[2], glued[3]);
     }
   }
 
   // 4) ordem invertida: "L27 Q40"
   if (!quadra || !lote) {
-    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})\s*(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\b/);
+    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})(?:\s+([A-Z]))?\s*(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\b/);
     if (inv) {
-      if (!lote) lote = normalizeQLValue(inv[1]);
-      if (!quadra) quadra = normalizeQLValue(inv[2]);
+      if (!lote) lote = normalizeQLValue(inv[1], inv[2]);
+      if (!quadra) quadra = normalizeQLValue(inv[3]);
     }
   }
 
@@ -323,6 +346,87 @@ function extractQuadraLoteSmart(raw: string) {
   }
 
   return { quadra, lote };
+}
+
+function isAparecidaBairroNoise(value: string) {
+  const up = normalizeKey(value);
+  if (!up) return true;
+  return /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|EDIF|EDIFICIO|EDIFICIO|CONDOMINIO|RESIDENCIAL|SALA|CASA|LOJA|SOBRADO|FUNDO|IGREJA)\b/.test(up);
+}
+
+function normalizeAparecidaBairroCandidate(value: string) {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/\s*\(([^)]*)\)\s*$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  if (isAparecidaBairroNoise(cleaned)) return "";
+  return cleaned;
+}
+
+function chooseAparecidaBairro(primary: string, fallback: string) {
+  const fallbackClean = normalizeAparecidaBairroCandidate(fallback);
+  if (fallbackClean) return fallbackClean;
+
+  const primaryClean = normalizeAparecidaBairroCandidate(primary);
+  if (primaryClean) return primaryClean;
+
+  return "";
+}
+
+function mergeAparecidaLotValue(primary: string, fallback: string, tertiary: string) {
+  const values = [primary, fallback, tertiary]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  if (!values.length) return "";
+
+  const digitKey = (v: string) => v.replace(/[^0-9]/g, "");
+  const hasSuffix = (v: string) => /^[0-9]+[A-Z]/.test(v.toUpperCase());
+  let best = values[0];
+
+  for (const value of values.slice(1)) {
+    if (digitKey(value) !== digitKey(best)) continue;
+    if (hasSuffix(value) && !hasSuffix(best)) {
+      best = value;
+    }
+  }
+
+  return best;
+}
+
+function pickAparecidaLocalFirstCandidate(args: {
+  quadra: string;
+  lote: string;
+  normalizedBairro: string;
+  originalBairro: string;
+  rua: string;
+  cidade: string;
+  cep: string;
+}) {
+  const targets = [
+    { label: "normalized" as const, bairro: normalizeAparecidaBairroCandidate(args.normalizedBairro) },
+    { label: "original" as const, bairro: normalizeAparecidaBairroCandidate(args.originalBairro) },
+  ].filter((entry) => !!entry.bairro);
+
+  for (const target of targets) {
+    const candidate = findAparecidaLocalLotCandidate({
+      quadra: args.quadra,
+      lote: args.lote,
+      bairro: target.bairro,
+      rua: args.rua,
+      cidade: args.cidade,
+      cep: args.cep,
+    });
+
+    if (!candidate) continue;
+    if (normalizeKey(candidate.bairro) !== normalizeKey(target.bairro)) continue;
+
+    return { candidate, matchedBy: target.label };
+  }
+
+  return null;
 }
 
 // ✅ SUA REGRA DE STATUS
@@ -1030,11 +1134,11 @@ function buildHereQueryVariants(args: {
   const full = cleanAddressForHere(args.normalizedLine || "");
   const fullNoQdLt = cleanAddressForHere(stripQuadraLoteFromQuery(full));
 
-  const ruaOnly = cleanAddressForHere([args.rua, args.numero].filter(Boolean).join(", "));
+  const ruaOnly = cleanAddressForHere([stripQuadraLoteFromStreet(args.rua), args.numero].filter(Boolean).join(", "));
 
   const ruaCep = cleanAddressForHere([ruaOnly, cep, cidade, estado].filter(Boolean).join(", "));
   const ruaCity = cleanAddressForHere([ruaOnly, bairro, cidade, estado].filter(Boolean).join(", "));
-  const originalClean = cleanAddressForHere(args.original || "");
+  const originalClean = cleanAddressForHere(stripQuadraLoteFromStreet(args.original || ""));
 
   const ruaVariants = streetVariants(args.rua || "").map((rv) =>
     cleanAddressForHere([rv, args.numero].filter(Boolean).join(", ")),
@@ -1072,7 +1176,7 @@ function buildAparecidaRecoveryQueries(args: {
   quadra: string;
   lote: string;
 }) {
-  const rua = cleanAddressForHere(args.rua || "");
+  const rua = cleanAddressForHere(stripQuadraLoteFromStreet(args.rua || ""));
   const bairro = cleanAddressForHere(args.bairro || "");
   const cidade = cleanAddressForHere(args.cidade || "");
   const estado = cleanAddressForHere(args.estado || "GO") || "GO";
@@ -1351,12 +1455,12 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   // 1.1) fallback regex se Gemini falhar
   const rx = extractByRegex(addressRaw);
 
- const finalRua = (g.normalized.rua || rx.rua || "").trim();
+ const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
 
-const smartQL = extractQuadraLoteSmart(addressRaw);
+ const smartQL = extractQuadraLoteSmart(addressRaw);
 
-const finalQuadra = (g.normalized.quadra || smartQL.quadra || rx.quadra || "").trim();
-const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
+ const finalQuadra = mergeAparecidaLotValue(g.normalized.quadra || "", smartQL.quadra || "", rx.quadra || "").trim();
+ const finalLote = mergeAparecidaLotValue(g.normalized.lote || "", smartQL.lote || "", rx.lote || "").trim();
 
   const obsCleanRaw = String(g.normalized.observacao || "")
     .trim()
@@ -1374,7 +1478,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     rua: finalRua,
     quadra: finalQuadra,
     lote: finalLote,
-    bairro: (g.normalized.bairro || bairroIn || "").trim(),
+    bairro: chooseAparecidaBairro(g.normalized.bairro || "", bairroIn || ""),
     cidade: (g.normalized.cidade || cityIn || "").trim(),
     cep: normalizeCep((g.normalized.cep || cepIn || "").trim()),
     estado: (g.normalized.estado || "GO").trim() || "GO",
@@ -1465,7 +1569,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
     : "OK_CONFIDENT";
   let bestHereScore = memoryHit || approxMemoryHit ? 999 : -999;
   let bestItem: any = null;
-  let finalRankedKind: "geocode" | "discover" | null = null;
+  let finalRankedKind: "geocode" | "discover" | "local" | null = null;
   let aparecidaLowConfidence: { downgrade: boolean; clearCoords: boolean } | null = null;
   let localLotCandidateFound = false;
   let localLotStrongMatch = false;
@@ -1477,6 +1581,8 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   let localLotFinalItem: any = null;
   let localLotFinalScore = -999;
   let localLotFinalArc: any = null;
+  let localFirstBypassHere = false;
+  let localFirstMatchedBy: "normalized" | "original" | null = null;
 
   let enriched: RankedHereEntryWithArcgis[] = [];
   let bestArcgisFromTop: any = null;
@@ -1488,7 +1594,133 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: RankedHereEntry[] = [];
 
-  if (!memoryHit && !approxMemoryHit) {
+  if (isAparecida && !memoryHit && !approxMemoryHit && normalized.quadra && normalized.lote) {
+    const localFirstCandidate = pickAparecidaLocalFirstCandidate({
+      quadra: normalized.quadra,
+      lote: normalized.lote,
+      normalizedBairro: normalized.bairro || "",
+      originalBairro: bairroIn || "",
+      rua: normalized.rua,
+      cidade: normalized.cidade || cityIn,
+      cep: normalized.cep || cepIn,
+    });
+
+    if (localFirstCandidate?.candidate) {
+      const localAparecidaCandidate = localFirstCandidate.candidate;
+      const localAddressLabel = cleanAddressForHere(
+        [
+          normalized.rua || "Aparecida",
+          localAparecidaCandidate.quadra ? `Quadra ${localAparecidaCandidate.quadra}` : "",
+          localAparecidaCandidate.lote ? `Lote ${localAparecidaCandidate.lote}` : "",
+          localAparecidaCandidate.bairro || normalized.bairro || bairroIn,
+          normalized.cidade || cityIn || "Aparecida de Goiânia",
+          normalized.estado || "GO",
+          normalizeCep(normalized.cep || cepIn),
+        ]
+          .filter(Boolean)
+          .join(", "),
+      );
+
+      const localItem = {
+        title: localAddressLabel,
+        id: `aparecida-local:${localAparecidaCandidate.quadra}:${localAparecidaCandidate.lote}:${normalizeKey(localAparecidaCandidate.bairro)}`,
+        resultType: "street",
+        address: {
+          label: localAddressLabel,
+          countryCode: "BRA",
+          countryName: "Brasil",
+          stateCode: "GO",
+          state: "Goiás",
+          city: normalized.cidade || cityIn || "Aparecida de Goiânia",
+          district: localAparecidaCandidate.bairro || normalized.bairro || bairroIn || "",
+          street: normalized.rua || "",
+          postalCode: normalizeCep(normalized.cep || cepIn),
+        },
+        position: {
+          lat: localAparecidaCandidate.centroid.lat,
+          lng: localAparecidaCandidate.centroid.lng,
+        },
+      };
+
+      const localArc = {
+        found: true,
+        quadra: localAparecidaCandidate.quadra,
+        lote: localAparecidaCandidate.lote,
+        bairro: localAparecidaCandidate.bairro,
+      };
+
+      const localRerank = scoreAparecidaRerankCandidate({
+        baseScore: scoreHereItemSmart(localItem, {
+          cep: normalized.cep || cepIn,
+          city: normalized.cidade || cityIn,
+          bairro: normalized.bairro || bairroIn,
+          rua: normalized.rua,
+          quadra: normalized.quadra,
+          lote: normalized.lote,
+        }),
+        item: localItem,
+        arc: localArc,
+        wantArc: {
+          quadra: localAparecidaCandidate.quadra,
+          lote: localAparecidaCandidate.lote,
+          bairro: localAparecidaCandidate.bairro,
+        },
+        expected: {
+          rua: normalized.rua,
+          bairro: normalized.bairro || bairroIn,
+          cidade: normalized.cidade || cityIn,
+          cep: normalized.cep || cepIn,
+          quadra: normalized.quadra,
+          lote: normalized.lote,
+        },
+        hereSpreadMeters: 0,
+      });
+
+      localLotCandidateFound = true;
+      localLotStrongMatch = true;
+      localLotBoostApplied = true;
+      localLotUsedAsFinal = true;
+      localLotQuadra = localAparecidaCandidate.quadra || "";
+      localLotLote = localAparecidaCandidate.lote || "";
+      localLotBairro = localAparecidaCandidate.bairro || "";
+      localLotFinalItem = localItem;
+      localLotFinalScore = localRerank.total;
+      localLotFinalArc = localArc;
+
+      bestItem = localItem;
+      bestArcgisFromTop = localArc;
+      bestHereScore = localRerank.total;
+      finalRankedKind = "local";
+      lat = localAparecidaCandidate.centroid.lat;
+      lng = localAparecidaCandidate.centroid.lng;
+      scored.push({
+        it: localItem,
+        score: localRerank.total,
+        from: "LOCAL_APARECIDA_LOT",
+        kind: "geocode",
+      });
+
+      localFirstBypassHere = true;
+      localFirstMatchedBy = localFirstCandidate.matchedBy;
+
+      console.info("[LOCAL_FIRST_HIT]", {
+        sequence: row?.sequence ?? "",
+        matchedBy: localFirstMatchedBy,
+        quadra: localLotQuadra,
+        lote: localLotLote,
+        bairro: localLotBairro,
+      });
+      console.info("[LOCAL_FIRST_BYPASS_HERE]", {
+        sequence: row?.sequence ?? "",
+        query: "LOCAL_APARECIDA_LOT",
+        quadra: localLotQuadra,
+        lote: localLotLote,
+        bairro: localLotBairro,
+      });
+    }
+  }
+
+  if (!memoryHit && !approxMemoryHit && !localFirstBypassHere) {
     discoverGateDebug = {
       preliminaryGeocodeConfidence: null,
       preliminaryGeocodeHardMismatch: false,
@@ -2188,13 +2420,18 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       bestItem = localLotFinalItem;
       bestArcgisFromTop = localLotFinalArc || bestArcgisFromTop;
       bestHereScore = Math.max(bestHereScore, localLotFinalScore);
-      finalRankedKind = "geocode";
+      finalRankedKind = "local";
       localLotUsedAsFinal = true;
     }
 
     if (isAparecida && bestItem) {
       const finalConfidenceDiag = computeGeocodeConfidence({
-        source: finalRankedKind === "discover" ? "HERE_DISCOVER" : "HERE_GEOCODE",
+        source:
+          finalRankedKind === "discover"
+            ? "HERE_DISCOVER"
+            : finalRankedKind === "local"
+              ? "LOCAL_APARECIDA_LOT"
+              : "HERE_GEOCODE",
         expected: {
           rua: normalized.rua,
           bairro: normalized.bairro || bairroIn,
@@ -2390,6 +2627,8 @@ if (conflictQL) {
         ? "MEMORY_APPROX"
         : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
+          : finalRankedKind === "local"
+            ? "LOCAL_APARECIDA_LOT"
           : finalRankedKind === "geocode"
             ? "HERE_GEOCODE"
             : "NONE",
