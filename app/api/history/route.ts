@@ -1,6 +1,9 @@
 export const runtime = "nodejs";
 
-import { deleteJobResult } from "@/app/lib/job-storage";
+import {
+  deleteJobResult,
+  isManagedJobResultPath,
+} from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -103,7 +106,7 @@ export async function DELETE() {
 
     await Promise.all(
       jobs.map((job) =>
-        job.resultPath
+        job.resultPath && isManagedJobResultPath(job.resultPath)
           ? deleteJobResult(job.resultPath).catch((error) => {
               console.warn("Failed to delete job result file:", error);
             })

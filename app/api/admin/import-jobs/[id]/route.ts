@@ -1,4 +1,8 @@
-import { deleteJobResult, loadJobResult } from "@/app/lib/job-storage";
+import {
+  deleteJobResult,
+  isManagedJobResultPath,
+  loadJobResult,
+} from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getToken } from "next-auth/jwt";
@@ -72,7 +76,7 @@ export async function GET(req: Request, ctx: any) {
 
   let resultPayload = job.resultJson;
 
-  if (job.resultPath) {
+  if (job.resultPath && isManagedJobResultPath(job.resultPath)) {
     try {
       resultPayload = await loadJobResult(job.resultPath);
     } catch (error) {
@@ -85,6 +89,8 @@ export async function GET(req: Request, ctx: any) {
         );
       }
     }
+  } else if (job.resultPath) {
+    console.warn("Admin job result path ignored as invalid/legacy:", job.id);
   }
 
   return NextResponse.json({
@@ -108,7 +114,7 @@ export async function DELETE(req: Request, ctx: any) {
     select: { resultPath: true },
   });
 
-  if (job?.resultPath) {
+  if (job?.resultPath && isManagedJobResultPath(job.resultPath)) {
     await deleteJobResult(job.resultPath).catch((error) => {
       console.warn("Failed to delete admin job result file:", error);
     });

@@ -1,7 +1,11 @@
 // app/api/history/[id]/route.ts
 export const runtime = "nodejs";
 
-import { deleteJobResult, loadJobResult } from "@/app/lib/job-storage";
+import {
+  deleteJobResult,
+  isManagedJobResultPath,
+  loadJobResult,
+} from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -169,13 +173,15 @@ export async function GET(
 
     let storedResultJson = job.resultJson;
 
-    if (job.resultPath) {
+    if (job.resultPath && isManagedJobResultPath(job.resultPath)) {
       try {
         storedResultJson = await loadJobResult(job.resultPath);
       } catch (error) {
         console.error("Erro ao carregar arquivo do job:", error);
         storedResultJson = job.resultJson;
       }
+    } else if (job.resultPath) {
+      console.warn("Job result path ignorado por ser inválido/legado:", job.id);
     }
 
     let normalized = normalizeResultJson(storedResultJson);
@@ -285,7 +291,7 @@ export async function DELETE(
       return NextResponse.json({ error: "NÃ£o encontrado." }, { status: 404 });
     }
 
-    if (current.resultPath) {
+    if (current.resultPath && isManagedJobResultPath(current.resultPath)) {
       await deleteJobResult(current.resultPath).catch((error) => {
         console.warn("Failed to delete job result file:", error);
       });

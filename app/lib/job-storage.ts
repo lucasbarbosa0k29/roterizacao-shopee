@@ -31,6 +31,16 @@ function ensureManagedPath(baseDir: string, filePath: string) {
   return resolved;
 }
 
+export function isManagedJobResultPath(filePath: string): boolean {
+  try {
+    const jobsDir = getJobsDir();
+    ensureManagedPath(jobsDir, filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function saveJobResult(jobId: string, data: any): Promise<string> {
   const jobsDir = getJobsDir();
   await fs.mkdir(jobsDir, { recursive: true });
