@@ -17,6 +17,7 @@ import {
 import {
   applyUrbanPatternToRealQueries,
   buildUrbanPatternQueries,
+  normalizeUrbanStreet,
   type UrbanPatternType,
 } from "@/app/lib/urban-normalization";
 import {
@@ -260,11 +261,11 @@ function extractByRegex(raw: string) {
   }
 
   let quadra = "";
-  const qd = up.match(/\b(QD|QUADRA|Q\.)\s*([A-Z0-9\-]+)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qd = up.match(/\b(QD|QUADRA|Q\.)\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (qd) quadra = String(qd[2] || "").trim();
 
   let lote = "";
-  const lt = up.match(/\b(LT|LOTE|LOT|L\.)\s*([A-Z0-9\-]+)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const lt = up.match(/\b(LT|LOTE|LOT|L\.)\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (lt) {
     const base = String(lt[2] || "").trim();
     const suffix = String(lt[3] || "").trim();
@@ -298,7 +299,7 @@ function normalizeQLValue(v: string, suffix = "") {
   if (m) return `${String(Number(m[1]))}${m[2] || extra}`;
 
   if (/^\d+$/.test(t)) return String(Number(t));
-  return `${t}${extra}`.trim();
+  return "";
 }
 
 function extractQuadraLoteSmart(raw: string) {
@@ -309,17 +310,17 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
-  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
-  const lMatch = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([A-Z0-9]{1,6}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const lMatch = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (lMatch) lote = normalizeQLValue(lMatch[1], lMatch[2]);
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
   if (!quadra || !lote) {
-    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})(?:\s+([A-Z]))?\b/);
+    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\b/);
     if (glued) {
       if (!quadra) quadra = normalizeQLValue(glued[1]);
       if (!lote) lote = normalizeQLValue(glued[2], glued[3]);
@@ -328,7 +329,7 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 4) ordem invertida: "L27 Q40"
   if (!quadra || !lote) {
-    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([A-Z0-9]{1,6})(?:\s+([A-Z]))?\s*(?:QUADRA|QD|Q)\.?\s*0*([A-Z0-9]{1,6})\b/);
+    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\s*(?:QUADRA|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\b/);
     if (inv) {
       if (!lote) lote = normalizeQLValue(inv[1], inv[2]);
       if (!quadra) quadra = normalizeQLValue(inv[3]);
@@ -427,6 +428,100 @@ function pickAparecidaLocalFirstCandidate(args: {
   }
 
   return null;
+}
+
+function pickAparecidaPartialStreetCandidate(args: {
+  scored: RankedHereEntry[];
+  rua: string;
+  bairro: string;
+  cidade: string;
+  cep: string;
+}) {
+  const targetStreet = normalizeUrbanStreet(args.rua || "") || normalizeKey(args.rua || "");
+  const targetCity = normalizeKey(args.cidade || "");
+  const targetBairro = normalizeAparecidaBairroCandidate(args.bairro || "");
+  if (!targetStreet || !targetCity) return null;
+
+  let best:
+    | {
+        item: any;
+        score: number;
+        reason: "PARTIAL_STREET_LEVEL_MATCH" | "PARTIAL_SECTOR_MATCH";
+      }
+    | null = null;
+
+  for (const entry of args.scored) {
+    const pos = entry.it?.position;
+    if (typeof pos?.lat !== "number" || typeof pos?.lng !== "number") continue;
+
+    const address = entry.it?.address || {};
+    const actualStreet = normalizeUrbanStreet(String(address.street || "")) || normalizeKey(String(address.street || ""));
+    const actualCity = normalizeKey(String(address.city || address.county || ""));
+    const actualBairro = normalizeAparecidaBairroCandidate(String(address.district || address.subdistrict || ""));
+
+    const ruaOk =
+      actualStreet === targetStreet ||
+      actualStreet.includes(targetStreet) ||
+      targetStreet.includes(actualStreet);
+    if (!ruaOk) continue;
+
+    const cidadeOk =
+      actualCity === targetCity ||
+      actualCity.includes(targetCity) ||
+      targetCity.includes(actualCity);
+    if (!cidadeOk) continue;
+
+    const bairroOk =
+      !targetBairro ||
+      !actualBairro ||
+      actualBairro === targetBairro ||
+      actualBairro.includes(targetBairro) ||
+      targetBairro.includes(actualBairro);
+    if (!bairroOk) continue;
+
+    const diag = computeGeocodeConfidence({
+      source: "HERE_GEOCODE",
+      expected: {
+        rua: args.rua,
+        bairro: args.bairro,
+        cidade: args.cidade,
+        cep: args.cep,
+      },
+      actual: {
+        rua: String(address.street || ""),
+        bairro: String(address.district || address.subdistrict || ""),
+        cidade: String(address.city || address.county || ""),
+        cep: String(address.postalCode || ""),
+        resultType: String(entry.it?.resultType || ""),
+      },
+      hasCoords: true,
+      hasQuadra: false,
+      hasLote: false,
+      hereSpreadMeters: 0,
+      memoryStrength: "NONE",
+      hardSignals: [],
+    });
+
+    if (diag.hardMismatch) continue;
+    if (diag.flags.includes("CIDADE_MISMATCH")) continue;
+    if (diag.flags.includes("BAIRRO_MISMATCH")) continue;
+    if (diag.flags.includes("RUA_MISMATCH")) continue;
+
+    const reason =
+      diag.flags.includes("BAIRRO_MATCH") && diag.flags.includes("RUA_EXACT")
+        ? "PARTIAL_STREET_LEVEL_MATCH"
+        : "PARTIAL_SECTOR_MATCH";
+
+    if (!best || entry.score > best.score) {
+      best = {
+        item: entry.it,
+        score: entry.score,
+        reason,
+      };
+    }
+  }
+
+  return best;
 }
 
 // ✅ SUA REGRA DE STATUS
@@ -1583,6 +1678,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotFinalArc: any = null;
   let localFirstBypassHere = false;
   let localFirstMatchedBy: "normalized" | "original" | null = null;
+  let partialStreetFallbackUsed = false;
+  let partialStreetFallbackReason: "PARTIAL_STREET_LEVEL_MATCH" | "PARTIAL_SECTOR_MATCH" | null = null;
 
   let enriched: RankedHereEntryWithArcgis[] = [];
   let bestArcgisFromTop: any = null;
@@ -2357,6 +2454,15 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         .some((x) => x.kind === "discover");
     }
     const bestScoredEntry = scored[0] ?? null;
+    const partialStreetFallback = isAparecida && !localLotStrongMatch
+      ? pickAparecidaPartialStreetCandidate({
+          scored,
+          rua: normalized.rua,
+          bairro: normalized.bairro || bairroIn,
+          cidade: normalized.cidade || cityIn,
+          cep: normalized.cep || cepIn,
+        })
+      : null;
 
     // melhor candidato inicial (HERE puro)
     bestItem = bestScoredEntry?.it || null;
@@ -2366,9 +2472,63 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       discoverGateDebug.discoverWonFinalRanking = bestScoredEntry?.kind === "discover";
     }
 
+    const currentBestDiag = bestItem
+      ? computeGeocodeConfidence({
+          source: finalRankedKind === "discover" ? "HERE_DISCOVER" : "HERE_GEOCODE",
+          expected: {
+            rua: normalized.rua,
+            bairro: normalized.bairro || bairroIn,
+            cidade: normalized.cidade || cityIn,
+            cep: normalized.cep || cepIn,
+          },
+          actual: {
+            rua: String(bestItem?.address?.street || ""),
+            bairro: String(bestItem?.address?.district || bestItem?.address?.subdistrict || ""),
+            cidade: String(bestItem?.address?.city || bestItem?.address?.county || ""),
+            cep: String(bestItem?.address?.postalCode || ""),
+            resultType: String(bestItem?.resultType || ""),
+          },
+          hasCoords: !!bestItem?.position?.lat && !!bestItem?.position?.lng,
+          hasQuadra: !!normalized.quadra,
+          hasLote: !!normalized.lote,
+          hereSpreadMeters: preliminaryGeocodeSpreadMeters,
+          memoryStrength: "NONE",
+          hardSignals: [],
+        })
+      : null;
+
+    const currentBestNeedsPartialFallback =
+      !!partialStreetFallback?.item &&
+      (!bestItem ||
+        !currentBestDiag ||
+        currentBestDiag.hardMismatch ||
+        currentBestDiag.flags.includes("RUA_MISMATCH") ||
+        currentBestDiag.flags.includes("CIDADE_MISMATCH") ||
+        currentBestDiag.flags.includes("BAIRRO_MISMATCH") ||
+        !currentBestDiag.flags.includes("HAS_COORDS"));
+
+    if (currentBestNeedsPartialFallback) {
+      bestItem = partialStreetFallback!.item;
+      bestHereScore = partialStreetFallback!.score;
+      finalRankedKind = "geocode";
+      partialStreetFallbackUsed = true;
+      partialStreetFallbackReason = partialStreetFallback!.reason;
+    } else if (partialStreetFallback?.item) {
+      partialStreetFallbackUsed = true;
+      partialStreetFallbackReason = partialStreetFallback.reason;
+    }
+
+    if (partialStreetFallbackUsed && partialStreetFallbackReason) {
+      decisionReason = partialStreetFallbackReason;
+    }
 
     // ✅ Aparecida: re-rank TOP 3 do HERE usando ArcGIS
-    if (isAparecida && scored.length && !(localLotStrongMatch && localLotFinalItem)) {
+    if (
+      isAparecida &&
+      scored.length &&
+      !(localLotStrongMatch && localLotFinalItem) &&
+      !(partialStreetFallbackUsed && !localLotUsedAsFinal)
+    ) {
       const topK = 3;
       const top = scored.slice(0, topK);
 
@@ -2468,7 +2628,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
           finalPairTooTight
       );
 
-      if (shouldDowngradeAparecida) {
+    if (shouldDowngradeAparecida && !partialStreetFallbackUsed) {
         aparecidaLowConfidence = {
           downgrade: true,
           clearCoords: lat != null && lng != null && bestHereScore < 140,
@@ -2481,7 +2641,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
     lng = bestItem?.position?.lng ?? null;
 
     const MIN_SCORE = 90;
-    if (bestHereScore < MIN_SCORE) {
+    if (bestHereScore < MIN_SCORE && !partialStreetFallbackUsed) {
       lat = null;
       lng = null;
       decisionReason = "LOW_SCORE";
@@ -2516,7 +2676,13 @@ let bairroAuto = normalized.bairro || bairroIn || "";
 // se não tiver, faz 1 chamada usando o lat/lng final.
 let arcgisLot: any = null;
 
-if (isAparecida && lat != null && lng != null && !memoryHit) {
+if (
+  isAparecida &&
+  lat != null &&
+  lng != null &&
+  !memoryHit &&
+  !(partialStreetFallbackUsed && !localLotUsedAsFinal)
+) {
   // bestArcgisFromTop vem do PASSO 3 (top 3 do HERE)
   arcgisLot =
     (localLotStrongMatch && localLotFinalArc) ||
@@ -2542,7 +2708,12 @@ if (isAparecida && lat != null && lng != null && !memoryHit) {
     bairro: bairroAuto,
   });
 
-  if (isAparecida && aparecidaLowConfidence?.downgrade && !(localLotUsedAsFinal && localLotStrongMatch)) {
+  if (
+    isAparecida &&
+    aparecidaLowConfidence?.downgrade &&
+    !(localLotUsedAsFinal && localLotStrongMatch) &&
+    !partialStreetFallbackUsed
+  ) {
     status = "PARCIAL";
     if (decisionReason === "OK_CONFIDENT") decisionReason = "APARECIDA_LOW_CONFIDENCE";
     if (aparecidaLowConfidence.clearCoords) {
@@ -2584,7 +2755,9 @@ if (conflictQL) {
 // ✅ se HERE está “espalhado”, não deixa virar OK automático
   if (hereUncertain && !(isAparecida && localLotUsedAsFinal && localLotStrongMatch)) {
     status = "PARCIAL";
-    decisionReason = "HERE_SPREAD";
+    if (!partialStreetFallbackUsed) {
+      decisionReason = "HERE_SPREAD";
+    }
   }
 // 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
   if (status === "OK") {
@@ -2614,6 +2787,11 @@ if (conflictQL) {
   ) {
     status = "OK";
     decisionReason = "LOCAL_APARECIDA_LOT_OK";
+  } else if (isAparecida && partialStreetFallbackUsed) {
+    status = "PARCIAL";
+    if (partialStreetFallbackReason) {
+      decisionReason = partialStreetFallbackReason;
+    }
   }
 
   const bestRankedAddress = bestItem?.address || {};

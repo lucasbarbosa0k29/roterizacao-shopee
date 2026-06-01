@@ -109,7 +109,7 @@ function canonicalLot(value: string) {
   if (m) return `${String(Number(m[1]))}${m[2] || ""}`;
 
   if (/^\d+$/.test(t)) return String(Number(t));
-  return t;
+  return "";
 }
 
 function normalizeQuadraLoteValue(value: string) {
