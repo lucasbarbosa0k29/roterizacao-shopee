@@ -2036,7 +2036,8 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
     if (
       (!acceptedEarly || shouldBypassAcceptedEarly) &&
-      discoverQualityDecision.allowed
+      discoverQualityDecision.allowed &&
+      !(localLotStrongMatch && localLotFinalItem)
     ) {
       const discoverQuery = bestGeocodeQuery || queriesWithHint[0] || "";
 
@@ -2175,11 +2176,12 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
       enriched.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
 
-    if (enriched[0]?.it) {
-      bestItem = enriched[0].it;
-      bestArcgisFromTop = enriched[0].arc || null;
-      bestHereScore = enriched[0].total ?? enriched[0].score ?? bestHereScore;
-      finalRankedKind = enriched[0].kind ?? finalRankedKind;
+      if (enriched[0]?.it) {
+        bestItem = enriched[0].it;
+        bestArcgisFromTop = enriched[0].arc || null;
+        bestHereScore = enriched[0].total ?? enriched[0].score ?? bestHereScore;
+        finalRankedKind = enriched[0].kind ?? finalRankedKind;
+      }
     }
 
     if (isAparecida && localLotStrongMatch && localLotFinalItem) {
@@ -2236,7 +2238,6 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
         };
       }
     }
-  }
 
     // coordenada final SEMPRE do bestItem
     lat = bestItem?.position?.lat ?? null;
@@ -2363,17 +2364,19 @@ if (conflictQL) {
     }
   }
 
-  if (isAparecida && localLotUsedAsFinal && localLotStrongMatch && lat != null && lng != null && !conflictQL) {
+  if (
+    isAparecida &&
+    localLotUsedAsFinal &&
+    localLotStrongMatch &&
+    lat != null &&
+    lng != null &&
+    !!localLotQuadra &&
+    !!localLotLote &&
+    !!localLotBairro &&
+    !conflictQL
+  ) {
     status = "OK";
-    if (
-      decisionReason === "HERE_SPREAD" ||
-      decisionReason === "LOW_SCORE" ||
-      decisionReason === "MISSING_CORE" ||
-      decisionReason === "OK_CONFIDENT" ||
-      decisionReason === "APARECIDA_LOW_CONFIDENCE"
-    ) {
-      decisionReason = "APARECIDA_LOCAL_LOT";
-    }
+    decisionReason = "LOCAL_APARECIDA_LOT_OK";
   }
 
   const bestRankedAddress = bestItem?.address || {};
