@@ -1800,14 +1800,15 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
       };
 
       const localKey = dedupeKeyForHere(localItem);
+      const localArc = {
+        found: true,
+        quadra: localAparecidaCandidate.quadra,
+        lote: localAparecidaCandidate.lote,
+        bairro: localAparecidaCandidate.bairro,
+      };
+      localLotFinalArc = localArc;
       if (!seen.has(localKey)) {
         seen.set(localKey, localItem);
-        const localArc = {
-          found: true,
-          quadra: localAparecidaCandidate.quadra,
-          lote: localAparecidaCandidate.lote,
-          bairro: localAparecidaCandidate.bairro,
-        };
         const localRerank = scoreAparecidaRerankCandidate({
           baseScore: scoreHereItemSmart(localItem, want),
           item: localItem,
@@ -2134,7 +2135,7 @@ const finalLote = (g.normalized.lote || smartQL.lote || rx.lote || "").trim();
 
 
     // ✅ Aparecida: re-rank TOP 3 do HERE usando ArcGIS
-    if (isAparecida && scored.length) {
+    if (isAparecida && scored.length && !(localLotStrongMatch && localLotFinalItem)) {
       const topK = 3;
       const top = scored.slice(0, topK);
 
@@ -2280,7 +2281,8 @@ let arcgisLot: any = null;
 if (isAparecida && lat != null && lng != null && !memoryHit) {
   // bestArcgisFromTop vem do PASSO 3 (top 3 do HERE)
   arcgisLot =
-    (typeof bestArcgisFromTop !== "undefined" && bestArcgisFromTop) ? bestArcgisFromTop : null;
+    (localLotStrongMatch && localLotFinalArc) ||
+    ((typeof bestArcgisFromTop !== "undefined" && bestArcgisFromTop) ? bestArcgisFromTop : null);
 
   // fallback: se o PASSO 3 não trouxe ArcGIS, busca 1x no ponto final
   if (!arcgisLot) {

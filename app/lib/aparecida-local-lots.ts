@@ -29,9 +29,24 @@ type RTreeItem = {
 type LoadedDataset = {
   geo?: FeatureCollection;
   tree?: RBush<RTreeItem>;
-  index?: Map<string, number[]>;
   filePath?: string;
   missing?: boolean;
+  disabled?: boolean;
+};
+
+type CentroidRecord = {
+  bairro: string;
+  quadra: string;
+  lote: string;
+  lat: number;
+  lng: number;
+};
+
+type LoadedCentroids = {
+  records?: CentroidRecord[];
+  index?: Map<string, number[]>;
+  missing?: boolean;
+  disabled?: boolean;
 };
 
 export type AparecidaLocalLotCandidate = {
@@ -39,13 +54,30 @@ export type AparecidaLocalLotCandidate = {
   lote: string;
   bairro: string;
   centroid: { lat: number; lng: number };
-  featureIndex: number;
-  feature: Feature;
   strongMatch: true;
 };
 
 const dataset: LoadedDataset = {};
+const centroids: LoadedCentroids = {};
 const coordinateCache = new Map<string, any>();
+
+function disableDataset(reason: string, error?: unknown) {
+  dataset.disabled = true;
+  console.error("[APARECIDA_LOCAL_LOTS_DISABLED]", {
+    reason,
+    error: error instanceof Error ? error.message : error ? String(error) : undefined,
+  });
+  return dataset;
+}
+
+function disableCentroids(reason: string, error?: unknown) {
+  centroids.disabled = true;
+  console.error("[APARECIDA_LOCAL_CENTROIDS_DISABLED]", {
+    reason,
+    error: error instanceof Error ? error.message : error ? String(error) : undefined,
+  });
+  return centroids;
+}
 
 function normalizeText(value: string) {
   return String(value || "")
@@ -146,59 +178,121 @@ function flipGeometry(geom: any) {
 }
 
 function loadAparecidaDataset() {
-  if (dataset.missing) return dataset;
-  if (dataset.geo && dataset.tree && dataset.index) return dataset;
+  if (dataset.missing || dataset.disabled) return dataset;
+  if (dataset.geo && dataset.tree) return dataset;
 
-  const filePath = path.join(process.cwd(), "public", "data", "aparecida_lotes.geojson");
+  const filePath = path.join(process.cwd(), "public", "data", "aparecida_lotes.min.geojson");
   if (!fs.existsSync(filePath)) {
     dataset.missing = true;
     return dataset;
   }
 
-  const raw = fs.readFileSync(filePath, "utf8");
-  let geo = JSON.parse(raw) as FeatureCollection;
+  try {
+    const parsed = (() => {
+      const raw = fs.readFileSync(filePath, "utf8");
+      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
+        return { reason: "GIT_LFS_POINTER" } as const;
+      }
 
-  if (looksSwapped(geo)) {
-    geo = {
-      type: "FeatureCollection",
-      features: geo.features.map((f) => ({
-        ...f,
-        geometry: flipGeometry(f.geometry),
-      })),
-    };
+      try {
+        return { geo: JSON.parse(raw) as FeatureCollection } as const;
+      } catch (error) {
+        return { reason: "INVALID_JSON", error } as const;
+      }
+    })();
+
+    if ("reason" in parsed) {
+      return disableDataset(parsed.reason || "LOAD_FAILED", "error" in parsed ? parsed.error : undefined);
+    }
+
+    let geo = parsed.geo;
+
+    if (geo?.type !== "FeatureCollection" || !Array.isArray(geo.features)) {
+      return disableDataset("INVALID_FEATURE_COLLECTION");
+    }
+
+    if (looksSwapped(geo)) {
+      geo = {
+        type: "FeatureCollection",
+        features: geo.features.map((f) => ({
+          ...f,
+          geometry: flipGeometry(f.geometry),
+        })),
+      };
+    }
+
+    const tree = new RBush<RTreeItem>();
+    const items: RTreeItem[] = [];
+
+    for (let i = 0; i < geo.features.length; i++) {
+      const feature = geo.features[i];
+      try {
+        const [minX, minY, maxX, maxY] = bbox(feature as any);
+        items.push({ minX, minY, maxX, maxY, i });
+      } catch {}
+    }
+
+    tree.load(items);
+
+    dataset.geo = geo;
+    dataset.tree = tree;
+    dataset.filePath = filePath;
+    dataset.missing = false;
+
+    return dataset;
+  } catch (error) {
+    return disableDataset("LOAD_FAILED", error);
+  }
+}
+
+function loadAparecidaCentroids() {
+  if (centroids.missing || centroids.disabled) return centroids;
+  if (centroids.records && centroids.index) return centroids;
+
+  const filePath = path.join(process.cwd(), "public", "data", "aparecida_lot_centroids.json");
+  if (!fs.existsSync(filePath)) {
+    centroids.missing = true;
+    return centroids;
   }
 
-  const tree = new RBush<RTreeItem>();
-  const items: RTreeItem[] = [];
-  const index = new Map<string, number[]>();
+  try {
+    const records = (() => {
+      const raw = fs.readFileSync(filePath, "utf8");
+      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
+        return null;
+      }
+      return JSON.parse(raw) as CentroidRecord[];
+    })();
+    if (!records) return disableCentroids("GIT_LFS_POINTER");
+    if (!Array.isArray(records)) return disableCentroids("INVALID_JSON_STRUCTURE");
 
-  for (let i = 0; i < geo.features.length; i++) {
-    const feature = geo.features[i];
-    try {
-      const [minX, minY, maxX, maxY] = bbox(feature as any);
-      items.push({ minX, minY, maxX, maxY, i });
-    } catch {}
+    const index = new Map<string, number[]>();
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      if (
+        !record ||
+        !Number.isFinite(record.lat) ||
+        !Number.isFinite(record.lng)
+      ) {
+        return disableCentroids("INVALID_RECORD");
+      }
 
-    const props = feature?.properties || {};
-    const q = normalizeQuadraLoteValue(String(props.num_qdr || props.NUM_QDR || props.QD || ""));
-    const l = canonicalLot(String(props.num_lot || props.NUM_LOT || props.LT || ""));
-    if (!q || !l) continue;
+      const q = normalizeQuadraLoteValue(record.quadra);
+      const l = canonicalLot(record.lote);
+      if (!q || !l) continue;
 
-    const key = `${q}__${l}`;
-    const bucket = index.get(key) || [];
-    bucket.push(i);
-    index.set(key, bucket);
+      const key = `${q}__${l}`;
+      const bucket = index.get(key) || [];
+      bucket.push(i);
+      index.set(key, bucket);
+    }
+
+    centroids.records = records;
+    centroids.index = index;
+    return centroids;
+  } catch (error) {
+    return disableCentroids("LOAD_FAILED", error);
   }
-
-  tree.load(items);
-
-  dataset.geo = geo;
-  dataset.tree = tree;
-  dataset.index = index;
-  dataset.filePath = filePath;
-  dataset.missing = false;
-
-  return dataset;
 }
 
 function pickFirstString(obj: any, keys: string[]) {
@@ -353,28 +447,23 @@ export function findAparecidaLocalLotCandidate(args: {
 
   if (!q || !l || !bairro) return null;
 
-  const { geo, index, missing } = loadAparecidaDataset();
-  if (missing || !geo || !index) return null;
+  const { records, index, missing } = loadAparecidaCentroids();
+  if (missing || !records || !index) return null;
 
   const bucket = index.get(`${q}__${l}`);
   if (!bucket || !bucket.length) return null;
 
   const candidates = bucket
-    .map((featureIndex) => {
-      const feature = geo.features[featureIndex];
-      if (!feature) return null;
-      const props = feature.properties || {};
-      const featureBairro = pickFirstString(props, ["bairro", "nm_bai", "NM_BAI", "SETOR"]);
+    .map((recordIndex) => {
+      const record = records[recordIndex];
+      if (!record) return null;
+      const featureBairro = record.bairro;
       if (!bairroCompatible(bairro, featureBairro)) return null;
-      const centroid = geometryCentroid(feature.geometry);
-      if (!centroid) return null;
       return {
-        featureIndex,
-        feature,
-        quadra: normalizeQuadraLoteValue(String(props.num_qdr || props.NUM_QDR || props.QD || "")),
-        lote: canonicalLot(String(props.num_lot || props.NUM_LOT || props.LT || "")),
+        quadra: normalizeQuadraLoteValue(record.quadra),
+        lote: canonicalLot(record.lote),
         bairro: featureBairro,
-        centroid,
+        centroid: { lat: record.lat, lng: record.lng },
         strongMatch: true as const,
       } as AparecidaLocalLotCandidate;
     })
@@ -389,7 +478,7 @@ export function findAparecidaLocalLotCandidate(args: {
     const aExact = ba === target ? 1 : 0;
     const bExact = bb === target ? 1 : 0;
     if (aExact !== bExact) return bExact - aExact;
-    return a.featureIndex - b.featureIndex;
+    return 0;
   });
 
   return candidates[0];
