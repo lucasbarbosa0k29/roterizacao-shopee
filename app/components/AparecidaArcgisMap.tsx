@@ -7,32 +7,25 @@ type Props = {
   onPick: (pos: { lat: number; lng: number }) => void;
 };
 
-// WebMap Aparecida (quadra/lote)
-const WEBMAP_ID = "9c9045a200f94fb78ef9b67811c8ca87";
+const APARECIDA_LOTES_URL = "/data/aparecida_lotes.visual.geojson";
 const ARCGIS_THEME_ID = "arcgis-theme-light-css";
 const ARCGIS_THEME_HREF =
   "https://js.arcgis.com/4.34/@arcgis/core/assets/esri/themes/light/main.css";
 
-let arcgisModulesPromise: Promise<
-  [
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-    { default: any },
-  ]
-> | null = null;
+let arcgisModulesPromise: Promise<any[]> | null = null;
 
 function loadArcgisModules() {
   if (!arcgisModulesPromise) {
     arcgisModulesPromise = Promise.all([
       import("@arcgis/core/config"),
-      import("@arcgis/core/WebMap"),
+      import("@arcgis/core/Map"),
+      import("@arcgis/core/layers/GeoJSONLayer"),
       import("@arcgis/core/views/MapView"),
       import("@arcgis/core/Graphic"),
       import("@arcgis/core/geometry/Point"),
       import("@arcgis/core/widgets/Search"),
+      import("@arcgis/core/renderers/SimpleRenderer"),
+      import("@arcgis/core/layers/support/LabelClass"),
     ]);
   }
   return arcgisModulesPromise;
@@ -49,46 +42,35 @@ function ensureArcgisThemeCss() {
   document.head.appendChild(link);
 }
 
-// SINGLETONS (mantém o mapa vivo, sem flash)
 let sharedView: any = null;
-let sharedWebMap: any = null;
+let sharedMap: any = null;
 let sharedLotLayer: any = null;
 let sharedMarker: any = null;
+let sharedSelectedLotGraphic: any = null;
 let sharedGraphic: any = null;
 let sharedPoint: any = null;
 let sharedSearch: any = null;
 let mapInitialized = false;
 
-// controle anti-flash
 let suppressNextCenterGoTo = false;
 let lastExternalCenterKey = "";
 
-const LOT_LAYER_ID = "19bf34119f0-layer-2";
-const LOTS_MIN_SCALE = 5000;
-const LABELS_MIN_SCALE = 2500;
+function formatCoord(value: number) {
+  return Number(value).toFixed(6);
+}
 
-function syncLotLayerState() {
-  if (!sharedView || !sharedWebMap || !sharedLotLayer) return;
-
-  const shouldShowLots = sharedView.scale <= LOTS_MIN_SCALE;
-  const layerInMap = sharedWebMap.layers.includes(sharedLotLayer);
-
-  if (shouldShowLots && !layerInMap) {
-    sharedWebMap.add(sharedLotLayer);
-  } else if (!shouldShowLots && layerInMap) {
-    sharedWebMap.remove(sharedLotLayer);
-  }
-
-  sharedLotLayer.labelsVisible = sharedView.scale <= LABELS_MIN_SCALE;
-  sharedLotLayer.popupEnabled = sharedView.scale <= LABELS_MIN_SCALE;
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 export default function AparecidaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
 
-  // =========================
-  // INIT / REATTACH
-  // =========================
   useEffect(() => {
     ensureArcgisThemeCss();
 
@@ -96,18 +78,13 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
       if (divRef.current && sharedView) {
         sharedView.container = divRef.current;
 
-        // ✅ quando reabre o modal, centraliza no pino atual (evita abrir no "endereço anterior")
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
           const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
 
-          // evita repetição inútil
           if (key !== lastExternalCenterKey) {
             lastExternalCenterKey = key;
-
-            // evita bloqueio por clique anterior
             suppressNextCenterGoTo = false;
 
-            // garante que o view está pronto antes do goTo
             Promise.resolve(sharedView.when?.()).then(() => {
               try {
                 sharedView.goTo(
@@ -116,11 +93,9 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
                 );
               } catch {}
 
-              // atualiza o marker
               setMarker(center.lat, center.lng);
             });
           } else {
-            // mesmo key, mas garante marker
             setMarker(center.lat, center.lng);
           }
         }
@@ -130,126 +105,205 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
     mapInitialized = true;
 
-    async function initMapWithRetry(attempt = 1): Promise<void> {
+    (async () => {
       try {
-      const [
-        { default: esriConfig },
-        { default: WebMap },
-        { default: MapView },
-        { default: Graphic },
-        { default: Point },
-        { default: Search },
-      ] = await loadArcgisModules();
+        const [
+          { default: esriConfig },
+          { default: Map },
+          { default: GeoJSONLayer },
+          { default: MapView },
+          { default: Graphic },
+          { default: Point },
+          { default: Search },
+          { default: SimpleRenderer },
+          { default: LabelClass },
+        ] = await loadArcgisModules();
 
-      const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
-      if (apiKey) esriConfig.apiKey = apiKey;
+        const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
+        if (apiKey) esriConfig.apiKey = apiKey;
 
-      if (!divRef.current) return;
-
-      if (!sharedWebMap) {
-        sharedWebMap = new WebMap({
-          portalItem: { id: WEBMAP_ID },
-        });
-
-        await sharedWebMap.load();
-        sharedLotLayer =
-          sharedWebMap.layers.find((layer: any) => layer.id === LOT_LAYER_ID) ||
-          sharedWebMap.layers.find((layer: any) => layer.title === "Mapa Aparecida 100%");
-
-        if (sharedLotLayer) {
-          sharedLotLayer.labelsVisible = false;
-          sharedLotLayer.popupEnabled = false;
-          sharedWebMap.remove(sharedLotLayer);
+        if (!divRef.current) {
+          mapInitialized = false;
+          return;
         }
-      }
 
-      sharedView = new MapView({
-        container: divRef.current,
-        map: sharedWebMap,
-        center: center ? [center.lng, center.lat] : [-49.2439, -16.8233],
-        zoom: center ? 18 : 16,
-      });
+        const lotsUrl =
+          typeof window !== "undefined"
+            ? `${window.location.origin}${APARECIDA_LOTES_URL}`
+            : APARECIDA_LOTES_URL;
 
-      // evita puxão automático
-      try {
-        sharedView.popup.autoPanEnabled = false;
-      } catch {}
+        if (!sharedLotLayer) {
+          sharedLotLayer = new GeoJSONLayer({
+            url: lotsUrl,
+            title: "mapa_aparecida_local",
+            outFields: ["*"],
+            visible: true,
+            labelsVisible: true,
+            labelingInfo: [
+              new LabelClass({
+                labelExpressionInfo: {
+                  expression: `
+                    var q = Trim(DefaultValue($feature.num_qdr, ""));
+                    var l = Trim(DefaultValue($feature.num_lot, ""));
+                    if (IsEmpty(q) || IsEmpty(l)) {
+                      return "";
+                    }
+                    return "Qd " + q + " Lt " + l;
+                  `,
+                },
+                symbol: {
+                  type: "text",
+                  color: [24, 24, 27, 0.92],
+                  haloColor: [245, 241, 232, 0.95],
+                  haloSize: 1.2,
+                  font: {
+                    family: "Arial",
+                    size: 9,
+                    weight: "normal",
+                  },
+                },
+                labelPlacement: "always-horizontal",
+                minScale: 4000,
+                maxScale: 0,
+              }),
+            ],
+            renderer: new SimpleRenderer({
+              symbol: {
+                type: "simple-fill",
+                color: [0, 0, 0, 0],
+                outline: {
+                  color: [38, 38, 38, 0.88],
+                  width: 0.7,
+                },
+              },
+            }),
+            popupTemplate: {
+              title: "Aparecida de Goiania",
+              content: [
+                {
+                  type: "fields",
+                  fieldInfos: [
+                    { fieldName: "nm_bai", label: "Bairro" },
+                    { fieldName: "num_qdr", label: "Quadra" },
+                    { fieldName: "num_lot", label: "Lote" },
+                  ],
+                },
+              ],
+            },
+          });
+        }
 
-      sharedGraphic = Graphic;
-      sharedPoint = Point;
+        if (!sharedMap) {
+          sharedMap = new Map({
+            basemap: "topo-vector",
+          });
+        }
 
-      sharedView.watch("stationary", (stationary: boolean) => {
-        if (stationary) syncLotLayerState();
-      });
-
-      // Search (uma vez só)
-      if (!sharedSearch) {
-        sharedSearch = new Search({
-          view: sharedView,
-          includeDefaultSources: true,
+        sharedView = new MapView({
+          container: divRef.current,
+          map: sharedMap,
+          center: center ? [center.lng, center.lat] : [-49.2439, -16.8233],
+          zoom: center ? 18 : 16,
         });
-        sharedView.ui.add(sharedSearch, "top-right");
-      }
 
-      // Clique no mapa
-      sharedView.on("click", (event: any) => {
-        const p = sharedView.toMap({ x: event.x, y: event.y });
-        if (!p) return;
-
-        const lat = Number(p.latitude);
-        const lng = Number(p.longitude);
-
-        suppressNextCenterGoTo = true;
-        setMarker(lat, lng);
-        onPick({ lat, lng });
-      });
-
-      if (center) {
-        lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
-
-        // ✅ garante abrir já no pino + zoom correto
         try {
-          await sharedView.when?.();
-          await sharedView.goTo(
-            { center: [center.lng, center.lat], zoom: 18 },
-            { animate: false }
-          );
+          sharedView.popup.autoPanEnabled = false;
         } catch {}
 
-        setMarker(center.lat, center.lng);
-      }
+        sharedGraphic = Graphic;
+        sharedPoint = Point;
 
-        syncLotLayerState();
+        if (!sharedSearch) {
+          sharedSearch = new Search({
+            view: sharedView,
+            includeDefaultSources: true,
+          });
+          sharedView.ui.add(sharedSearch, "top-right");
+        }
+
+        sharedView.on("click", (event: any) => {
+          const p = sharedView.toMap({ x: event.x, y: event.y });
+          if (!p) return;
+
+          const lat = Number(p.latitude);
+          const lng = Number(p.longitude);
+
+          suppressNextCenterGoTo = true;
+          setMarker(lat, lng);
+          onPick({ lat, lng });
+
+          Promise.resolve(sharedView.hitTest(event, { include: [sharedLotLayer] }))
+            .then((hit: any) => {
+              const feature =
+                hit?.results?.find((r: any) => r?.graphic?.layer === sharedLotLayer)?.graphic ||
+                null;
+
+              if (!feature) {
+                clearSelectedLot();
+                try {
+                  sharedView.popup.close();
+                } catch {}
+                return;
+              }
+
+              highlightSelectedLot(feature);
+              openLotPopup(feature, lat, lng);
+            })
+            .catch((err: any) => {
+              console.error("[AparecidaArcgisMap] hitTest failed:", err);
+            });
+        });
+
+        if (center) {
+          lastExternalCenterKey = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
+
+          try {
+            await sharedView.when?.();
+            await sharedView.goTo(
+              { center: [center.lng, center.lat], zoom: 18 },
+              { animate: false }
+            );
+          } catch {}
+
+          setMarker(center.lat, center.lng);
+        }
+
+        if (!sharedMap.layers.includes(sharedLotLayer)) {
+          sharedMap.add(sharedLotLayer);
+        }
+
+        try {
+          await sharedLotLayer.when?.();
+        } catch (error) {
+          console.error("[AparecidaArcgisMap] lot layer failed to load:", error);
+        }
       } catch (error) {
-        console.error(`[AparecidaArcgisMap] init failed (attempt ${attempt}/2):`, error);
+        console.error("[AparecidaArcgisMap] init failed:", error);
 
         try {
           sharedView?.destroy?.();
         } catch {}
 
         sharedView = null;
+        sharedMap = null;
+        sharedLotLayer = null;
         sharedSearch = null;
         sharedMarker = null;
+        sharedSelectedLotGraphic = null;
         sharedGraphic = null;
         sharedPoint = null;
-
-        if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 800));
-          await initMapWithRetry(attempt + 1);
-          return;
-        }
-
         mapInitialized = false;
       }
-    }
+    })();
 
-    initMapWithRetry();
+    return () => {
+      try {
+        sharedView?.container && (sharedView.container = null);
+      } catch {}
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // =========================
-  // UPDATE CENTER (externo)
-  // =========================
   useEffect(() => {
     if (!center || !sharedView || !sharedPoint || !sharedGraphic) return;
 
@@ -260,7 +314,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
     const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
     if (key === lastExternalCenterKey) {
-      // mesmo ponto, mas garante marker
       setMarker(center.lat, center.lng);
       return;
     }
@@ -277,9 +330,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     setMarker(center.lat, center.lng);
   }, [center]);
 
-  // =========================
-  // MARKER
-  // =========================
   function setMarker(lat: number, lng: number) {
     if (!sharedView || !sharedPoint || !sharedGraphic) return;
 
@@ -303,9 +353,69 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     sharedView.graphics.add(sharedMarker);
   }
 
-  // =========================
-  // BOTÃO CENTRALIZAR NO PINO
-  // =========================
+  function clearSelectedLot() {
+    if (!sharedView || !sharedSelectedLotGraphic) return;
+
+    try {
+      sharedView.graphics.remove(sharedSelectedLotGraphic);
+    } catch {}
+
+    sharedSelectedLotGraphic = null;
+  }
+
+  function highlightSelectedLot(feature: any) {
+    if (!sharedView || !sharedGraphic || !feature?.geometry) return;
+
+    clearSelectedLot();
+
+    sharedSelectedLotGraphic = new sharedGraphic({
+      geometry: feature.geometry,
+      symbol: {
+        type: "simple-fill",
+        color: [255, 255, 255, 0.04],
+        outline: {
+          color: [17, 24, 39, 0.98],
+          width: 1.6,
+        },
+      },
+    });
+
+    sharedView.graphics.add(sharedSelectedLotGraphic);
+  }
+
+  function openLotPopup(feature: any, lat: number, lng: number) {
+    if (!sharedView || !feature) return;
+
+    const attrs = feature.attributes || {};
+    const bairro = escapeHtml(attrs.nm_bai || "");
+    const quadra = escapeHtml(attrs.num_qdr || "");
+    const lote = escapeHtml(attrs.num_lot || "");
+    const latText = formatCoord(lat);
+    const lngText = formatCoord(lng);
+
+    try {
+      sharedView.popup.open({
+        location: {
+          type: "point",
+          latitude: lat,
+          longitude: lng,
+        },
+        title: "Aparecida de Goiania",
+        content: `
+          <div style="font-size:13px; line-height:1.5;">
+            <div><strong>Coordenadas:</strong> ${latText}, ${lngText}</div>
+            <div style="height:8px;"></div>
+            <div><strong>Bairro:</strong> ${bairro || "-"}</div>
+            <div style="height:8px;"></div>
+            <div><strong>Quadra:</strong> ${quadra || "-"}</div>
+            <div style="height:8px;"></div>
+            <div><strong>Lote:</strong> ${lote || "-"}</div>
+          </div>
+        `,
+      });
+    } catch {}
+  }
+
   function goToPin() {
     if (!sharedView || !sharedMarker) return;
 
@@ -316,10 +426,8 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
 
   return (
     <div className="relative w-full h-full bg-white">
-      {/* MAPA */}
       <div ref={divRef} className="absolute inset-0" />
 
-      {/* BOTÃO CENTRALIZAR (estilo Google Maps) */}
       <button
         type="button"
         onClick={goToPin}
