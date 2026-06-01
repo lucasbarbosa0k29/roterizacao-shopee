@@ -4,7 +4,12 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { listHistoryDb, updateHistoryDb } from "./lib/history-db";
+import {
+  getHistoryDb,
+  getPendingRouteDb,
+  listHistoryDb,
+  updateHistoryDb,
+} from "./lib/history-db";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -154,6 +159,48 @@ type AccessSnapshot = {
   message: string | null;
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
+
+type PendingRouteJob = {
+  id: string;
+  name: string;
+  status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  totalStops: number;
+  processedStops: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const PENDING_ROUTE_JOB_KEY = "rotta_pending_route_job_id";
+const PENDING_ROUTE_DISMISSED_JOB_KEY = "pendingRouteDismissedJobId";
+
+function readPendingRouteJobId() {
+  if (typeof window === "undefined") return "";
+  return String(window.localStorage.getItem(PENDING_ROUTE_JOB_KEY) || "").trim();
+}
+
+function writePendingRouteJobId(id: string) {
+  if (typeof window === "undefined") return;
+  const safeId = String(id || "").trim();
+  if (!safeId) return;
+  window.localStorage.setItem(PENDING_ROUTE_JOB_KEY, safeId);
+}
+
+function clearPendingRouteJobId() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PENDING_ROUTE_JOB_KEY);
+}
+
+function readPendingRouteDismissedJobId() {
+  if (typeof window === "undefined") return "";
+  return String(window.sessionStorage.getItem(PENDING_ROUTE_DISMISSED_JOB_KEY) || "").trim();
+}
+
+function writePendingRouteDismissedJobId(id: string) {
+  if (typeof window === "undefined") return;
+  const safeId = String(id || "").trim();
+  if (!safeId) return;
+  window.sessionStorage.setItem(PENDING_ROUTE_DISMISSED_JOB_KEY, safeId);
+}
 
 function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
   const basicUrl = process.env.NEXT_PUBLIC_PAYMENT_BASIC_URL;
@@ -367,6 +414,11 @@ function HomeInner() {
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [hasHistoryJob, setHasHistoryJob] = useState<boolean | null>(null);
+  const [hasPendingRoute, setHasPendingRoute] = useState<boolean | null>(null);
+  const [pendingRouteJob, setPendingRouteJob] = useState<PendingRouteJob | null>(null);
+  const [pendingRouteDismissedJobId, setPendingRouteDismissedJobId] = useState<string | null>(
+    null
+  );
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RowItem[]>([]);
@@ -390,7 +442,15 @@ const hasActivePlan = !!access?.activeSubscription;
 const canUseExistingSystem =
   !!access &&
   access.code !== "ACCESS_BLOCKED" &&
-  (access.isAdmin || hasActivePlan || access.canStartRoute || hasHistoryJob === true);
+  (access.isAdmin ||
+    hasActivePlan ||
+    access.canStartRoute ||
+    hasHistoryJob === true ||
+    hasPendingRoute === true);
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  setPendingRouteDismissedJobId(readPendingRouteDismissedJobId());
+}, []);
 useEffect(() => {
   let alive = true;
 
@@ -455,6 +515,82 @@ useEffect(() => {
     alive = false;
   };
 }, [access, accessError, accessLoading]);
+useEffect(() => {
+  if (accessLoading || accessError || !access) return;
+
+  if (jobId) {
+    setPendingRouteJob(null);
+    setHasPendingRoute(false);
+    return;
+  }
+
+  if (access.code === "ACCESS_BLOCKED") {
+    setPendingRouteJob(null);
+    setHasPendingRoute(false);
+    return;
+  }
+
+  let alive = true;
+  setHasPendingRoute(null);
+
+  (async () => {
+    try {
+      const pendingJob = await getPendingRouteDb();
+      if (!alive) return;
+
+      if (pendingJob?.id) {
+        setPendingRouteJob(pendingJob);
+        setHasPendingRoute(true);
+        writePendingRouteJobId(pendingJob.id);
+        return;
+      }
+
+      const resumeId = readPendingRouteJobId();
+      if (resumeId) {
+        try {
+          const savedJob = await getHistoryDb(resumeId);
+          if (!alive) return;
+
+          if (savedJob?.id && savedJob.status && savedJob.status !== "FAILED") {
+            setPendingRouteJob({
+              id: savedJob.id,
+              name: savedJob.originalName || "Planilha sem nome",
+              status: savedJob.status,
+              totalStops: Number(savedJob.totalStops || 0),
+              processedStops: Number(savedJob.processedStops || 0),
+              createdAt: savedJob.createdAt || new Date().toISOString(),
+              updatedAt: savedJob.updatedAt || new Date().toISOString(),
+            });
+            setHasPendingRoute(true);
+            return;
+          }
+
+          clearPendingRouteJobId();
+        } catch {
+          // se o job salvo não existir mais, limpa o apoio local
+          clearPendingRouteJobId();
+        }
+      }
+
+      setPendingRouteJob(null);
+      setHasPendingRoute(false);
+    } catch {
+      if (!alive) return;
+      setPendingRouteJob(null);
+      setHasPendingRoute(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+  }, [access, accessError, accessLoading, jobId]);
+  const isPendingRouteDismissed =
+    !!pendingRouteJob?.id &&
+    pendingRouteDismissedJobId !== null &&
+    pendingRouteDismissedJobId === pendingRouteJob.id;
+  const shouldShowPendingRouteBanner =
+    !!pendingRouteJob && !jobId && canUseExistingSystem && !isPendingRouteDismissed;
 useEffect(() => {
   /*
 
@@ -556,6 +692,9 @@ setHistoryId(job.id);
     });
 
     if (status === "PENDING" || status === "PROCESSING") {
+      if (job?.id) {
+        writePendingRouteJobId(job.id);
+      }
       setLoading(true);
       setView("upload");
       setRows([]);
@@ -563,6 +702,7 @@ setHistoryId(job.id);
     }
 
     if (status === "FAILED") {
+      clearPendingRouteJobId();
       setLoading(false);
       setView("upload");
       setRows([]);
@@ -570,6 +710,9 @@ setHistoryId(job.id);
     }
 
     setLoading(false);
+    if (job?.id) {
+      writePendingRouteJobId(job.id);
+    }
     return true;
   }
 
@@ -579,7 +722,12 @@ setHistoryId(job.id);
     const loadedRows = Array.isArray(resultPayload) ? resultPayload : resultPayload?.rows;
 
     if (!Array.isArray(loadedRows) || loadedRows.length === 0) {
+      clearPendingRouteJobId();
       return false;
+    }
+
+    if (job?.id) {
+      writePendingRouteJobId(job.id);
     }
 
     setRows(loadedRows);
@@ -617,6 +765,7 @@ setHistoryId(job.id);
       try {
         const job = await fetchHistoryJob(jobId, "full");
         setHistoryId(job.id);
+        writePendingRouteJobId(job.id);
         setFile(null);
         setHistoryName(job?.originalName || "Planilha");
 
@@ -1343,6 +1492,9 @@ const jobId =
   "";
 setHistoryId(jobId);
 if (jobId) {
+  writePendingRouteJobId(jobId);
+}
+if (jobId) {
   window.history.replaceState({}, "", `/?job=${encodeURIComponent(jobId)}`);
 }
 // (opcional) pra você ver no console do navegador se veio mesmo
@@ -1495,6 +1647,7 @@ a.download = extractedDate
     URL.revokeObjectURL(url);
 
     setIsExportOpen(false);
+    clearPendingRouteJobId();
   }
 
   // ===== agrupamento manual =====
@@ -2757,9 +2910,9 @@ setTimeout(() => map.getViewPort().resize(), 800);
     window.setTimeout(tryStart, 150);
 }, [isModalOpen, tutorialExportFinalRequestedAt]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!mounted || accessLoading || accessError || jobId) return;
-    if (access && !canUseExistingSystem && hasHistoryJob !== null) {
+    if (access && !canUseExistingSystem && hasHistoryJob !== null && hasPendingRoute !== null) {
       router.replace("/planos");
     }
   }, [
@@ -2768,6 +2921,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
     accessLoading,
     canUseExistingSystem,
     hasHistoryJob,
+    hasPendingRoute,
     jobId,
     mounted,
     router,
@@ -2775,7 +2929,14 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
     // ===== UI =====
     if (!mounted) return null;
-    if (accessLoading || (access && !canUseExistingSystem && hasHistoryJob === null && !jobId)) {
+    if (
+      accessLoading ||
+      (access &&
+        !canUseExistingSystem &&
+        hasHistoryJob === null &&
+        hasPendingRoute === null &&
+        !jobId)
+    ) {
       return (
         <main className="min-h-screen bg-slate-100">
           <div className="mx-auto max-w-5xl px-4 py-8">
@@ -2813,8 +2974,42 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
     return (
       <main className="min-h-screen bg-transparent">
+        {shouldShowPendingRouteBanner && pendingRouteJob && (
+          <div className="mx-auto w-full max-w-5xl px-4 pt-4">
+            <div className="flex flex-col gap-3 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-amber-900">
+                  Olá, você ainda tem uma rota pendente de roteirização. Clique aqui para terminar.
+                </div>
+                <div className="mt-1 text-xs text-amber-800">
+                  {pendingRouteJob.name}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => router.push(`/?job=${encodeURIComponent(pendingRouteJob.id)}`)}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-amber-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+              >
+                Continuar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pendingRouteJob?.id) return;
+                  writePendingRouteDismissedJobId(pendingRouteJob.id);
+                  setPendingRouteDismissedJobId(pendingRouteJob.id);
+                }}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100"
+              >
+                Agora não
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
-     {view === "upload" && rows.length === 0 && (
+      {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
     <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
       <div className="mb-6 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">

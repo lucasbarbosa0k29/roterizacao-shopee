@@ -31,7 +31,7 @@ function isTemporaryDbError(error: unknown) {
   );
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     void cleanupOldImportJobsIfNeeded();
 
@@ -40,6 +40,64 @@ export async function GET() {
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("mode");
+
+    if (mode === "pending") {
+      const select = {
+        id: true,
+        originalName: true,
+        status: true,
+        totalStops: true,
+        processedStops: true,
+        createdAt: true,
+        updatedAt: true,
+      } as const;
+
+      const toJobResponse = (job: {
+        id: string;
+        originalName: string | null;
+        status: string;
+        totalStops: number;
+        processedStops: number;
+        createdAt: Date;
+        updatedAt: Date;
+      }) => ({
+        id: job.id,
+        name: job.originalName || "Planilha sem nome",
+        status: job.status,
+        totalStops: job.totalStops,
+        processedStops: job.processedStops,
+        createdAt: job.createdAt.toISOString(),
+        updatedAt: job.updatedAt.toISOString(),
+      });
+
+      const processingJob = await prisma.importJob.findFirst({
+        where: {
+          userId,
+          status: "PROCESSING",
+        },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        select,
+      });
+
+      const pendingJob =
+        processingJob ||
+        (await prisma.importJob.findFirst({
+          where: {
+            userId,
+            status: "PENDING",
+          },
+          orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+          select,
+        }));
+
+      return NextResponse.json({
+        ok: true,
+        job: pendingJob ? toJobResponse(pendingJob) : null,
+      });
     }
 
     const jobs = await prisma.importJob.findMany({

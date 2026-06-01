@@ -6,6 +6,16 @@ export type DbHistoryListItem = {
   savedAt: number;
 };
 
+export type PendingRouteJob = {
+  id: string;
+  name: string;
+  status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  totalStops: number;
+  processedStops: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 async function fetchJson(url: string, options?: RequestInit) {
   const res = await fetch(url, {
     credentials: "include",
@@ -26,6 +36,12 @@ async function fetchJson(url: string, options?: RequestInit) {
 export async function listHistoryDb(): Promise<DbHistoryListItem[]> {
   const data = await fetchJson("/api/history");
   return data.items || [];
+}
+
+// 🔹 BUSCAR rota pendente/andamento do usuário
+export async function getPendingRouteDb(): Promise<PendingRouteJob | null> {
+  const data = await fetchJson("/api/history?mode=pending");
+  return data.job || null;
 }
 
 // 🔹 ABRIR job específico
