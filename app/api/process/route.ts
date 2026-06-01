@@ -795,6 +795,51 @@ function streetVariants(rua: string) {
   return Array.from(variants);
 }
 
+function buildAparecidaStreetQuadraQueries(args: {
+  rua: string;
+  cidade: string;
+  estado: string;
+  quadra: string;
+}) {
+  const rua = cleanAddressForHere(stripQuadraLoteFromStreet(args.rua || ""));
+  const cidade = cleanAddressForHere(args.cidade || "");
+  const estado = cleanAddressForHere(args.estado || "GO") || "GO";
+  const quadra = String(args.quadra || "").trim();
+
+  if (!rua || !quadra) return [];
+
+  const variants = new Set<string>();
+  const add = (street: string) => {
+    const cleaned = cleanAddressForHere(street);
+    if (!cleaned) return;
+    [
+      [cleaned, `Quadra ${quadra}`, cidade, estado],
+      [cleaned, `Q ${quadra}`, cidade, estado],
+    ]
+      .map((parts) => parts.filter(Boolean).join(", "))
+      .map((query) => cleanAddressForHere(query))
+      .filter(Boolean)
+      .forEach((query) => variants.add(query));
+  };
+
+  add(rua);
+  for (const variant of streetVariants(rua)) add(variant);
+
+  const codeMatch = rua.match(/\b([A-Z])\s*0*(\d{1,3})\b/i);
+  if (codeMatch) {
+    const letter = String(codeMatch[1] || "").toUpperCase();
+    const num = Number(codeMatch[2]);
+    const compact = Number.isFinite(num) ? String(num) : String(codeMatch[2] || "");
+    const padded = Number.isFinite(num) ? String(num).padStart(3, "0") : compact;
+    add(rua.replace(codeMatch[0], `${letter}-${padded}`));
+    add(rua.replace(codeMatch[0], `${letter}-${compact}`));
+    add(`${letter}-${padded}`);
+    add(`${letter}-${compact}`);
+  }
+
+  return Array.from(variants).slice(0, 6);
+}
+
 // ===== GEMINI =====
 async function geminiNormalize(params: { address: string; bairro?: string; city?: string; cep?: string }) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -1286,7 +1331,15 @@ function buildAparecidaRecoveryQueries(args: {
     .filter(Boolean)
     .join(" ");
 
+  const streetQuadra = buildAparecidaStreetQuadraQueries({
+    rua,
+    cidade,
+    estado,
+    quadra,
+  });
+
   const variants = [
+    ...streetQuadra,
     [rua, qlFull, bairro, cidade, estado].filter(Boolean).join(", "),
     [rua, qlCompact, bairro, cidade, estado].filter(Boolean).join(", "),
     [rua, bairro, qlFull, cidade, estado].filter(Boolean).join(", "),
