@@ -2242,7 +2242,15 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       !!bestGeocodeQuery &&
       bestGeocodeQuery === urbanPatternQuery;
 
-    const geocodeOnlyTopPoints = scored
+    const cityForSpread = normalized.cidade || cityIn || "";
+    const cityForSpreadKey = normalizeKey(cityForSpread).replace(/\s+/g, "");
+    const isGoianiaForSpread =
+      cityForSpreadKey.includes("GOIANIA") && !cityForSpreadKey.includes("APARECIDA");
+    const geocodeSpreadCandidates = isGoianiaForSpread
+      ? [...scored].sort((a, b) => b.score - a.score)
+      : scored;
+
+    const geocodeOnlyTopPoints = geocodeSpreadCandidates
       .filter((x) => x.kind === "geocode")
       .slice(0, 2)
       .map((x) => x.it?.position)
