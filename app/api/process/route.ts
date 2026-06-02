@@ -427,10 +427,14 @@ function pickAparecidaLocalFirstCandidate(args: {
       rua: args.rua,
       cidade: args.cidade,
       cep: args.cep,
+      allowStrongBairroAlias: true,
     });
 
     if (!candidate) continue;
-    if (normalizeKey(candidate.bairro) !== normalizeKey(target.bairro)) continue;
+    if (
+      !candidate.localAliasAccepted &&
+      normalizeKey(candidate.bairro) !== normalizeKey(target.bairro)
+    ) continue;
 
     return { candidate, matchedBy: target.label };
   }
@@ -1876,6 +1880,14 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         quadra: localLotQuadra,
         lote: localLotLote,
         bairro: localLotBairro,
+        flags: [
+          ...(localAparecidaCandidate.bairroDivergenteLocalForte
+            ? ["BAIRRO_DIVERGENTE_LOCAL_FORTE"]
+            : []),
+          ...(localAparecidaCandidate.localAliasAccepted
+            ? ["LOCAL_ALIAS_ACCEPTED"]
+            : []),
+        ],
       });
       console.info("[LOCAL_FIRST_BYPASS_HERE]", {
         sequence: row?.sequence ?? "",

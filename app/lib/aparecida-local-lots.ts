@@ -55,11 +55,14 @@ export type AparecidaLocalLotCandidate = {
   bairro: string;
   centroid: { lat: number; lng: number };
   strongMatch: true;
+  bairroDivergenteLocalForte?: boolean;
+  localAliasAccepted?: boolean;
 };
 
 const dataset: LoadedDataset = {};
 const centroids: LoadedCentroids = {};
 const coordinateCache = new Map<string, any>();
+const LOCAL_ALIAS_MAX_SPREAD_METERS = 250;
 
 function disableDataset(reason: string, error?: unknown) {
   dataset.disabled = true;
@@ -131,6 +134,29 @@ function bairroCompatible(expected: string, actual: string) {
   const rightTokens = right.split(" ").filter((t) => t.length >= 4);
 
   return leftTokens.some((token) => rightTokens.includes(token));
+}
+
+function centroidDistanceMeters(a: CentroidRecord, b: CentroidRecord) {
+  const R = 6371000;
+  const rad = Math.PI / 180;
+  const lat1 = a.lat * rad;
+  const lat2 = b.lat * rad;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function maxCentroidSpreadMeters(records: CentroidRecord[]) {
+  let max = 0;
+  for (let i = 0; i < records.length; i++) {
+    for (let j = i + 1; j < records.length; j++) {
+      max = Math.max(max, centroidDistanceMeters(records[i], records[j]));
+    }
+  }
+  return max;
 }
 
 function coordCacheKey(lat: number, lng: number) {
@@ -440,6 +466,7 @@ export function findAparecidaLocalLotCandidate(args: {
   rua?: string;
   cidade?: string;
   cep?: string;
+  allowStrongBairroAlias?: boolean;
 }) {
   const q = normalizeQuadraLoteValue(args.quadra || "");
   const l = canonicalLot(args.lote || "");
@@ -453,10 +480,12 @@ export function findAparecidaLocalLotCandidate(args: {
   const bucket = index.get(`${q}__${l}`);
   if (!bucket || !bucket.length) return null;
 
-  const candidates = bucket
-    .map((recordIndex) => {
-      const record = records[recordIndex];
-      if (!record) return null;
+  const bucketRecords = bucket
+    .map((recordIndex) => records[recordIndex])
+    .filter(Boolean) as CentroidRecord[];
+
+  const candidates = bucketRecords
+    .map((record) => {
       const featureBairro = record.bairro;
       if (!bairroCompatible(bairro, featureBairro)) return null;
       return {
@@ -469,7 +498,34 @@ export function findAparecidaLocalLotCandidate(args: {
     })
     .filter(Boolean) as AparecidaLocalLotCandidate[];
 
-  if (!candidates.length) return null;
+  if (!candidates.length) {
+    const city = normalizeText(args.cidade || "");
+    const allowStrongBairroAlias =
+      args.allowStrongBairroAlias === true &&
+      city.includes("APARECIDA") &&
+      city.includes("GOIANIA");
+
+    if (allowStrongBairroAlias) {
+      const spread = maxCentroidSpreadMeters(bucketRecords);
+      if (
+        bucketRecords.length === 1 ||
+        (bucketRecords.length > 1 && spread <= LOCAL_ALIAS_MAX_SPREAD_METERS)
+      ) {
+        const record = bucketRecords[0];
+        return {
+          quadra: normalizeQuadraLoteValue(record.quadra),
+          lote: canonicalLot(record.lote),
+          bairro: record.bairro,
+          centroid: { lat: record.lat, lng: record.lng },
+          strongMatch: true,
+          bairroDivergenteLocalForte: true,
+          localAliasAccepted: true,
+        };
+      }
+    }
+
+    return null;
+  }
 
   candidates.sort((a, b) => {
     const ba = normalizeBairroValue(a.bairro);
