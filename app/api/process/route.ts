@@ -173,12 +173,13 @@ function cleanAddressForHere(s: string) {
 
 function separateCompactQuadraLoteTokens(value: string) {
   return String(value || "")
-    .replace(/(\d)(QD|QUADRA|Q)(?=\d)/gi, "$1 $2")
+    .replace(/(\d)(QUADRA|QUAD|QDR|QD|Q)(?=\d)/gi, "$1 $2")
     .replace(/(\d)(LT|LOTE|L)(?=\d)/gi, "$1 $2");
 }
 
 function stripQuadraLoteFromStreet(q: string) {
   let t = separateCompactQuadraLoteTokens(q);
+  t = t.replace(/\b(?:QDR|QUAD)\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(/\bQ\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(/\bL\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(
@@ -210,12 +211,13 @@ function isWeakStreetForMemoryHint(value: string) {
   );
 }
 function stripQuadraLoteFromQuery(q: string) {
-  let t = String(q || "");
+  let t = separateCompactQuadraLoteTokens(q);
+  t = t.replace(/\b(?:QDR|QUAD)\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(
-    /\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
+    /\b(QUADRA|QD|Q(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
     " ",
   );
-  t = t.replace(/\b(LOTE|LOT|LT|L\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
+  t = t.replace(/\b(LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
   t = t.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/\s{2,}/g, " ").trim();
   return t;
 }
@@ -251,7 +253,7 @@ function extractByRegex(raw: string) {
 
   let rua = "";
   const ruaMatch = up.match(
-    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+?)(?=\s*(?:,|$|\b(?:QD|QUADRA|Q\.|LT|LOTE|L\.)\b))/,
+    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+?)(?=\s*(?:,|$|\b(?:QDR\.?\s*\d|QUAD\.?\s*\d|QD|QUADRA|Q\.|LT|LOTE|L\.)\b))/,
   );
   if (ruaMatch) {
     rua = `${ruaMatch[1]} ${ruaMatch[2]}`.replace(/\s{2,}/g, " ").trim();
@@ -269,7 +271,7 @@ function extractByRegex(raw: string) {
   }
 
   let quadra = "";
-  const qd = up.match(/\b(QD|QUADRA|Q\.)\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qd = up.match(/\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (qd) quadra = String(qd[2] || "").trim();
 
   let lote = "";
@@ -318,7 +320,7 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
-  const qMatch = up.match(/\b(?:QUADRA|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qMatch = up.match(/\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
   if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
 
   // 2) formatos explícitos: LOTE/LT/L + valor
@@ -328,7 +330,7 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
   if (!quadra || !lote) {
-    const glued = up.match(/\b(?:QUADRA|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\b/);
+    const glued = up.match(/\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\b/);
     if (glued) {
       if (!quadra) quadra = normalizeQLValue(glued[1]);
       if (!lote) lote = normalizeQLValue(glued[2], glued[3]);
@@ -337,7 +339,7 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 4) ordem invertida: "L27 Q40"
   if (!quadra || !lote) {
-    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\s*(?:QUADRA|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\b/);
+    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\s*(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\b/);
     if (inv) {
       if (!lote) lote = normalizeQLValue(inv[1], inv[2]);
       if (!quadra) quadra = normalizeQLValue(inv[3]);
@@ -346,7 +348,7 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 5) fallback bem conservador para "40/27" ou "40-27"
   // Só aceita se existir alguma palavra de contexto QD/QUADRA/LT/LOTE no texto
-  if ((!quadra || !lote) && /\b(QD|QUADRA|LT|LOTE)\b/.test(up)) {
+  if ((!quadra || !lote) && /\b(QDR|QD|QUADRA|QUAD|LT|LOTE)\b/.test(up)) {
     const pair = up.match(/\b(\d{1,3})\s*[\/\-]\s*(\d{1,3})\b/);
     if (pair) {
       if (!quadra) quadra = normalizeQLValue(pair[1]);
