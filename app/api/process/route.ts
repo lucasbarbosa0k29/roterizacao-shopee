@@ -853,6 +853,32 @@ function buildAparecidaStreetQuadraQueries(args: {
 }
 
 // ===== GEMINI =====
+const GEMINI_MAX_CONCURRENT_FETCHES = 2;
+let geminiActiveFetches = 0;
+const geminiFetchQueue: Array<() => void> = [];
+
+async function acquireGeminiFetchSlot() {
+  const waited = geminiActiveFetches >= GEMINI_MAX_CONCURRENT_FETCHES;
+  if (waited) {
+    await new Promise<void>((resolve) =>
+      geminiFetchQueue.push(() => {
+        geminiActiveFetches += 1;
+        resolve();
+      })
+    );
+  } else {
+    geminiActiveFetches += 1;
+  }
+  return { waited, active: geminiActiveFetches, queued: geminiFetchQueue.length };
+}
+
+function releaseGeminiFetchSlot() {
+  geminiActiveFetches = Math.max(0, geminiActiveFetches - 1);
+  const next = geminiFetchQueue.shift();
+  if (next) next();
+  return { active: geminiActiveFetches, queued: geminiFetchQueue.length };
+}
+
 async function geminiNormalize(params: {
   address: string;
   bairro?: string;
@@ -958,10 +984,14 @@ JSON:
     `https://generativelanguage.googleapis.com/v1beta/models/` +
     `${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
-  logGemini("GEMINI_CALL_START", { status: "STARTED" });
-
   let res: Response;
+  const queueSlot = await acquireGeminiFetchSlot();
+  if (queueSlot.waited) {
+    logGemini("GEMINI_QUEUE_WAIT", queueSlot);
+  }
+  logGemini("GEMINI_QUEUE_ACQUIRED", queueSlot);
   try {
+    logGemini("GEMINI_CALL_START", { status: "STARTED" });
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -976,6 +1006,8 @@ JSON:
       fallbackLocalAssumed: false,
     });
     throw error;
+  } finally {
+    logGemini("GEMINI_QUEUE_RELEASED", releaseGeminiFetchSlot());
   }
 
   const data = await res.json().catch(() => null);
