@@ -941,32 +941,19 @@ async function geminiNormalize(params: {
   }
 
   const prompt = `
-Você é um sistema de normalização de endereços do Brasil (Goiânia/GO e Aparecida/GO) para logística.
-Retorne SOMENTE um JSON válido. Se um campo não existir, use "".
+Extraia o endereço em JSON puro, sem markdown ou explicações. Use "" quando ausente. Não invente dados.
 
-Endereço bruto: "${params.address}"
-Bairro/Setor: "${params.bairro || ""}"
+Entrada: "${params.address}"
+Bairro: "${params.bairro || ""}"
 Cidade: "${params.city || ""}"
 CEP: "${params.cep || ""}"
 
-Objetivo:
-- rua: somente nome da via (ex: "Rua JCA1", "Avenida Central")
-- numero: apenas número (se SN, deixe "" e descreva em observacao)
-- quadra: apenas valor (ex: "3" e não "03")
-- lote: apenas valor (ex: "27" e não "027")
-- bairro, cidade, estado="GO", cep
-- observacao: EXTRAIA e PADRONIZE complementos em uma linha curta.
+Regras:
+- rua: somente a via; não inclua quadra ou lote.
+- Separe tokens compactados como RC8QD15LT40 em rua="Rua RC8", quadra="15", lote="40". Preserve códigos de via como RC, CV e AC.
+- numero, quadra e lote: somente o valor, sem zeros à esquerda. Para SN, use numero="".
+- observacao: complemento curto.
 
-Regras obrigatórias:
-- Nunca inclua quadra ou lote dentro de rua.
-- Separe tokens compactados: "RC8QD15LT40" => rua="Rua RC8", quadra="15", lote="40".
-- Separe tokens compactados: "CV16QD22LT08" => rua="Rua CV16", quadra="22", lote="8".
-- Separe tokens compactados: "AC7QD07LT21" => rua="Rua AC7", quadra="7", lote="21".
-- Preserve RC, CV e AC como parte da rua.
-- Não invente quadra, lote, bairro, cidade ou CEP.
-- Se quadra/lote não forem claros, deixe vazio e explique em observacao.
-
-JSON:
 {
   "rua": "",
   "numero": "",
@@ -997,7 +984,14 @@ JSON:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        },
       }),
     });
   } catch (error) {
