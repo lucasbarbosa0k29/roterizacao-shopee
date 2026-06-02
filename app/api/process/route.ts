@@ -853,11 +853,53 @@ function buildAparecidaStreetQuadraQueries(args: {
 }
 
 // ===== GEMINI =====
-async function geminiNormalize(params: { address: string; bairro?: string; city?: string; cep?: string }) {
+async function geminiNormalize(params: {
+  address: string;
+  bairro?: string;
+  city?: string;
+  cep?: string;
+  sequence?: string | number;
+  skipExternalCall?: boolean;
+}) {
   const apiKey = process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const startedAt = Date.now();
+  const debugGemini =
+    process.env.NODE_ENV !== "production" &&
+    process.env.ROTTA_DEBUG_GEMINI_NORMALIZE === "1";
+  const logGemini = (event: string, details: Record<string, unknown>) => {
+    if (!debugGemini) return;
+    console.info(`[${event}]`, {
+      sequence: params.sequence ?? "",
+      durationMs: Date.now() - startedAt,
+      ...details,
+    });
+  };
+
+  if (params.skipExternalCall) {
+    logGemini("GEMINI_SKIPPED_STRONG_MEMORY", {
+      status: "SKIPPED",
+      fallbackLocalAssumed: true,
+    });
+    const normalized: Normalized = {
+      rua: "",
+      numero: "",
+      quadra: "",
+      lote: "",
+      bairro: params.bairro || "",
+      cidade: params.city || "",
+      estado: "GO",
+      cep: params.cep || "",
+      observacao: "",
+    };
+    return { normalized, raw: "", model, usedGemini: false as const, geminiOk: false as const };
+  }
 
   if (!apiKey) {
+    logGemini("GEMINI_CALL_ERROR", {
+      status: "NO_API_KEY",
+      fallbackLocalAssumed: true,
+    });
     const normalized: Normalized = {
       rua: "",
       numero: "",
@@ -916,18 +958,34 @@ JSON:
     `https://generativelanguage.googleapis.com/v1beta/models/` +
     `${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
-    }),
-  });
+  logGemini("GEMINI_CALL_START", { status: "STARTED" });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+      }),
+    });
+  } catch (error) {
+    logGemini("GEMINI_CALL_ERROR", {
+      status: "FETCH_ERROR",
+      fallbackLocalAssumed: false,
+    });
+    throw error;
+  }
 
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
+    logGemini("GEMINI_CALL_ERROR", {
+      status: res.status,
+      is429: res.status === 429,
+      fallbackLocalAssumed: true,
+    });
     const normalized: Normalized = {
       rua: "",
       numero: "",
@@ -956,6 +1014,10 @@ JSON:
   }
 
   if (!parsed || typeof parsed !== "object") {
+    logGemini("GEMINI_CALL_ERROR", {
+      status: "INVALID_JSON",
+      fallbackLocalAssumed: true,
+    });
     const normalized: Normalized = {
       rua: "",
       numero: "",
@@ -981,6 +1043,12 @@ JSON:
     cep: typeof parsed?.cep === "string" ? parsed.cep : (params.cep || ""),
     observacao: typeof parsed?.observacao === "string" ? parsed.observacao : "",
   };
+
+  logGemini("GEMINI_CALL_SUCCESS", {
+    status: res.status,
+    parsedKeys: Object.keys(parsed),
+    fallbackLocalAssumed: false,
+  });
 
   return { normalized, raw: rawText, model, usedGemini: true as const, geminiOk: true as const };
 }
@@ -1619,17 +1687,52 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   }
 
   // 1) Gemini
-  const g = await geminiNormalize({ address: addressRaw, bairro: bairroIn, city: cityIn, cep: cepIn });
+  const rx = extractByRegex(addressRaw);
+  const smartQL = extractQuadraLoteSmart(addressRaw);
+  const localRuaBeforeGemini = stripQuadraLoteFromStreet(rx.rua || "").trim();
+  const cityForGeminiSkipKey = normalizeKey(cityIn);
+  const isGoianiaForGeminiSkip =
+    cityForGeminiSkipKey.includes("GOIANIA") &&
+    !cityForGeminiSkipKey.includes("APARECIDA");
+  const skipGeminiForStrongExactMemory =
+    isGoianiaForGeminiSkip &&
+    memoryHitKind === "exact" &&
+    memoryHit?.lat != null &&
+    memoryHit?.lng != null &&
+    !!localRuaBeforeGemini &&
+    !!smartQL.quadra &&
+    !!smartQL.lote;
+
+  const g = await geminiNormalize({
+    address: addressRaw,
+    bairro: bairroIn,
+    city: cityIn,
+    cep: cepIn,
+    sequence: row?.sequence,
+    skipExternalCall: skipGeminiForStrongExactMemory,
+  });
 
   // 1.1) fallback regex se Gemini falhar
-  const rx = extractByRegex(addressRaw);
-
  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
-
- const smartQL = extractQuadraLoteSmart(addressRaw);
 
  const finalQuadra = mergeAparecidaLotValue(g.normalized.quadra || "", smartQL.quadra || "", rx.quadra || "").trim();
  const finalLote = mergeAparecidaLotValue(g.normalized.lote || "", smartQL.lote || "", rx.lote || "").trim();
+
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.ROTTA_DEBUG_GEMINI_NORMALIZE === "1"
+  ) {
+    console.info("[GEMINI_POST_PARSE]", {
+      sequence: row?.sequence ?? "",
+      status: g.geminiOk ? "GEMINI_OK" : "LOCAL_FALLBACK",
+      fallbackLocalAssumed: !g.geminiOk,
+      geminiRuaChanged: !!g.normalized.rua && finalRua !== g.normalized.rua,
+      geminiQuadraChanged: !!g.normalized.quadra && finalQuadra !== g.normalized.quadra,
+      geminiLoteChanged: !!g.normalized.lote && finalLote !== g.normalized.lote,
+      smartQLFilledQuadra: !g.normalized.quadra && !!smartQL.quadra,
+      smartQLFilledLote: !g.normalized.lote && !!smartQL.lote,
+    });
+  }
 
   const obsCleanRaw = String(g.normalized.observacao || "")
     .trim()
