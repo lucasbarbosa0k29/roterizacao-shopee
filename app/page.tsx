@@ -438,14 +438,12 @@ function HomeInner() {
   const [notesDraft, setNotesDraft] = useState("");
 const searchParams = useSearchParams();
 const jobId = searchParams.get("job");
-const hasActivePlan = !!access?.activeSubscription;
-const canUseExistingSystem =
-  !!access &&
-  access.code !== "ACCESS_BLOCKED" &&
-  (access.isAdmin ||
-    hasActivePlan ||
-    access.canStartRoute ||
-    hasHistoryJob === true ||
+ const canUseExistingSystem =
+   !!access &&
+   access.code !== "ACCESS_BLOCKED" &&
+   (access.isAdmin ||
+     access.canStartRoute ||
+     hasHistoryJob === true ||
     hasPendingRoute === true);
 useEffect(() => {
   if (typeof window === "undefined") return;
@@ -485,13 +483,17 @@ useEffect(() => {
   };
 }, []);
 useEffect(() => {
+  if (access && !access.canStartRoute) {
+    setFile(null);
+  }
+}, [access]);
+useEffect(() => {
   if (accessLoading || accessError || !access) return;
 
   if (
     access.isAdmin ||
     access.canStartRoute ||
-    access.code === "ACCESS_BLOCKED" ||
-    access.activeSubscription
+    access.code === "ACCESS_BLOCKED"
   ) {
     setHasHistoryJob(false);
     return;
@@ -780,7 +782,6 @@ setHistoryId(job.id);
         console.error(e);
         setLoading(false);
         setJobProgress(null);
-        router.replace("/planos");
       }
     })();
   }, [jobId, router]);
@@ -2912,14 +2913,19 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
 useEffect(() => {
     if (!mounted || accessLoading || accessError || jobId) return;
-    if (access && !canUseExistingSystem && hasHistoryJob !== null && hasPendingRoute !== null) {
+    if (
+      access?.code === "ACCESS_BLOCKED" ||
+      (access &&
+        !access.canStartRoute &&
+        hasHistoryJob === false &&
+        hasPendingRoute === false)
+    ) {
       router.replace("/planos");
     }
   }, [
     access,
     accessError,
     accessLoading,
-    canUseExistingSystem,
     hasHistoryJob,
     hasPendingRoute,
     jobId,
@@ -2933,8 +2939,7 @@ useEffect(() => {
       accessLoading ||
       (access &&
         !canUseExistingSystem &&
-        hasHistoryJob === null &&
-        hasPendingRoute === null &&
+        (hasHistoryJob === null || hasPendingRoute === null) &&
         !jobId)
     ) {
       return (
@@ -2960,7 +2965,14 @@ useEffect(() => {
       );
     }
 
-    if (access && !canUseExistingSystem && !jobId) {
+    if (
+      !jobId &&
+      (access?.code === "ACCESS_BLOCKED" ||
+        (access &&
+          !access.canStartRoute &&
+          hasHistoryJob === false &&
+          hasPendingRoute === false))
+    ) {
       return (
         <main className="min-h-screen bg-slate-100">
           <div className="mx-auto max-w-5xl px-4 py-8">
@@ -3041,12 +3053,29 @@ useEffect(() => {
       >
         <div className="flex flex-col md:flex-row gap-4">
           {/* INPUT PLANILHA */}
-          <label className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white">
+          <label
+            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white"
+            onClick={(e) => {
+              if (access?.canStartRoute === true) return;
+              e.preventDefault();
+              setFile(null);
+              router.replace("/planos");
+            }}
+          >
             <input
               type="file"
               accept=".xlsx,.csv"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              disabled={access?.canStartRoute !== true}
+              onChange={(e) => {
+                if (access?.canStartRoute !== true) {
+                  e.currentTarget.value = "";
+                  setFile(null);
+                  router.replace("/planos");
+                  return;
+                }
+                setFile(e.target.files?.[0] || null);
+              }}
             />
 
             <div className="flex items-center gap-4">

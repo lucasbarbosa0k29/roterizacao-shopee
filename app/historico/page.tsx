@@ -12,8 +12,6 @@ import {
 type HistoryItem = DbHistoryListItem;
 
 type AccessSnapshot = {
-  isAdmin: boolean;
-  activeSubscription: unknown | null;
   canStartRoute: boolean;
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
@@ -34,21 +32,12 @@ export default function HistoricoPage() {
     return data as AccessSnapshot;
   }
 
-  function canUseExistingSystem(access: AccessSnapshot, count: number) {
-    return (
-      access.isAdmin ||
-      (!!access.activeSubscription && access.code !== "ACCESS_BLOCKED") ||
-      access.canStartRoute ||
-      (access.code !== "ACCESS_BLOCKED" && count > 0)
-    );
-  }
-
   async function refresh() {
     try {
       setLoading(true);
       const [access, data] = await Promise.all([loadAccess(), listHistoryDb()]);
       setItems(data);
-      if (!canUseExistingSystem(access, data.length)) {
+      if (access.code === "ACCESS_BLOCKED" || (!access.canStartRoute && data.length === 0)) {
         router.replace("/planos");
       }
     } catch (e: any) {
