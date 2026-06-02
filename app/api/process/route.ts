@@ -1032,6 +1032,36 @@ JSON:
     return { normalized, raw: rawText, model, usedGemini: false as const, geminiOk: false as const };
   }
 
+  const hasUsefulField = [
+    "rua",
+    "numero",
+    "quadra",
+    "lote",
+    "bairro",
+    "cidade",
+    "cep",
+    "observacao",
+  ].some((field) => typeof parsed[field] === "string" && parsed[field].trim());
+
+  if (!hasUsefulField) {
+    logGemini("GEMINI_CALL_ERROR", {
+      status: "INVALID_EMPTY_JSON",
+      fallbackLocalAssumed: true,
+    });
+    const normalized: Normalized = {
+      rua: "",
+      numero: "",
+      quadra: "",
+      lote: "",
+      bairro: params.bairro || "",
+      cidade: params.city || "",
+      estado: "GO",
+      cep: params.cep || "",
+      observacao: "",
+    };
+    return { normalized, raw: rawText, model, usedGemini: false as const, geminiOk: false as const };
+  }
+
   const normalized: Normalized = {
     rua: typeof parsed?.rua === "string" ? parsed.rua : "",
     numero: typeof parsed?.numero === "string" ? parsed.numero : "",
