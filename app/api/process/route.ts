@@ -171,8 +171,16 @@ function cleanAddressForHere(s: string) {
   return t;
 }
 
+function separateCompactQuadraLoteTokens(value: string) {
+  return String(value || "")
+    .replace(/(\d)(QD|QUADRA|Q)(?=\d)/gi, "$1 $2")
+    .replace(/(\d)(LT|LOTE|L)(?=\d)/gi, "$1 $2");
+}
+
 function stripQuadraLoteFromStreet(q: string) {
-  let t = String(q || "");
+  let t = separateCompactQuadraLoteTokens(q);
+  t = t.replace(/\bQ\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
+  t = t.replace(/\bL\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(
     /\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
     " ",
@@ -303,7 +311,7 @@ function normalizeQLValue(v: string, suffix = "") {
 }
 
 function extractQuadraLoteSmart(raw: string) {
-  const up = String(raw || "").toUpperCase();
+  const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
 
   let quadra = "";
   let lote = "";
@@ -876,6 +884,15 @@ Objetivo:
 - lote: apenas valor (ex: "27" e não "027")
 - bairro, cidade, estado="GO", cep
 - observacao: EXTRAIA e PADRONIZE complementos em uma linha curta.
+
+Regras obrigatórias:
+- Nunca inclua quadra ou lote dentro de rua.
+- Separe tokens compactados: "RC8QD15LT40" => rua="Rua RC8", quadra="15", lote="40".
+- Separe tokens compactados: "CV16QD22LT08" => rua="Rua CV16", quadra="22", lote="8".
+- Separe tokens compactados: "AC7QD07LT21" => rua="Rua AC7", quadra="7", lote="21".
+- Preserve RC, CV e AC como parte da rua.
+- Não invente quadra, lote, bairro, cidade ou CEP.
+- Se quadra/lote não forem claros, deixe vazio e explique em observacao.
 
 JSON:
 {
