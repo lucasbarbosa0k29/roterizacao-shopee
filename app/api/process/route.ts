@@ -64,6 +64,19 @@ type InputRow = {
   cep?: string;
 };
 
+type AparecidaShadowDebug = {
+  flags: string[];
+  expectedRua: string;
+  actualRua: string;
+  expectedBairro: string;
+  actualBairro: string;
+  expectedQuadra: string;
+  actualQuadra: string;
+  expectedLote: string;
+  actualLote: string;
+  source: string | null;
+};
+
 type MemoryDebugRow = {
   memoryKey: string;
   memoryBaseKey: string | null;
@@ -77,6 +90,8 @@ type MemoryDebugRow = {
   geocodeConfidenceLevel?: GeocodeConfidenceLevel;
   geocodeConfidenceHardMismatch?: boolean;
   geocodeConfidenceFlags?: string[];
+  aparecidaShadowFlags?: string[];
+  aparecidaShadowDebug?: AparecidaShadowDebug | null;
   approxMemoryStrength?: ApproxMemoryStrength | null;
   approxMemoryScore?: number | null;
   approxMemoryReasons?: string[];
@@ -201,6 +216,72 @@ function normalizeKey(text: string) {
     .trim();
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
+function normalizedIncludesEither(expected: string, actual: string) {
+  const left = normalizeKey(expected);
+  const right = normalizeKey(actual);
+  return !!left && !!right && (left.includes(right) || right.includes(left));
+}
+
+function buildAparecidaContextShadow(args: {
+  isAparecida: boolean;
+  expectedRua: string;
+  actualRua: string;
+  expectedBairro: string;
+  actualBairro: string;
+  expectedQuadra: string;
+  actualQuadra: string;
+  expectedLote: string;
+  actualLote: string;
+  source: string | null;
+}): AparecidaShadowDebug | null {
+  if (!args.isAparecida) return null;
+
+  const flags: string[] = [];
+  const expectedQuadra = String(args.expectedQuadra || "").trim();
+  const actualQuadra = String(args.actualQuadra || "").trim();
+  const expectedLote = String(args.expectedLote || "").trim();
+  const actualLote = String(args.actualLote || "").trim();
+
+  const bairroMismatch =
+    !!String(args.expectedBairro || "").trim() &&
+    !!String(args.actualBairro || "").trim() &&
+    !normalizedIncludesEither(args.expectedBairro, args.actualBairro);
+
+  const ruaMismatch =
+    !!String(args.expectedRua || "").trim() &&
+    !!String(args.actualRua || "").trim() &&
+    !normalizedIncludesEither(args.expectedRua, args.actualRua);
+
+  const qlMatch =
+    !!expectedQuadra &&
+    !!actualQuadra &&
+    !!expectedLote &&
+    !!actualLote &&
+    sameText(expectedQuadra, actualQuadra) &&
+    sameText(expectedLote, actualLote);
+
+  if (bairroMismatch) flags.push("APARECIDA_BAIRRO_MISMATCH_SHADOW");
+  if (ruaMismatch) flags.push("APARECIDA_RUA_MISMATCH_SHADOW");
+  if (qlMatch && (bairroMismatch || ruaMismatch)) {
+    flags.push("APARECIDA_QL_MATCH_BUT_CONTEXT_MISMATCH_SHADOW");
+  }
+
+  if (!flags.length) return null;
+
+  return {
+    flags,
+    expectedRua: args.expectedRua,
+    actualRua: args.actualRua,
+    expectedBairro: args.expectedBairro,
+    actualBairro: args.actualBairro,
+    expectedQuadra,
+    actualQuadra,
+    expectedLote,
+    actualLote,
+    source: args.source,
+  };
+}
+
 function isWeakStreetForMemoryHint(value: string) {
   const rua = normalizeKey(value);
 
@@ -3088,6 +3169,30 @@ if (conflictQL) {
     ],
   });
 // ✅ SALVAR NA MEMÓRIA GLOBAL (se válido)
+const aparecidaShadowActualBairro =
+  arcgisLot?.found && String(arcgisLot.bairro || "").trim()
+    ? String(arcgisLot.bairro || "")
+    : String(bestRankedAddress?.district || bestRankedAddress?.subdistrict || "");
+const aparecidaShadowDebug = buildAparecidaContextShadow({
+  isAparecida,
+  expectedRua: normalized.rua,
+  actualRua: String(bestRankedAddress?.street || ""),
+  expectedBairro: normalized.bairro || bairroIn,
+  actualBairro: aparecidaShadowActualBairro,
+  expectedQuadra: normalized.quadra,
+  actualQuadra: quadraAuto,
+  expectedLote: normalized.lote,
+  actualLote: loteAuto,
+  source: finalRankedKind ?? (memoryHit ? "memory" : approxMemoryHit ? "approx_memory" : null),
+});
+
+if (debugMemory && aparecidaShadowDebug) {
+  console.info("[APARECIDA_CONTEXT_SHADOW]", {
+    sequence: row?.sequence ?? "",
+    ...aparecidaShadowDebug,
+  });
+}
+
 const autoSaveCurrentBehaviorWouldSave = !memoryHit && lat != null && lng != null && status === "OK";
 const autoSaveAudit = auditAutoSaveMemory({
   currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
@@ -3152,9 +3257,10 @@ if (shouldAutoSaveAddressMemory) {
     console.warn("AddressMemory save failed:", e);
   }
 }
+  const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
-    bairro: bairroAuto,
+    bairro: bairroFinal,
     city: cityForDecision,
     cep: normalized.cep || cepIn,
 
@@ -3255,6 +3361,8 @@ if (shouldAutoSaveAddressMemory) {
       geocodeConfidenceLevel: geocodeConfidenceDiag.level,
       geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
       geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      aparecidaShadowFlags: aparecidaShadowDebug?.flags || [],
+      aparecidaShadowDebug,
       approxMemoryStrength,
       approxMemoryScore,
       approxMemoryReasons,
@@ -3347,7 +3455,11 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({} as any));
 
     const rowsIn: InputRow[] = Array.isArray(body?.rows) ? body.rows : [];
-    const debugMemory = body?.debugMemory === true;
+    const debugMemoryFromEnv = process.env.ROTTA_DEBUG_MEMORY === "1";
+    const debugMemory = body?.debugMemory === true || debugMemoryFromEnv;
+    if (debugMemoryFromEnv) {
+      console.info("[ROTTA_DEBUG_MEMORY] debugMemory enabled by ROTTA_DEBUG_MEMORY=1");
+    }
     if (!rowsIn.length) {
       return NextResponse.json({ error: "Envie { rows: [...] }" }, { status: 400 });
     }
@@ -3539,6 +3651,11 @@ if (jobId) {
       const exactHits = rowsWithDebug.filter((r: any) => r.memoryDebug.memoryHitKind === "exact").length;
       const misses = rowsWithDebug.length - hits;
       const hereSkippedBecauseMemory = rowsWithDebug.filter((r: any) => r.memoryDebug.hereSkippedBecauseMemory).length;
+      const countAparecidaShadow = (flag: string) =>
+        rowsWithDebug.filter((r: any) => r.memoryDebug.aparecidaShadowFlags?.includes(flag)).length;
+      const aparecidaShadowTotal = rowsWithDebug.filter(
+        (r: any) => r.memoryDebug.aparecidaShadowFlags?.length,
+      ).length;
 
       debugMemorySummary = {
         enabled: true,
@@ -3548,6 +3665,12 @@ if (jobId) {
         baseHits,
         misses,
         hereSkippedBecauseMemory,
+        aparecidaShadowTotal,
+        aparecidaBairroMismatchShadow: countAparecidaShadow("APARECIDA_BAIRRO_MISMATCH_SHADOW"),
+        aparecidaRuaMismatchShadow: countAparecidaShadow("APARECIDA_RUA_MISMATCH_SHADOW"),
+        aparecidaQlMatchButContextMismatchShadow: countAparecidaShadow(
+          "APARECIDA_QL_MATCH_BUT_CONTEXT_MISMATCH_SHADOW",
+        ),
       };
 
       console.info("[MEMORY_BATCH_SUMMARY]", debugMemorySummary);
