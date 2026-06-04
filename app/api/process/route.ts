@@ -37,7 +37,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { AccessControlError, consumeRouteAllowance } from "@/app/lib/access-control";
 import { Prisma } from "@prisma/client";
-import { findAparecidaLocalLotCandidate } from "@/app/lib/aparecida-local-lots";
+import {
+  findAparecidaLocalLotCandidate,
+  findAparecidaLocalStreetCandidate,
+} from "@/app/lib/aparecida-local-lots";
 
 
 export const runtime = "nodejs";
@@ -86,6 +89,21 @@ type AparecidaShadowDebug = {
   } | null;
 };
 
+type AparecidaLocalStreetShadowStatus =
+  | "STREET_MATCH"
+  | "STREET_MISMATCH"
+  | "STREET_MISSING"
+  | "STREET_UNSAFE_NEAR_DIST"
+  | "STREET_NOT_CHECKED";
+
+type AparecidaLocalStreetShadow = {
+  expectedRua: string;
+  localStreetFullName: string;
+  nearDist: number | null;
+  streetStatus: AparecidaLocalStreetShadowStatus;
+  streetMatch: boolean | null;
+};
+
 type MemoryDebugRow = {
   memoryKey: string;
   memoryBaseKey: string | null;
@@ -101,6 +119,7 @@ type MemoryDebugRow = {
   geocodeConfidenceFlags?: string[];
   aparecidaShadowFlags?: string[];
   aparecidaShadowDebug?: AparecidaShadowDebug | null;
+  aparecidaLocalStreetShadow?: AparecidaLocalStreetShadow | null;
   approxMemoryStrength?: ApproxMemoryStrength | null;
   approxMemoryScore?: number | null;
   approxMemoryReasons?: string[];
@@ -225,6 +244,138 @@ function normalizeKey(text: string) {
     .trim();
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
+function normalizeAparecidaLocalStreetKey(value: string) {
+  let t = normalizeKey(value)
+    .replace(/\bRUA\b/g, "R")
+    .replace(/\bR\b/g, "R")
+    .replace(/\bAVENIDA\b/g, "AV")
+    .replace(/\bAV\b/g, "AV")
+    .replace(/\bALAMEDA\b/g, "AL")
+    .replace(/\bAL\b/g, "AL")
+    .replace(/\bTRAVESSA\b/g, "TV")
+    .replace(/\bTV\b/g, "TV")
+    .replace(/\bPRACA\b/g, "PRC")
+    .replace(/\bPCA\b/g, "PRC")
+    .replace(/\bPC\b/g, "PRC")
+    .replace(/\s*-\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  t = t.replace(/\b(\d+)\s+([A-Z])\b/g, "$1 $2");
+  return t;
+}
+
+function stripAparecidaStreetType(value: string) {
+  return value.replace(/^(?:R|AV|AL|TV|PRC)\s+/, "").trim();
+}
+
+function isShortAparecidaStreetKey(value: string) {
+  const key = stripAparecidaStreetType(value);
+  return key.length < 4 || /^[A-Z]$/.test(key);
+}
+
+function isCodeLikeAparecidaStreetKey(value: string) {
+  return /^(?:R|AV|AL|TV|PRC)?\s*\d+\s*[A-Z]?$/.test(value.trim());
+}
+
+function compareAparecidaLocalStreet(expected: string, actual: string) {
+  const left = normalizeAparecidaLocalStreetKey(expected);
+  const right = normalizeAparecidaLocalStreetKey(actual);
+  if (!left || !right || isShortAparecidaStreetKey(left) || isShortAparecidaStreetKey(right)) {
+    return null;
+  }
+
+  if (left === right) return true;
+
+  const leftWithoutType = stripAparecidaStreetType(left);
+  const rightWithoutType = stripAparecidaStreetType(right);
+  const leftCode = isCodeLikeAparecidaStreetKey(left);
+  const rightCode = isCodeLikeAparecidaStreetKey(right);
+  if (!leftCode && !rightCode && leftWithoutType.length >= 8 && leftWithoutType === rightWithoutType) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildAparecidaLocalStreetShadow(args: {
+  debugMemory: boolean;
+  isAparecida: boolean;
+  finalRankedKind: string | null;
+  expectedRua: string;
+  bairro: string;
+  quadra: string;
+  lote: string;
+}): AparecidaLocalStreetShadow | null {
+  if (!args.debugMemory || !args.isAparecida || args.finalRankedKind !== "local") {
+    return null;
+  }
+
+  const hasLocalCandidateKey =
+    !!String(args.bairro || "").trim() &&
+    !!String(args.quadra || "").trim() &&
+    !!String(args.lote || "").trim();
+  const record = hasLocalCandidateKey
+    ? findAparecidaLocalStreetCandidate({
+        bairro: args.bairro,
+        quadra: args.quadra,
+        lote: args.lote,
+      })
+    : null;
+
+  if (!record) {
+    return {
+      expectedRua: args.expectedRua,
+      localStreetFullName: "",
+      nearDist: null,
+      streetStatus: "STREET_NOT_CHECKED",
+      streetMatch: null,
+    };
+  }
+
+  const localStreetFullName = String(record.streetFullName || "").trim();
+  const nearDist = Number.isFinite(record.nearDist) ? Number(record.nearDist) : null;
+
+  if (!localStreetFullName) {
+    return {
+      expectedRua: args.expectedRua,
+      localStreetFullName,
+      nearDist,
+      streetStatus: "STREET_MISSING",
+      streetMatch: null,
+    };
+  }
+
+  if (nearDist == null || nearDist > 20) {
+    return {
+      expectedRua: args.expectedRua,
+      localStreetFullName,
+      nearDist,
+      streetStatus: "STREET_UNSAFE_NEAR_DIST",
+      streetMatch: null,
+    };
+  }
+
+  const streetMatch = compareAparecidaLocalStreet(args.expectedRua, localStreetFullName);
+  if (streetMatch == null) {
+    return {
+      expectedRua: args.expectedRua,
+      localStreetFullName,
+      nearDist,
+      streetStatus: "STREET_NOT_CHECKED",
+      streetMatch: null,
+    };
+  }
+
+  return {
+    expectedRua: args.expectedRua,
+    localStreetFullName,
+    nearDist,
+    streetStatus: streetMatch ? "STREET_MATCH" : "STREET_MISMATCH",
+    streetMatch,
+  };
+}
+
 function normalizedIncludesEither(expected: string, actual: string) {
   const left = normalizeKey(expected);
   const right = normalizeKey(actual);
@@ -3239,6 +3390,16 @@ if (debugMemory && aparecidaShadowDebug) {
   });
 }
 
+const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
+  debugMemory,
+  isAparecida,
+  finalRankedKind,
+  expectedRua: normalized.rua,
+  bairro: localLotBairro,
+  quadra: localLotQuadra,
+  lote: localLotLote,
+});
+
 const autoSaveCurrentBehaviorWouldSave = !memoryHit && lat != null && lng != null && status === "OK";
 const autoSaveAudit = auditAutoSaveMemory({
   currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
@@ -3409,6 +3570,7 @@ if (shouldAutoSaveAddressMemory) {
       geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
       aparecidaShadowFlags: aparecidaShadowDebug?.flags || [],
       aparecidaShadowDebug,
+      aparecidaLocalStreetShadow,
       approxMemoryStrength,
       approxMemoryScore,
       approxMemoryReasons,
@@ -3699,8 +3861,13 @@ if (jobId) {
       const hereSkippedBecauseMemory = rowsWithDebug.filter((r: any) => r.memoryDebug.hereSkippedBecauseMemory).length;
       const countAparecidaShadow = (flag: string) =>
         rowsWithDebug.filter((r: any) => r.memoryDebug.aparecidaShadowFlags?.includes(flag)).length;
+      const countAparecidaLocalStreetShadow = (status: AparecidaLocalStreetShadowStatus) =>
+        rowsWithDebug.filter((r: any) => r.memoryDebug.aparecidaLocalStreetShadow?.streetStatus === status).length;
       const aparecidaShadowTotal = rowsWithDebug.filter(
         (r: any) => r.memoryDebug.aparecidaShadowFlags?.length,
+      ).length;
+      const aparecidaLocalStreetShadowTotal = rowsWithDebug.filter(
+        (r: any) => r.memoryDebug.aparecidaLocalStreetShadow,
       ).length;
 
       debugMemorySummary = {
@@ -3726,6 +3893,14 @@ if (jobId) {
         aparecidaLocalBairroMismatchWithUnverifiedRuaShadow: countAparecidaShadow(
           "APARECIDA_LOCAL_BAIRRO_MISMATCH_WITH_UNVERIFIED_RUA_SHADOW",
         ),
+        aparecidaLocalStreetShadowTotal,
+        aparecidaLocalStreetMatchShadow: countAparecidaLocalStreetShadow("STREET_MATCH"),
+        aparecidaLocalStreetMismatchShadow: countAparecidaLocalStreetShadow("STREET_MISMATCH"),
+        aparecidaLocalStreetMissingShadow: countAparecidaLocalStreetShadow("STREET_MISSING"),
+        aparecidaLocalStreetUnsafeNearDistShadow: countAparecidaLocalStreetShadow(
+          "STREET_UNSAFE_NEAR_DIST",
+        ),
+        aparecidaLocalStreetNotCheckedShadow: countAparecidaLocalStreetShadow("STREET_NOT_CHECKED"),
       };
 
       console.info("[MEMORY_BATCH_SUMMARY]", debugMemorySummary);

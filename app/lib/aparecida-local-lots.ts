@@ -42,8 +42,20 @@ type CentroidRecord = {
   lng: number;
 };
 
+type StreetCentroidRecord = CentroidRecord & {
+  streetFullName: string;
+  nearDist: number | null;
+};
+
 type LoadedCentroids = {
   records?: CentroidRecord[];
+  index?: Map<string, number[]>;
+  missing?: boolean;
+  disabled?: boolean;
+};
+
+type LoadedStreetCentroids = {
+  records?: StreetCentroidRecord[];
   index?: Map<string, number[]>;
   missing?: boolean;
   disabled?: boolean;
@@ -61,6 +73,7 @@ export type AparecidaLocalLotCandidate = {
 
 const dataset: LoadedDataset = {};
 const centroids: LoadedCentroids = {};
+const streetCentroids: LoadedStreetCentroids = {};
 const coordinateCache = new Map<string, any>();
 const LOCAL_ALIAS_MAX_SPREAD_METERS = 250;
 
@@ -80,6 +93,15 @@ function disableCentroids(reason: string, error?: unknown) {
     error: error instanceof Error ? error.message : error ? String(error) : undefined,
   });
   return centroids;
+}
+
+function disableStreetCentroids(reason: string, error?: unknown) {
+  streetCentroids.disabled = true;
+  console.error("[APARECIDA_LOCAL_STREET_CENTROIDS_DISABLED]", {
+    reason,
+    error: error instanceof Error ? error.message : error ? String(error) : undefined,
+  });
+  return streetCentroids;
 }
 
 function normalizeText(value: string) {
@@ -319,6 +341,104 @@ function loadAparecidaCentroids() {
   } catch (error) {
     return disableCentroids("LOAD_FAILED", error);
   }
+}
+
+function streetCentroidKey(bairro: string, quadra: string, lote: string) {
+  const b = normalizeBairroValue(bairro);
+  const q = normalizeQuadraLoteValue(quadra);
+  const l = canonicalLot(lote);
+  if (!b || !q || !l) return "";
+  return `${b}__${q}__${l}`;
+}
+
+function loadAparecidaStreetCentroids() {
+  if (streetCentroids.missing || streetCentroids.disabled) return streetCentroids;
+  if (streetCentroids.records && streetCentroids.index) return streetCentroids;
+
+  const filePath = path.join(process.cwd(), "public", "data", "aparecida_lot_centroids_with_street.json");
+  if (!fs.existsSync(filePath)) {
+    streetCentroids.missing = true;
+    return streetCentroids;
+  }
+
+  try {
+    const records = (() => {
+      const raw = fs.readFileSync(filePath, "utf8");
+      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
+        return null;
+      }
+      return JSON.parse(raw) as StreetCentroidRecord[];
+    })();
+    if (!records) return disableStreetCentroids("GIT_LFS_POINTER");
+    if (!Array.isArray(records)) return disableStreetCentroids("INVALID_JSON_STRUCTURE");
+
+    const index = new Map<string, number[]>();
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      if (!record) continue;
+
+      const key = streetCentroidKey(record.bairro, record.quadra, record.lote);
+      if (!key) continue;
+
+      const bucket = index.get(key) || [];
+      bucket.push(i);
+      index.set(key, bucket);
+    }
+
+    streetCentroids.records = records;
+    streetCentroids.index = index;
+    return streetCentroids;
+  } catch (error) {
+    return disableStreetCentroids("LOAD_FAILED", error);
+  }
+}
+
+function isValidNearDist(value: unknown) {
+  return Number.isFinite(value) && Number(value) >= 0;
+}
+
+function compareStreetCentroidCandidate(a: StreetCentroidRecord, b: StreetCentroidRecord) {
+  const aHasStreet = String(a.streetFullName || "").trim() ? 1 : 0;
+  const bHasStreet = String(b.streetFullName || "").trim() ? 1 : 0;
+  if (aHasStreet !== bHasStreet) return bHasStreet - aHasStreet;
+
+  const aValidNear = isValidNearDist(a.nearDist);
+  const bValidNear = isValidNearDist(b.nearDist);
+  if (aValidNear !== bValidNear) return aValidNear ? -1 : 1;
+
+  if (aValidNear && bValidNear) {
+    return Number(a.nearDist) - Number(b.nearDist);
+  }
+
+  return 0;
+}
+
+export function findAparecidaLocalStreetCandidate(args: {
+  bairro: string;
+  quadra: string;
+  lote: string;
+}): { streetFullName: string; nearDist: number | null } | null {
+  const { records, index, missing } = loadAparecidaStreetCentroids();
+  if (missing || !records || !index) return null;
+
+  const key = streetCentroidKey(args.bairro, args.quadra, args.lote);
+  if (!key) return null;
+
+  const bucket = index.get(key);
+  if (!bucket || !bucket.length) return null;
+
+  const candidates = bucket
+    .map((recordIndex) => records[recordIndex])
+    .filter(Boolean) as StreetCentroidRecord[];
+  if (!candidates.length) return null;
+
+  candidates.sort(compareStreetCentroidCandidate);
+  const best = candidates[0];
+
+  return {
+    streetFullName: String(best.streetFullName || "").trim(),
+    nearDist: isValidNearDist(best.nearDist) ? Number(best.nearDist) : null,
+  };
 }
 
 function pickFirstString(obj: any, keys: string[]) {
