@@ -68,6 +68,7 @@ type AparecidaShadowDebug = {
   flags: string[];
   expectedRua: string;
   actualRua: string;
+  actualRuaSource: "input" | "candidate" | "arcgis" | "unknown";
   expectedBairro: string;
   actualBairro: string;
   expectedQuadra: string;
@@ -75,6 +76,14 @@ type AparecidaShadowDebug = {
   expectedLote: string;
   actualLote: string;
   source: string | null;
+  localCandidate?: {
+    quadra: string;
+    lote: string;
+    bairro: string;
+    hasRua: boolean;
+    localAliasAccepted: boolean;
+    bairroDivergenteLocalForte: boolean;
+  } | null;
 };
 
 type MemoryDebugRow = {
@@ -226,6 +235,7 @@ function buildAparecidaContextShadow(args: {
   isAparecida: boolean;
   expectedRua: string;
   actualRua: string;
+  actualRuaSource: "input" | "candidate" | "arcgis" | "unknown";
   expectedBairro: string;
   actualBairro: string;
   expectedQuadra: string;
@@ -233,6 +243,7 @@ function buildAparecidaContextShadow(args: {
   expectedLote: string;
   actualLote: string;
   source: string | null;
+  localCandidate?: AparecidaShadowDebug["localCandidate"];
 }): AparecidaShadowDebug | null {
   if (!args.isAparecida) return null;
 
@@ -247,7 +258,9 @@ function buildAparecidaContextShadow(args: {
     !!String(args.actualBairro || "").trim() &&
     !normalizedIncludesEither(args.expectedBairro, args.actualBairro);
 
+  const ruaVerified = args.actualRuaSource === "candidate" || args.actualRuaSource === "arcgis";
   const ruaMismatch =
+    ruaVerified &&
     !!String(args.expectedRua || "").trim() &&
     !!String(args.actualRua || "").trim() &&
     !normalizedIncludesEither(args.expectedRua, args.actualRua);
@@ -259,11 +272,17 @@ function buildAparecidaContextShadow(args: {
     !!actualLote &&
     sameText(expectedQuadra, actualQuadra) &&
     sameText(expectedLote, actualLote);
+  const localRuaNotVerified = args.source === "local" && !ruaVerified;
 
   if (bairroMismatch) flags.push("APARECIDA_BAIRRO_MISMATCH_SHADOW");
   if (ruaMismatch) flags.push("APARECIDA_RUA_MISMATCH_SHADOW");
   if (qlMatch && (bairroMismatch || ruaMismatch)) {
     flags.push("APARECIDA_QL_MATCH_BUT_CONTEXT_MISMATCH_SHADOW");
+  }
+  if (localRuaNotVerified) flags.push("APARECIDA_LOCAL_RUA_NOT_VERIFIED_SHADOW");
+  if (qlMatch && localRuaNotVerified) flags.push("APARECIDA_LOCAL_QL_ONLY_MATCH_SHADOW");
+  if (qlMatch && bairroMismatch && localRuaNotVerified) {
+    flags.push("APARECIDA_LOCAL_BAIRRO_MISMATCH_WITH_UNVERIFIED_RUA_SHADOW");
   }
 
   if (!flags.length) return null;
@@ -272,6 +291,7 @@ function buildAparecidaContextShadow(args: {
     flags,
     expectedRua: args.expectedRua,
     actualRua: args.actualRua,
+    actualRuaSource: args.actualRuaSource,
     expectedBairro: args.expectedBairro,
     actualBairro: args.actualBairro,
     expectedQuadra,
@@ -279,6 +299,7 @@ function buildAparecidaContextShadow(args: {
     expectedLote,
     actualLote,
     source: args.source,
+    localCandidate: args.localCandidate || null,
   };
 }
 
@@ -1989,6 +2010,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotQuadra = "";
   let localLotLote = "";
   let localLotBairro = "";
+  let localLotLocalAliasAccepted = false;
+  let localLotBairroDivergenteLocalForte = false;
   let localLotFinalItem: any = null;
   let localLotFinalScore = -999;
   let localLotFinalArc: any = null;
@@ -2096,6 +2119,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotQuadra = localAparecidaCandidate.quadra || "";
       localLotLote = localAparecidaCandidate.lote || "";
       localLotBairro = localAparecidaCandidate.bairro || "";
+      localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
+      localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
       localLotFinalItem = localItem;
       localLotFinalScore = localRerank.total;
       localLotFinalArc = localArc;
@@ -2416,6 +2441,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotQuadra = localAparecidaCandidate.quadra || "";
       localLotLote = localAparecidaCandidate.lote || "";
       localLotBairro = localAparecidaCandidate.bairro || "";
+      localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
+      localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
 
       const localAddressLabel = cleanAddressForHere(
         [
@@ -3173,17 +3200,36 @@ const aparecidaShadowActualBairro =
   arcgisLot?.found && String(arcgisLot.bairro || "").trim()
     ? String(arcgisLot.bairro || "")
     : String(bestRankedAddress?.district || bestRankedAddress?.subdistrict || "");
+const aparecidaShadowSource =
+  finalRankedKind ?? (memoryHit ? "memory" : approxMemoryHit ? "approx_memory" : null);
+const aparecidaShadowActualRuaSource =
+  finalRankedKind === "local"
+    ? "input"
+    : String(bestRankedAddress?.street || "").trim()
+      ? "candidate"
+      : "unknown";
 const aparecidaShadowDebug = buildAparecidaContextShadow({
   isAparecida,
   expectedRua: normalized.rua,
   actualRua: String(bestRankedAddress?.street || ""),
+  actualRuaSource: aparecidaShadowActualRuaSource,
   expectedBairro: normalized.bairro || bairroIn,
   actualBairro: aparecidaShadowActualBairro,
   expectedQuadra: normalized.quadra,
   actualQuadra: quadraAuto,
   expectedLote: normalized.lote,
   actualLote: loteAuto,
-  source: finalRankedKind ?? (memoryHit ? "memory" : approxMemoryHit ? "approx_memory" : null),
+  source: aparecidaShadowSource,
+  localCandidate: localLotCandidateFound
+    ? {
+        quadra: localLotQuadra,
+        lote: localLotLote,
+        bairro: localLotBairro,
+        hasRua: false,
+        localAliasAccepted: localLotLocalAliasAccepted,
+        bairroDivergenteLocalForte: localLotBairroDivergenteLocalForte,
+      }
+    : null,
 });
 
 if (debugMemory && aparecidaShadowDebug) {
@@ -3670,6 +3716,15 @@ if (jobId) {
         aparecidaRuaMismatchShadow: countAparecidaShadow("APARECIDA_RUA_MISMATCH_SHADOW"),
         aparecidaQlMatchButContextMismatchShadow: countAparecidaShadow(
           "APARECIDA_QL_MATCH_BUT_CONTEXT_MISMATCH_SHADOW",
+        ),
+        aparecidaLocalRuaNotVerifiedShadow: countAparecidaShadow(
+          "APARECIDA_LOCAL_RUA_NOT_VERIFIED_SHADOW",
+        ),
+        aparecidaLocalQlOnlyMatchShadow: countAparecidaShadow(
+          "APARECIDA_LOCAL_QL_ONLY_MATCH_SHADOW",
+        ),
+        aparecidaLocalBairroMismatchWithUnverifiedRuaShadow: countAparecidaShadow(
+          "APARECIDA_LOCAL_BAIRRO_MISMATCH_WITH_UNVERIFIED_RUA_SHADOW",
         ),
       };
 
