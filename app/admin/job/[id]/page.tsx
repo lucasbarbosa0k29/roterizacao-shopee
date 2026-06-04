@@ -25,6 +25,14 @@ type Status =
   | "CONFIRMADO"
   | "REVISAO";
 
+function getStatusDisplayLabel(status: string) {
+  if (status === "OK") return "Validado";
+  if (status === "PARCIAL") return "Aproximado";
+  if (status === "NAO_ENCONTRADO" || status === "NÃO ENCONTRADO") return "Pendente";
+  if (status === "CONFIRMADO") return "Confirmado";
+  return status;
+}
+
 function downloadTextFile(
   filename: string,
   content: string,
@@ -273,7 +281,7 @@ export default function AdminJobPage() {
     const exportRows = rows.filter((r: any) => allowed.has(String(r?.status ?? "")));
 
     if (!exportRows.length) {
-      alert("Não tem linhas OK/MANUAL para exportar.");
+      alert("Não há linhas validadas ou manuais para exportar.");
       return;
     }
 
@@ -433,17 +441,17 @@ export default function AdminJobPage() {
         </div>
 
         <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">OK</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Validado</div>
           <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.OK : "-"}</div>
         </div>
 
         <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">PARCIAL</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Aproximado</div>
           <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.PARCIAL : "-"}</div>
         </div>
 
         <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-slate-500">NAO_ENCONTRADO</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Pendente</div>
           <div className="mt-2 text-2xl font-bold">{hasProcessedRows ? metrics.statusCounts.NAO_ENCONTRADO : "-"}</div>
         </div>
 
@@ -490,7 +498,7 @@ export default function AdminJobPage() {
             >
               {statusOptions.map((s) => (
                 <option key={s} value={s}>
-                  {s === "ALL" ? "Todos status" : s}
+                  {s === "ALL" ? "Todos status" : getStatusDisplayLabel(s)}
                 </option>
               ))}
             </select>
@@ -535,7 +543,7 @@ export default function AdminJobPage() {
                 {show.map((r: any, idx: number) => (
                   <tr key={idx} className="border-b last:border-b-0 align-top">
                     <td className="py-2 pr-3 whitespace-nowrap">{r.sequence ?? ""}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">{r.status ?? ""}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{getStatusDisplayLabel(String(r.status ?? ""))}</td>
                     <td className="py-2 pr-3 min-w-[340px]">{r.original ?? ""}</td>
                     <td className="py-2 pr-3 min-w-[340px] text-slate-700">
                       {r.normalizedLine ?? ""}

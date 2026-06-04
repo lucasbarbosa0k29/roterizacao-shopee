@@ -14,6 +14,14 @@ type Job = {
   createdAt: string;
 };
 
+function getStatusDisplayLabel(status: string) {
+  if (status === "OK") return "Validado";
+  if (status === "PARCIAL") return "Aproximado";
+  if (status === "NAO_ENCONTRADO" || status === "NÃO ENCONTRADO") return "Pendente";
+  if (status === "CONFIRMADO") return "Confirmado";
+  return status;
+}
+
 export default function HistoricoDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -123,7 +131,7 @@ export default function HistoricoDetailPage() {
                 {rows.slice(0, 500).map((r: any, idx: number) => (
                   <tr key={idx} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{r.sequence ?? ""}</td>
-                    <td className="py-2 pr-3">{r.status ?? ""}</td>
+                    <td className="py-2 pr-3">{getStatusDisplayLabel(String(r.status ?? ""))}</td>
                     <td className="py-2 pr-3">{r.original ?? ""}</td>
                     <td className="py-2 pr-3">{r.quadraAuto ?? ""}</td>
                     <td className="py-2 pr-3">{r.loteAuto ?? ""}</td>

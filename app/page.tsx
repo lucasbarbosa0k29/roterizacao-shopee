@@ -1086,8 +1086,12 @@ useEffect(() => {
 
   function getVisualStatusLabel(status: Status, idxs: number[]) {
     if (status === "OK" && idxs.some((idx) => isRowMemoryHit(idx))) {
-      return "OK MEMORY";
+      return "Validado Memória";
     }
+    if (status === "OK") return "Validado";
+    if (status === "PARCIAL") return "Aproximado";
+    if (status === "NAO_ENCONTRADO") return "Pendente";
+    if (status === "CONFIRMADO") return "Confirmado";
     return status;
   }
 
@@ -3173,7 +3177,7 @@ useEffect(() => {
           : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
       }`}
     >
-      Auto Agrupar
+      Agrupar Paradas
     </button>
 
     <button
@@ -3192,7 +3196,7 @@ useEffect(() => {
           : "Abrir mapa com todas as paradas"
       }
     >
-      Ver no mapa
+      Revisar no Mapa
     </button>
 
     <button
@@ -3238,17 +3242,17 @@ useEffect(() => {
       <div className="mt-1 text-xs text-slate-500">Pontos consolidados</div>
     </div>
     <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">OK</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Validado</div>
       <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
       <div className="mt-1 text-xs text-emerald-700/80">Confirmados</div>
     </div>
     <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Aproximado</div>
       <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
       <div className="mt-1 text-xs text-amber-700/80">Localização aproximada</div>
     </div>
     <div className="rounded-[22px] border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">Não Encontrado</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">Pendente</div>
       <div className="mt-2 text-2xl font-black text-rose-900">{exportSummary.notFound}</div>
       <div className="mt-1 text-xs text-rose-700/80">Pendências críticas</div>
     </div>
@@ -3338,11 +3342,13 @@ useEffect(() => {
                                     }}
                                     data-tour="mobile-stop-map-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                    title="Mapa / Correção"
+                                    title="Revisar no mapa"
                                   >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                      <path d="M12 21s-7.5-2.7-7.5-11a7.5 7.5 0 1 1 15 0c0 8.3-7.5 11-7.5 11z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                                      <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="2"/>
+                                      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2"/>
+                                      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                      <path d="M16.5 16.5 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                                     </svg>
                                   </button>
                                 )}
@@ -3354,9 +3360,11 @@ useEffect(() => {
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
                                     data-tour="mobile-stop-group-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                    title="Agrupar manualmente"
+                                    title="Agrupar Paradas Manualmente"
                                   >
-                                    +
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white text-[10px] font-black leading-none tracking-tight text-slate-700">
+                                      AG
+                                    </span>
                                   </button>
                                 )}
 
@@ -3537,12 +3545,13 @@ onContextMenu={(e) => {
     }}
     data-tour="row-map-button"
     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-    title="Mapa / Correção"
+    title="Revisar no mapa"
   >
-    {/* ícone do mapa (o seu svg atual pode ficar aqui dentro) */}
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M12 21s-7.5-2.7-7.5-11a7.5 7.5 0 1 1 15 0c0 8.3-7.5 11-7.5 11z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-      <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="2"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="2"/>
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2"/>
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M16.5 16.5 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   </button>
 )}
@@ -3554,9 +3563,11 @@ onContextMenu={(e) => {
                                      onClick={() => enterGroupModeWithFirst(baseIdx)}
                                     data-tour="manual-group-button"
                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                   title="Agrupar manualmente"
+                                   title="Agrupar Paradas Manualmente"
                                  >
-                                    +
+                                     <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white text-[10px] font-black leading-none tracking-tight text-slate-700">
+                                       AG
+                                     </span>
                                   </button>
                                 )}
 
@@ -3835,12 +3846,12 @@ onContextMenu={(e) => {
                           <div className="mt-1 text-xs text-slate-500">Pontos prontos</div>
                         </div>
                         <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">OK</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Validado</div>
                           <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
                           <div className="mt-1 text-xs text-emerald-700/80">Confirmados e válidos</div>
                         </div>
                         <div className="rounded-[22px] border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Parcial</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Aproximado</div>
                           <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
                           <div className="mt-1 text-xs text-amber-700/80">Localização aproximada</div>
                         </div>
@@ -3978,7 +3989,7 @@ onContextMenu={(e) => {
                       <div className="h-full px-3 md:px-4 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm md:text-base font-semibold text-slate-900">
-                            Ver no mapa
+                            Revisar no Mapa
                           </div>
                           <div className="text-xs text-slate-500">
                             Mostrando {overviewMapPoints.length} parada(s) com coordenadas

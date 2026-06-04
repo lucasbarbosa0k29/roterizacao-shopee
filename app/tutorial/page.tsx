@@ -19,7 +19,7 @@ const steps = [
     number: "2",
     title: "Revise o Resultado Operacional",
     description:
-      "Analise os pontos processados e acompanhe os status: OK para itens confirmados, Parcial para conferência, Manual para ajustes feitos na operação e Não Encontrado para pendências críticas.",
+      "Analise os pontos processados e acompanhe os status: Validado para itens confirmados, Aproximado para conferência, Manual para ajustes feitos na operação e Pendente para pendências críticas.",
   },
   {
     number: "3",
@@ -31,7 +31,7 @@ const steps = [
     number: "4",
     title: "Agrupe pontos quando necessário",
     description:
-      "Use o Auto Agrupar para acelerar a consolidação ou faça agrupamentos manuais quando precisar controlar casos específicos da rota.",
+      "Use o Agrupar Paradas para acelerar a consolidação ou faça agrupamentos manuais quando precisar controlar casos específicos da rota.",
   },
   {
     number: "5",
@@ -49,7 +49,7 @@ const steps = [
 
 const checklist = [
   "Importar a planilha correta da operação",
-  "Conferir status OK, Parcial, Manual e Não Encontrado",
+  "Conferir status Validado, Aproximado, Manual e Pendente",
   "Validar pontos sensíveis no mapa antes de exportar",
   "Agrupar paradas quando a operação exigir consolidação",
   "Revisar observações finais na Central de Exportação",

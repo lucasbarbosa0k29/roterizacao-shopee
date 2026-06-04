@@ -137,13 +137,13 @@ export function startPostProcessTutorial() {
     createStep(
       '[data-tour="results-panel"]',
       "Resultado Operacional",
-      "Aqui ficam todos os endereços processados. Mesmo quando uma parada estiver OK, ela ainda deve ser conferida no mapa.",
+      "Aqui ficam todos os endereços processados. Mesmo quando uma parada estiver Validado, ela ainda deve ser conferida no mapa.",
       "bottom",
       "start"
     ),
     createStep(
       '[data-tour="auto-group-button"]',
-      "Auto Agrupar",
+      "Agrupar Paradas",
       "Use para agrupar automaticamente paradas iguais."
     ),
     createStep(
@@ -158,7 +158,7 @@ export function startPostProcessTutorial() {
     ),
     createStep(
       '[data-tour="open-map-button"]',
-      "Ver no mapa",
+      "Revisar no Mapa",
       "Abre todas as paradas processadas no mapa para conferir visualmente e também fazer a roteirização por lá."
     ),
     createStep(
