@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
@@ -20,6 +21,8 @@ async function getIdFromCtx(ctx: any) {
 }
 
 const ADMIN_USER_ACTIONS = [
+  "UPDATE_NAME",
+  "RESET_PASSWORD",
   "GRANT_FREE",
   "GRANT_BASIC_30",
   "GRANT_PRO_30",
@@ -132,6 +135,8 @@ export async function PATCH(req: Request, ctx: any) {
     const credits = Number(body?.credits);
     const reason = String(body?.reason ?? "").trim();
     const notes = String(body?.notes ?? "").trim();
+    const newName = String(body?.name ?? "").trim();
+    const newPassword = String(body?.password ?? "");
 
     const targetUser = await prisma.user.findUnique({
       where: { id },
@@ -186,6 +191,114 @@ export async function PATCH(req: Request, ctx: any) {
         { error: "Ação administrativa inválida." },
         { status: 400 }
       );
+    }
+
+    if (rawAction === "UPDATE_NAME") {
+      if (!newName) {
+        return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id },
+          data: { name: newName },
+        });
+
+        await logAdminAction(tx, {
+          adminId,
+          targetUserId: id,
+          action: "UPDATE_NAME",
+          metadata: {
+            previousName: targetUser.name,
+            newName,
+          },
+        });
+      });
+
+      const refreshedUser = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          active: true,
+          accessBlockedAt: true,
+          accessBlockReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      const access = await getUserAccessSnapshot(id);
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...refreshedUser,
+          access,
+        },
+      });
+    }
+
+    if (rawAction === "RESET_PASSWORD") {
+      if (targetUser.role === "ADMIN") {
+        return NextResponse.json(
+          { error: "Redefinição de senha de ADMIN não está disponível por segurança." },
+          { status: 400 }
+        );
+      }
+
+      if (!newPassword || newPassword.length < 6) {
+        return NextResponse.json(
+          { error: "Senha precisa ter no mínimo 6 caracteres." },
+          { status: 400 }
+        );
+      }
+
+      const now = new Date();
+      const hash = await bcrypt.hash(newPassword, 10);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id },
+          data: { password: hash },
+        });
+
+        await logAdminAction(tx, {
+          adminId,
+          targetUserId: id,
+          action: "RESET_PASSWORD",
+          metadata: {
+            passwordResetAt: now.toISOString(),
+          },
+        });
+      });
+
+      const refreshedUser = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          active: true,
+          accessBlockedAt: true,
+          accessBlockReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      const access = await getUserAccessSnapshot(id);
+
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...refreshedUser,
+          access,
+        },
+      });
     }
 
     if (targetUser.role === "ADMIN") {

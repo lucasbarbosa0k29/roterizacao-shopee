@@ -42,6 +42,10 @@ type ActionsMenuState = ActionsMenuPosition & {
   userId: string;
 };
 
+type UserDataModalState =
+  | { kind: "edit-name"; user: UserRow; value: string }
+  | { kind: "reset-password"; user: UserRow; value: string };
+
 const ACTIONS_MENU_WIDTH = 256;
 const ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
 const ACTIONS_MENU_GAP = 8;
@@ -61,6 +65,7 @@ export default function AdminUsersPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openActionsMenu, setOpenActionsMenu] = useState<ActionsMenuState | null>(null);
+  const [userDataModal, setUserDataModal] = useState<UserDataModalState | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   function getSafeAccess(user: UserRow) {
@@ -141,6 +146,19 @@ export default function AdminUsersPage() {
       window.removeEventListener("scroll", onViewportMove, true);
     };
   }, [openActionsMenu]);
+
+  useEffect(() => {
+    if (!userDataModal) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setUserDataModal(null);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [userDataModal]);
 
   function getActionsMenuPosition(button: HTMLButtonElement): ActionsMenuPosition {
     const rect = button.getBoundingClientRect();
@@ -300,6 +318,8 @@ export default function AdminUsersPage() {
   async function runAdminAction(
     user: UserRow,
     payload:
+      | { action: "UPDATE_NAME"; name: string }
+      | { action: "RESET_PASSWORD"; password: string }
       | { action: "GRANT_FREE" }
       | { action: "GRANT_BASIC_30" }
       | { action: "GRANT_PRO_30" }
@@ -395,6 +415,62 @@ export default function AdminUsersPage() {
       action: "BLOCK_ACCESS",
       reason: reason.trim(),
     });
+  }
+
+  function openEditNameModal(user: UserRow) {
+    setUserDataModal({
+      kind: "edit-name",
+      user,
+      value: user.name || "",
+    });
+  }
+
+  function openResetPasswordModal(user: UserRow) {
+    setUserDataModal({
+      kind: "reset-password",
+      user,
+      value: "",
+    });
+  }
+
+  async function submitUserDataModal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!userDataModal) return;
+
+    const value = userDataModal.value.trim();
+
+    if (userDataModal.kind === "edit-name") {
+      if (!value) {
+        alert("Nome é obrigatório.");
+        return;
+      }
+
+      await runAdminAction(userDataModal.user, {
+        action: "UPDATE_NAME",
+        name: value,
+      });
+
+      setUserDataModal(null);
+      return;
+    }
+
+    if (userDataModal.user.role === "ADMIN") {
+      alert("Redefinição de senha de ADMIN não está disponível por segurança.");
+      return;
+    }
+
+    if (userDataModal.value.length < 6) {
+      alert("Senha precisa ter no mínimo 6 caracteres.");
+      return;
+    }
+
+    await runAdminAction(userDataModal.user, {
+      action: "RESET_PASSWORD",
+      password: userDataModal.value,
+    });
+
+    setUserDataModal(null);
+    alert("Senha redefinida com sucesso.");
   }
 
   return (
@@ -633,9 +709,29 @@ export default function AdminUsersPage() {
                                     : undefined,
                               }}
                             >
+                              <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Dados do usuário
+                              </div>
+                              <button
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                                disabled={busy}
+                                onClick={() => closeActionsMenuAndRun(() => openEditNameModal(u))}
+                              >
+                                Editar nome
+                              </button>
+                              <button
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                                disabled={busy || u.role === "ADMIN"}
+                                onClick={() =>
+                                  closeActionsMenuAndRun(() => openResetPasswordModal(u))
+                                }
+                              >
+                                Redefinir senha
+                              </button>
+
                               {u.role === "USER" && (
                                 <>
-                                  <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                  <div className="mt-2 border-t px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                                     Planos
                                   </div>
                                   <button
@@ -807,6 +903,76 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
+
+      {userDataModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl ring-1 ring-black/10">
+            <div className="text-lg font-semibold">
+              {userDataModal.kind === "edit-name" ? "Editar nome" : "Redefinir senha"}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">{userDataModal.user.email}</div>
+
+            <form onSubmit={submitUserDataModal} className="mt-4 space-y-4">
+              {userDataModal.kind === "edit-name" ? (
+                <div>
+                  <label className="text-sm font-medium">Nome</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border p-3"
+                    value={userDataModal.value}
+                    disabled={busyId === userDataModal.user.id}
+                    onChange={(e) =>
+                      setUserDataModal((current) =>
+                        current?.kind === "edit-name"
+                          ? { ...current, value: e.target.value }
+                          : current
+                      )
+                    }
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium">Nova senha</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border p-3"
+                    value={userDataModal.value}
+                    disabled={busyId === userDataModal.user.id}
+                    onChange={(e) =>
+                      setUserDataModal((current) =>
+                        current?.kind === "reset-password"
+                          ? { ...current, value: e.target.value }
+                          : current
+                      )
+                    }
+                    type="password"
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                  <div className="mt-1 text-xs text-slate-500">Mínimo 6 caracteres.</div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-60"
+                  disabled={busyId === userDataModal.user.id}
+                  onClick={() => setUserDataModal(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={busyId === userDataModal.user.id}
+                >
+                  {userDataModal.kind === "edit-name" ? "Salvar nome" : "Redefinir senha"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
