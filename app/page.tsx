@@ -3152,19 +3152,24 @@ useEffect(() => {
   <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(31,90,107,0.08),transparent_30%),linear-gradient(180deg,#fbfcfc_0%,#f5f8f8_100%)] p-4 md:p-6">
   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
     <div className="max-w-2xl">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1f5a6b]">
         Resultado Operacional
       </div>
-      <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 md:text-[30px]">
-        Revise, valide e organize os pontos processados.
+      <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 md:text-[30px]">
+        Revise, valide e organize as paradas processadas.
       </h2>
-      <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[15px]">
-        Total de pontos: <b className="text-slate-900">{rows.length}</b> • Exibindo:{" "}
-        <b className="text-slate-900">{groupedRows.length}</b> após consolidação operacional.
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm leading-6 text-slate-600 md:text-[15px]">
+        <span>
+          Total de pontos: <b className="text-slate-900">{rows.length}</b>
+        </span>
+        <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
+        <span>
+          Consolidados: <b className="text-slate-900">{groupedRows.length}</b>
+        </span>
       </div>
     </div>
 
-  <div className="flex flex-wrap items-center gap-2.5 xl:max-w-[560px] xl:justify-end">
+  <div className="flex flex-wrap items-center gap-2.5 xl:max-w-[640px] xl:justify-end">
     <button
       type="button"
       data-tour="auto-group-button"
@@ -3179,34 +3184,6 @@ useEffect(() => {
       }`}
     >
       Agrupar Paradas
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setIsOverviewMapOpen(true)}
-      disabled={overviewMapPoints.length === 0}
-      data-tour="open-map-button"
-      className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
-        overviewMapPoints.length === 0
-          ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-          : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
-      }`}
-      title={
-        overviewMapPoints.length === 0
-          ? "Nenhuma parada com coordenadas para exibir"
-          : "Abrir mapa com todas as paradas"
-      }
-    >
-      Revisar no Mapa
-    </button>
-
-    <button
-      type="button"
-      onClick={openExportReview}
-      data-tour="export-button"
-      className="inline-flex min-h-[50px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0f766e_0%,#14967f_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(15,118,110,0.28)] transition hover:-translate-y-0.5 hover:brightness-105 sm:flex-none"
-    >
-      Exportar
     </button>
 
     <button
@@ -3234,28 +3211,77 @@ useEffect(() => {
     >
       Importar outra planilha
     </button>
+
+    <button
+      type="button"
+      onClick={openExportReview}
+      data-tour="export-button"
+      className="inline-flex min-h-[50px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0f766e_0%,#14967f_100%)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(15,118,110,0.28)] transition hover:-translate-y-0.5 hover:brightness-105 sm:flex-none"
+    >
+      Exportar Resultado
+    </button>
   </div>
 </div>
-  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-    <div className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</div>
+  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Total de Paradas</div>
       <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
       <div className="mt-1 text-xs text-slate-500">Pontos consolidados</div>
     </div>
-    <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Validado</div>
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">Prontas para Exportação</div>
       <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
-      <div className="mt-1 text-xs text-emerald-700/80">Confirmados</div>
+      <div className="mt-1 text-xs text-emerald-700/80">Validadas ou confirmadas</div>
     </div>
-    <div className="rounded-[22px] border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Aproximado</div>
-      <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial}</div>
-      <div className="mt-1 text-xs text-amber-700/80">Localização aproximada</div>
+    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Precisam Revisão</div>
+      <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial + exportSummary.manual}</div>
+      <div className="mt-1 text-xs text-amber-700/80">Aproximadas ou manuais</div>
     </div>
-    <div className="rounded-[22px] border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-700">Pendente</div>
+    <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-700">Pendências Críticas</div>
       <div className="mt-2 text-2xl font-black text-rose-900">{exportSummary.notFound}</div>
-      <div className="mt-1 text-xs text-rose-700/80">Pendências críticas</div>
+      <div className="mt-1 text-xs text-rose-700/80">Sem localização segura</div>
+    </div>
+  </div>
+  <div className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+    <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          Fonte dos dados
+        </div>
+        <div className="mt-1 text-sm font-semibold text-slate-900">
+          {historyName && historyName !== "Planilha" ? historyName : file?.name || "Planilha importada"}
+        </div>
+      </div>
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          Pontos da importação
+        </div>
+        <div className="mt-1 text-sm font-semibold text-slate-900">
+          {rows.length} pontos
+        </div>
+      </div>
+      <div className="flex md:justify-end">
+        <button
+          type="button"
+          onClick={() => setIsOverviewMapOpen(true)}
+          disabled={overviewMapPoints.length === 0}
+          data-tour="open-map-button"
+          className={`inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition md:w-auto ${
+            overviewMapPoints.length === 0
+              ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+              : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+          }`}
+          title={
+            overviewMapPoints.length === 0
+              ? "Nenhuma parada com coordenadas para exibir"
+              : "Abrir mapa com todas as paradas"
+          }
+        >
+          Revisar no Mapa
+        </button>
+      </div>
     </div>
   </div>
             </div>
@@ -3456,7 +3482,7 @@ useEffect(() => {
                       })}
             </div>
 
-             <div className="hidden md:block w-full overflow-hidden rounded-[32px] border border-slate-200/80 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)] mt-3 md:mt-4">
+             <div className="hidden md:block w-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.07)] mt-3 md:mt-4">
   <div className="w-full overflow-x-auto">
    <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-[linear-gradient(180deg,#f9fbfb_0%,#f1f6f7_100%)] text-slate-600">
