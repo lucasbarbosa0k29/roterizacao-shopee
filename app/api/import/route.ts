@@ -9,6 +9,14 @@ import { getUserAccessSnapshot } from "@/app/lib/access-control";
 
 export const runtime = "nodejs";
 const MAX_ROUTE_STOPS = 200;
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMPORT_EXTENSIONS = new Set([".xlsx", ".xls", ".csv"]);
+
+function getFileExtension(fileName: string) {
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex < 0) return "";
+  return fileName.slice(dotIndex).toLowerCase();
+}
 
 function pickFirst(row: any, keys: string[]) {
   for (const k of keys) {
@@ -95,6 +103,23 @@ export async function POST(req: Request) {
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: "Arquivo não enviado" }, { status: 400 });
+    }
+
+    const fileName = String(file.name || "").trim();
+    const extension = getFileExtension(fileName);
+
+    if (!ALLOWED_IMPORT_EXTENSIONS.has(extension)) {
+      return NextResponse.json(
+        { error: "Extensão inválida. Envie um arquivo .xlsx, .xls ou .csv." },
+        { status: 400 }
+      );
+    }
+
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      return NextResponse.json(
+        { error: "Arquivo acima do limite máximo de 5 MB." },
+        { status: 413 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

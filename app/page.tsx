@@ -1916,6 +1916,7 @@ function clearReview(groupId: string) {
             city,
             lat: args.coord.lat,
             lng: args.coord.lng,
+            jobId: historyId || jobId || undefined,
             createdBy: null,
           }),
         })

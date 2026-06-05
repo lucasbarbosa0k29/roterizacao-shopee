@@ -1,5 +1,8 @@
 export const runtime = "nodejs";
 
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/auth";
+
 function csvEscape(v: any) {
   const s = String(v ?? "");
   if (/[,"\n\r]/.test(s)) {
@@ -27,6 +30,11 @@ function buildDefaultNotes(r: any) {
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({} as any));
     const rows = Array.isArray(body?.rows) ? body.rows : [];
 

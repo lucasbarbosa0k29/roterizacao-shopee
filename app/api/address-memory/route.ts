@@ -10,6 +10,9 @@ import {
   METRIC_MEMORY_SAVE_ERROR,
 } from "@/app/lib/admin-observability";
 
+const MAX_ADDRESS_MEMORY_ADDRESS_CHARS = 500;
+const MAX_ADDRESS_MEMORY_CITY_CHARS = 120;
+
 function normalizeKey(text: string) {
   return String(text || "")
     .toUpperCase()
@@ -33,6 +36,19 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
 
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function isValidLatLng(lat: unknown, lng: unknown) {
+  return (
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
 }
 
 export async function POST(req: Request) {
@@ -64,6 +80,8 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id as string | undefined;
+    const role = String((session?.user as any)?.role || "USER").toUpperCase();
+    const isAdmin = role === "ADMIN";
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -76,15 +94,53 @@ export async function POST(req: Request) {
       district?: unknown;
       lat?: unknown;
       lng?: unknown;
+      jobId?: unknown;
     };
     payload = body;
     const address = typeof body.address === "string" ? body.address.trim() : "";
     const city = typeof body.city === "string" ? body.city.trim() : "";
+    const jobId = typeof body.jobId === "string" ? body.jobId.trim() : "";
     const createdBy = userId;
     const { lat, lng } = body;
 
     if (!address || typeof lat !== "number" || typeof lng !== "number") {
       return NextResponse.json({ error: "Dados invÃ¡lidos" }, { status: 400 });
+    }
+
+    if (!address || address.length > MAX_ADDRESS_MEMORY_ADDRESS_CHARS) {
+      return NextResponse.json({ error: "Endereço inválido." }, { status: 400 });
+    }
+
+    if (city.length > MAX_ADDRESS_MEMORY_CITY_CHARS) {
+      return NextResponse.json({ error: "Cidade inválida." }, { status: 400 });
+    }
+
+    if (!isValidLatLng(lat, lng)) {
+      return NextResponse.json({ error: "Coordenadas inválidas." }, { status: 400 });
+    }
+
+    if (!isAdmin) {
+      if (!jobId) {
+        return NextResponse.json(
+          { error: "jobId é obrigatório para salvar memória." },
+          { status: 400 }
+        );
+      }
+
+      const job = await prisma.importJob.findFirst({
+        where: {
+          id: jobId,
+          userId,
+        },
+        select: { id: true },
+      });
+
+      if (!job) {
+        return NextResponse.json(
+          { error: "Você não tem permissão para salvar memória neste job." },
+          { status: 403 }
+        );
+      }
     }
 
     const key = normalizeKey(`${address} ${city || ""}`);
