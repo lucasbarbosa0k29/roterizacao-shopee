@@ -877,7 +877,6 @@ if (rows.length > 0 && jobProgress?.status === "DONE") return;
   const [pickedCep, setPickedCep] = useState("");
   const [pickedQuadra, setPickedQuadra] = useState("");
   const [pickedLote, setPickedLote] = useState("");
-  const [isMobileMapSearchOpen, setIsMobileMapSearchOpen] = useState(false);
   const [googleSearchQuery, setGoogleSearchQuery] = useState("");
   const [googleSearchRequestId, setGoogleSearchRequestId] = useState(0);
   const [googleSearchLoading, setGoogleSearchLoading] = useState(false);
@@ -988,6 +987,34 @@ useEffect(() => {
         : forceArcgisOnly
           ? "arcgis"
           : "here";
+
+  async function copyTextWithFallback(text: string) {
+    if (!text || typeof document === "undefined") return false;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
+  }
 
   useEffect(() => {
     if (activeMapProvider === "google") return;
@@ -1828,8 +1855,6 @@ function clearReview(groupId: string) {
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
     setManualMapProvider(getInitialManualMapProvider(rows[idx]?.city));
-    setIsMobileMapSearchOpen(false);
-
     const manual = manualEdits[idx];
     const baseLat = manual?.lat ?? rows[idx]?.lat ?? null;
     const baseLng = manual?.lng ?? rows[idx]?.lng ?? null;
@@ -1856,7 +1881,6 @@ function clearReview(groupId: string) {
     setSuggestOpen(false);
     setSuggestItems([]);
     setSuggestActive(-1);
-    setIsMobileMapSearchOpen(false);
     setGoogleSearchMessage("");
     setGoogleSearchQuery("");
     setGoogleSearchResults([]);
@@ -3396,7 +3420,7 @@ useEffect(() => {
                             key={g.id}
                             data-tour="mobile-stop-card"
                             className={
-                              `rounded-[26px] border p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition-all ${
+                              `select-none rounded-[26px] border p-4 shadow-[0_14px_32px_rgba(15,23,42,0.06)] transition-all ${
                                 hasReview ? "text-red-700" : ""
                               } ${
                                 hasReview
@@ -4591,14 +4615,6 @@ onContextMenu={(e) => {
         <div className="flex gap-2 rounded-[22px] border border-slate-200 bg-white/95 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur">
           <button
             type="button"
-            onClick={() => setIsMobileMapSearchOpen((cur) => !cur)}
-            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700"
-          >
-            {isMobileMapSearchOpen ? "Fechar busca" : "Abrir busca"}
-          </button>
-
-          <button
-            type="button"
             onClick={confirmManualModal}
             data-tour="map-confirm-button"
             className="flex-1 rounded-2xl bg-emerald-600 px-3 py-3 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(15,118,110,0.22)] hover:bg-emerald-700"
@@ -4609,17 +4625,16 @@ onContextMenu={(e) => {
         </div>
       </div>
 
-      {isMobileMapSearchOpen && (
-        <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-40 max-h-[44dvh] overflow-y-auto overscroll-contain rounded-[22px] border border-slate-200 bg-white/95 p-3 shadow-2xl backdrop-blur">
-          <div className="mb-2 text-[10px] font-semibold text-emerald-700">
+      <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-40 max-h-[36dvh] overflow-y-auto overscroll-contain rounded-[18px] border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur">
+          <div className="mb-1 text-[10px] font-semibold text-emerald-700">
             BUSCA E CAPTURA
           </div>
 
           {showProviderToggle && (
-            <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="mb-1.5 flex items-center justify-between gap-1.5">
               <div className="text-[10px] font-semibold text-slate-500">MAPA</div>
 
-              <div className="inline-flex rounded-lg border bg-slate-50 p-1">
+              <div className="inline-flex rounded-lg border bg-slate-50 p-0.5">
                 {!forceArcgisOnly && (
                   <button
                     type="button"
@@ -4628,7 +4643,7 @@ onContextMenu={(e) => {
                       setLastPrimaryManualMapProvider("here");
                     }}
                     className={[
-                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                      "rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
                       activeMapProvider === "here"
                         ? "bg-white text-emerald-700 shadow-sm"
                         : "text-slate-600 hover:text-slate-900",
@@ -4647,7 +4662,7 @@ onContextMenu={(e) => {
                     }}
                     title="Usar mapa ArcGIS"
                     className={[
-                      "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                      "rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
                       activeMapProvider === "arcgis"
                         ? "bg-white text-emerald-700 shadow-sm"
                         : "text-slate-600 hover:text-slate-900",
@@ -4661,7 +4676,7 @@ onContextMenu={(e) => {
                   type="button"
                   onClick={() => setManualMapProvider("google")}
                   className={[
-                    "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors",
+                    "rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition-colors",
                     activeMapProvider === "google"
                       ? "bg-white text-emerald-700 shadow-sm"
                       : "text-slate-600 hover:text-slate-900",
@@ -4734,11 +4749,11 @@ onContextMenu={(e) => {
                 }
               }}
               placeholder="Buscar ou Lat/Lng..."
-              className="w-full rounded-lg border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-emerald-200"
             />
 
             {activeMapProvider !== "google" && suggestOpen && suggestItems.length > 0 && (
-              <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
+              <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg">
                 {suggestItems.map((it, idx) => (
                   <button
                     key={`${it.id ?? idx}`}
@@ -4746,7 +4761,7 @@ onContextMenu={(e) => {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => selectSuggestItem(it)}
                     className={[
-                      "w-full px-3 py-2 text-left text-xs hover:bg-slate-50",
+                      "w-full px-2.5 py-1.5 text-left text-xs hover:bg-slate-50",
                       idx === suggestActive ? "bg-slate-50" : "",
                     ].join(" ")}
                   >
@@ -4758,12 +4773,12 @@ onContextMenu={(e) => {
           </div>
 
           {activeMapProvider === "google" && googleSearchMessage && (
-            <div className="mt-2 text-xs font-medium text-slate-600">
+            <div className="mt-1.5 text-xs font-medium text-slate-600">
               {googleSearchMessage}
             </div>
           )}
 
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => {
@@ -4771,20 +4786,20 @@ onContextMenu={(e) => {
                 else runHereSearch(modalValue);
               }}
               disabled={activeMapProvider === "google" && googleSearchLoading}
-              className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {activeMapProvider === "google" && googleSearchLoading ? "Buscando" : "Buscar"}
             </button>
           </div>
 
           {activeMapProvider === "google" && googleSearchResults.length > 0 && (
-            <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+            <div className="mt-1.5 max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
               {googleSearchResults.map((result, idx) => (
                 <button
                   key={`${result.id}-${idx}`}
                   type="button"
                   onClick={() => selectGoogleSearchResult(result)}
-                  className="block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                  className="block w-full border-b px-2.5 py-1.5 text-left last:border-b-0 hover:bg-slate-50"
                 >
                   <div className="text-xs font-semibold text-slate-900">
                     {idx + 1}. {result.name}
@@ -4799,8 +4814,8 @@ onContextMenu={(e) => {
             </div>
           )}
 
-          <div className="mt-2 rounded-lg border bg-white px-2.5 py-2 text-[10px] text-slate-700">
-            <div className="flex items-start justify-between gap-2">
+          <div className="mt-1.5 rounded-lg border bg-white px-2 py-1.5 text-[10px] text-slate-700">
+            <div className="flex items-start justify-between gap-1.5">
               <div className="min-w-0 flex-1 truncate">
                 <span className="font-semibold">GPS:</span>{" "}
                 {pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "-"}
@@ -4811,18 +4826,17 @@ onContextMenu={(e) => {
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const txt = pinLatLng ? `${pinLatLng.lat}, ${pinLatLng.lng}` : "";
-                  if (txt) navigator.clipboard?.writeText(txt);
+                  if (txt) await copyTextWithFallback(txt);
                 }}
-                className="shrink-0 rounded-lg border bg-white px-2.5 py-1 text-[10px] hover:bg-slate-50"
+                className="min-h-[28px] shrink-0 rounded-lg border bg-white px-2 py-0.5 text-[10px] hover:bg-slate-50"
               >
                 Copiar
               </button>
             </div>
           </div>
         </div>
-      )}
 
       {/* BOTÕES inferiores (se quiser manter como estava) */}
       <div className="hidden md:flex absolute left-2 right-2 md:left-auto md:right-4 bottom-2 md:bottom-4 z-30 flex-col sm:flex-row items-stretch sm:items-center gap-2">

@@ -68,6 +68,28 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", "&#39;");
 }
 
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
+function configureMobilePopup(view: any) {
+  if (!view?.popup || !isMobileViewport()) return;
+
+  try {
+    view.popup.dockEnabled = false;
+    view.popup.dockOptions = {
+      buttonEnabled: false,
+      breakpoint: false,
+    };
+    view.popup.visibleElements = {
+      closeButton: true,
+      collapseButton: false,
+      actionBar: false,
+      featureNavigation: false,
+    };
+  } catch {}
+}
+
 export default function AparecidaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
 
@@ -77,6 +99,7 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     if (mapInitialized) {
       if (divRef.current && sharedView) {
         sharedView.container = divRef.current;
+        configureMobilePopup(sharedView);
 
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
           const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
@@ -209,6 +232,7 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         try {
           sharedView.popup.autoPanEnabled = false;
         } catch {}
+        configureMobilePopup(sharedView);
 
         sharedGraphic = Graphic;
         sharedPoint = Point;
@@ -402,13 +426,13 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         },
         title: "Aparecida de Goiania",
         content: `
-          <div style="font-size:13px; line-height:1.5;">
+          <div style="font-size:${isMobileViewport() ? "11px" : "13px"}; line-height:1.35; max-width:${isMobileViewport() ? "220px" : "320px"};">
             <div><strong>Coordenadas:</strong> ${latText}, ${lngText}</div>
-            <div style="height:8px;"></div>
+            <div style="height:6px;"></div>
             <div><strong>Bairro:</strong> ${bairro || "-"}</div>
-            <div style="height:8px;"></div>
+            <div style="height:6px;"></div>
             <div><strong>Quadra:</strong> ${quadra || "-"}</div>
-            <div style="height:8px;"></div>
+            <div style="height:6px;"></div>
             <div><strong>Lote:</strong> ${lote || "-"}</div>
           </div>
         `,
