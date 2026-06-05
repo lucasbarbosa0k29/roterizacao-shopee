@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type UserRow = {
   id: string;
@@ -32,6 +32,21 @@ type UserRow = {
   updatedAt: string;
 };
 
+type ActionsMenuPosition = {
+  left: number;
+  top: number;
+  placement: "top" | "bottom";
+};
+
+type ActionsMenuState = ActionsMenuPosition & {
+  userId: string;
+};
+
+const ACTIONS_MENU_WIDTH = 256;
+const ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
+const ACTIONS_MENU_GAP = 8;
+const ACTIONS_MENU_MARGIN = 8;
+
 export default function AdminUsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,6 +60,8 @@ export default function AdminUsersPage() {
   const [onlyActive, setOnlyActive] = useState(true);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [openActionsMenu, setOpenActionsMenu] = useState<ActionsMenuState | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   function getSafeAccess(user: UserRow) {
     return {
@@ -89,18 +106,105 @@ export default function AdminUsersPage() {
     loadUsers();
   }, []);
 
+  useEffect(() => {
+    if (!openActionsMenu) return;
+
+    function onDocMouseDown(event: MouseEvent) {
+      if ((event.target as Element | null)?.closest('[data-actions-menu-trigger="true"]')) {
+        return;
+      }
+
+      if (!actionsMenuRef.current?.contains(event.target as Node)) {
+        setOpenActionsMenu(null);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenActionsMenu(null);
+      }
+    }
+
+    function onViewportMove() {
+      setOpenActionsMenu(null);
+    }
+
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onViewportMove);
+    window.addEventListener("scroll", onViewportMove, true);
+
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onViewportMove);
+      window.removeEventListener("scroll", onViewportMove, true);
+    };
+  }, [openActionsMenu]);
+
+  function getActionsMenuPosition(button: HTMLButtonElement): ActionsMenuPosition {
+    const rect = button.getBoundingClientRect();
+    const maxLeft = window.innerWidth - ACTIONS_MENU_WIDTH - ACTIONS_MENU_MARGIN;
+    const left = Math.min(
+      Math.max(ACTIONS_MENU_MARGIN, rect.right - ACTIONS_MENU_WIDTH),
+      Math.max(ACTIONS_MENU_MARGIN, maxLeft)
+    );
+
+    const availableBelow = window.innerHeight - rect.bottom - ACTIONS_MENU_GAP - ACTIONS_MENU_MARGIN;
+    const menuHeight = Math.min(
+      ACTIONS_MENU_ESTIMATED_HEIGHT,
+      window.innerHeight - ACTIONS_MENU_MARGIN * 2
+    );
+    const opensUp = availableBelow < menuHeight && rect.top > availableBelow;
+
+    return {
+      left,
+      top: opensUp ? Math.max(ACTIONS_MENU_MARGIN, rect.top - ACTIONS_MENU_GAP) : rect.bottom + ACTIONS_MENU_GAP,
+      placement: opensUp ? "top" : "bottom",
+    };
+  }
+
+  function toggleActionsMenu(userId: string, button: HTMLButtonElement) {
+    setOpenActionsMenu((current) =>
+      current?.userId === userId
+        ? null
+        : {
+            userId,
+            ...getActionsMenuPosition(button),
+          }
+    );
+  }
+
+  function closeActionsMenuAndRun(action: () => void | Promise<void>) {
+    setOpenActionsMenu(null);
+    void action();
+  }
+
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
-    return users.filter((u) => {
-      if (onlyActive && !u.active) return false;
-      if (!qq) return true;
+    return users
+      .filter((u) => {
+        if (onlyActive && !u.active) return false;
+        if (!qq) return true;
 
-      const hay = [u.name, u.email, u.role]
-        .map((x) => String(x ?? "").toLowerCase())
-        .join(" | ");
+        const hay = [u.name, u.email, u.role]
+          .map((x) => String(x ?? "").toLowerCase())
+          .join(" | ");
 
-      return hay.includes(qq);
-    });
+        return hay.includes(qq);
+      })
+      .sort((a, b) => {
+        const nameA = String(a.name || "").trim();
+        const nameB = String(b.name || "").trim();
+
+        if (!nameA && nameB) return 1;
+        if (nameA && !nameB) return -1;
+
+        return (
+          nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" }) ||
+          a.email.localeCompare(b.email, "pt-BR", { sensitivity: "base" })
+        );
+      });
   }, [users, q, onlyActive]);
 
   async function onCreate(e: React.FormEvent) {
@@ -428,6 +532,8 @@ export default function AdminUsersPage() {
                 {filtered.map((u) => {
                   const busy = busyId === u.id;
                   const access = getSafeAccess(u);
+                  const actionsOpen = openActionsMenu?.userId === u.id;
+                  const actionsMenu = actionsOpen ? openActionsMenu : null;
 
                   return (
                     <tr key={u.id} className="border-b last:border-b-0 align-top">
@@ -500,148 +606,197 @@ export default function AdminUsersPage() {
                       </td>
 
                       <td className="py-2 pr-3 text-right">
-                        <div className="flex flex-wrap items-center justify-end gap-2 max-w-[560px] ml-auto">
+                        <div className="inline-flex justify-end">
                           <button
-                            className={`text-sm hover:underline ${
-                              busy ? "text-slate-400 cursor-wait" : "text-blue-700"
-                            }`}
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                             disabled={busy}
-                            onClick={() => toggleActive(u)}
+                            aria-expanded={actionsOpen}
+                            data-actions-menu-trigger={actionsOpen ? "true" : undefined}
+                            onClick={(event) => toggleActionsMenu(u.id, event.currentTarget)}
                           >
-                            {u.active ? "Desativar" : "Ativar"}
+                            Gerenciar <span className="text-xs">▾</span>
                           </button>
 
-                          {u.role === "USER" && (
-                            <>
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-emerald-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() => runAdminAction(u, { action: "GRANT_FREE" })}
-                              >
-                                FREE
-                              </button>
+                          {actionsMenu && (
+                            <div
+                              ref={actionsMenuRef}
+                              className="z-50 w-64 overflow-y-auto rounded-xl border bg-white p-2 text-left shadow-lg ring-1 ring-black/5"
+                              style={{
+                                position: "fixed",
+                                left: actionsMenu.left,
+                                top: actionsMenu.top,
+                                maxHeight: "calc(100vh - 16px)",
+                                transform:
+                                  actionsMenu.placement === "top"
+                                    ? "translateY(-100%)"
+                                    : undefined,
+                              }}
+                            >
+                              {u.role === "USER" && (
+                                <>
+                                  <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Planos
+                                  </div>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-emerald-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, { action: "GRANT_FREE" })
+                                      )
+                                    }
+                                  >
+                                    FREE
+                                  </button>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-emerald-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, { action: "GRANT_BASIC_30" })
+                                      )
+                                    }
+                                  >
+                                    BASIC 30d
+                                  </button>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-emerald-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, { action: "GRANT_PRO_30" })
+                                      )
+                                    }
+                                  >
+                                    PRO 30d
+                                  </button>
 
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-emerald-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() => runAdminAction(u, { action: "GRANT_BASIC_30" })}
-                              >
-                                BASIC 30d
-                              </button>
+                                  <div className="mt-2 border-t px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Trial
+                                  </div>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-violet-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, {
+                                          action: "GRANT_TRIAL_7",
+                                          planCode: "BASIC",
+                                        })
+                                      )
+                                    }
+                                  >
+                                    Trial 7d
+                                  </button>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-violet-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, {
+                                          action: "GRANT_TRIAL_15",
+                                          planCode: "BASIC",
+                                        })
+                                      )
+                                    }
+                                  >
+                                    Trial 15d
+                                  </button>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-violet-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() =>
+                                        runAdminAction(u, {
+                                          action: "GRANT_TRIAL_30",
+                                          planCode: "BASIC",
+                                        })
+                                      )
+                                    }
+                                  >
+                                    Trial 30d
+                                  </button>
 
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-emerald-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() => runAdminAction(u, { action: "GRANT_PRO_30" })}
-                              >
-                                PRO 30d
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-violet-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() =>
-                                  runAdminAction(u, { action: "GRANT_TRIAL_7", planCode: "BASIC" })
-                                }
-                              >
-                                Trial 7d
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-violet-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() =>
-                                  runAdminAction(u, { action: "GRANT_TRIAL_15", planCode: "BASIC" })
-                                }
-                              >
-                                Trial 15d
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-violet-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() =>
-                                  runAdminAction(u, { action: "GRANT_TRIAL_30", planCode: "BASIC" })
-                                }
-                              >
-                                Trial 30d
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-amber-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() => grantCredits(u)}
-                              >
-                                +Créditos
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-amber-900"
-                                }`}
-                                disabled={busy}
-                                onClick={() => removeCredits(u)}
-                              >
-                                -Créditos
-                              </button>
-
-                              <button
-                                className={`text-sm hover:underline ${
-                                  busy ? "text-slate-400 cursor-wait" : "text-rose-700"
-                                }`}
-                                disabled={busy}
-                                onClick={() => revokeActiveSubscription(u)}
-                              >
-                                Remover plano
-                              </button>
-
-                              {access.isBlocked ? (
-                                <button
-                                  className={`text-sm hover:underline ${
-                                    busy ? "text-slate-400 cursor-wait" : "text-green-700"
-                                  }`}
-                                  disabled={busy}
-                                  onClick={() => runAdminAction(u, { action: "UNBLOCK_ACCESS" })}
-                                >
-                                  Desbloquear
-                                </button>
-                              ) : (
-                                <button
-                                  className={`text-sm hover:underline ${
-                                    busy ? "text-slate-400 cursor-wait" : "text-orange-700"
-                                  }`}
-                                  disabled={busy}
-                                  onClick={() => blockAccess(u)}
-                                >
-                                  Bloquear
-                                </button>
+                                  <div className="mt-2 border-t px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    Créditos
+                                  </div>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-amber-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() => closeActionsMenuAndRun(() => grantCredits(u))}
+                                  >
+                                    +Créditos
+                                  </button>
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-amber-900 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() => closeActionsMenuAndRun(() => removeCredits(u))}
+                                  >
+                                    -Créditos
+                                  </button>
+                                </>
                               )}
-                            </>
-                          )}
 
-                          <button
-                            className={`text-sm hover:underline ${
-                              busy ? "text-slate-400 cursor-wait" : "text-red-700"
-                            }`}
-                            disabled={busy}
-                            onClick={() => deleteUser(u)}
-                          >
-                            Excluir
-                          </button>
+                              <div className="mt-2 border-t px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Conta
+                              </div>
+                              <button
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm text-blue-700 hover:bg-slate-50 disabled:text-slate-400"
+                                disabled={busy}
+                                onClick={() => closeActionsMenuAndRun(() => toggleActive(u))}
+                              >
+                                {u.active ? "Desativar" : "Ativar"}
+                              </button>
+
+                              {u.role === "USER" && (
+                                <>
+                                  {access.isBlocked ? (
+                                    <button
+                                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-green-700 hover:bg-slate-50 disabled:text-slate-400"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        closeActionsMenuAndRun(() =>
+                                          runAdminAction(u, { action: "UNBLOCK_ACCESS" })
+                                        )
+                                      }
+                                    >
+                                      Desbloquear
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-orange-700 hover:bg-slate-50 disabled:text-slate-400"
+                                      disabled={busy}
+                                      onClick={() => closeActionsMenuAndRun(() => blockAccess(u))}
+                                    >
+                                      Bloquear
+                                    </button>
+                                  )}
+
+                                  <button
+                                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-rose-700 hover:bg-slate-50 disabled:text-slate-400"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      closeActionsMenuAndRun(() => revokeActiveSubscription(u))
+                                    }
+                                  >
+                                    Remover plano
+                                  </button>
+                                </>
+                              )}
+
+                              <div className="mt-2 border-t px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Excluir Usuário
+                              </div>
+                              <button
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-slate-400"
+                                disabled={busy}
+                                onClick={() => closeActionsMenuAndRun(() => deleteUser(u))}
+                              >
+                                Excluir Usuário
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
