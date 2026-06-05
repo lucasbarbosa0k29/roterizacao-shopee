@@ -1086,7 +1086,7 @@ useEffect(() => {
 
   function getVisualStatusLabel(status: Status, idxs: number[]) {
     if (status === "OK" && idxs.some((idx) => isRowMemoryHit(idx))) {
-      return "Validado Memória";
+      return "Memória";
     }
     if (status === "OK") return "Validado";
     if (status === "PARCIAL") return "Aproximado";
@@ -1376,6 +1376,18 @@ useEffect(() => {
 
     return summary;
   }, [groupedRows]);
+
+  const summaryPercent = (value: number) =>
+    exportSummary.total ? (value / exportSummary.total) * 100 : 0;
+  const summaryPercentText = (value: number) => {
+    const percent = summaryPercent(value);
+    const hasDecimal = Math.round(percent * 10) % 10 !== 0;
+    const formatted = percent.toLocaleString("pt-BR", {
+      minimumFractionDigits: hasDecimal ? 1 : 0,
+      maximumFractionDigits: 1,
+    });
+    return `${formatted}% do total`;
+  };
 
   const overviewSelectedPoint = useMemo(() => {
     if (!overviewSelectedGroupId) return null;
@@ -3152,20 +3164,11 @@ useEffect(() => {
   <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(31,90,107,0.08),transparent_30%),linear-gradient(180deg,#fbfcfc_0%,#f5f8f8_100%)] p-4 md:p-6">
   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
     <div className="max-w-2xl">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1f5a6b]">
-        Resultado Operacional
-      </div>
-      <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 md:text-[30px]">
-        Revise, valide e organize as paradas processadas.
+      <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-[34px] lg:text-[38px]">
+        Resultado operacional
       </h2>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm leading-6 text-slate-600 md:text-[15px]">
-        <span>
-          Total de pontos: <b className="text-slate-900">{rows.length}</b>
-        </span>
-        <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline-block" />
-        <span>
-          Consolidados: <b className="text-slate-900">{groupedRows.length}</b>
-        </span>
+      <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[15px]">
+        Revise, valide e organize as paradas processadas.
       </div>
     </div>
 
@@ -3222,65 +3225,161 @@ useEffect(() => {
     </button>
   </div>
 </div>
-  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Total de Paradas</div>
-      <div className="mt-2 text-2xl font-black text-slate-900">{exportSummary.total}</div>
-      <div className="mt-1 text-xs text-slate-500">Pontos consolidados</div>
+  <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm lg:min-h-[176px] lg:p-5">
+      <div className="flex h-full flex-col">
+        <div className="flex flex-col items-center gap-3 text-center xl:flex-row xl:items-start xl:text-left">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600 lg:h-12 lg:w-12">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="lg:h-5 lg:w-5">
+              <path d="M8 6h11M8 12h11M8 18h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <div className="text-[10px] font-semibold text-slate-600 md:text-[11px]">
+              Total de paradas
+            </div>
+            <div className="mt-2 text-3xl font-black leading-none text-slate-900 lg:text-[42px]">{exportSummary.total}</div>
+            <div className="mt-2 text-[11px] font-medium text-slate-500 lg:text-xs">Pontos consolidados</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">Prontas para Exportação</div>
-      <div className="mt-2 text-2xl font-black text-emerald-900">{exportSummary.ok}</div>
-      <div className="mt-1 text-xs text-emerald-700/80">Validadas ou confirmadas</div>
+    <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm lg:min-h-[176px] lg:p-5">
+      <div className="flex h-full flex-col justify-between">
+        <div className="flex flex-col items-center gap-3 text-center xl:flex-row xl:items-start xl:text-left">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 lg:h-12 lg:w-12">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="lg:h-5 lg:w-5">
+              <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <div className="text-[10px] font-semibold text-slate-600 md:text-[11px]">
+              Validados
+            </div>
+            <div className="mt-2 text-3xl font-black leading-none text-emerald-700 lg:text-[42px]">{exportSummary.ok}</div>
+            <div className="mt-2 text-[11px] font-semibold text-emerald-600 lg:text-xs">{summaryPercentText(exportSummary.ok)}</div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-emerald-500"
+            style={{ width: `${summaryPercent(exportSummary.ok)}%` }}
+          />
+        </div>
+      </div>
     </div>
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Precisam Revisão</div>
-      <div className="mt-2 text-2xl font-black text-amber-900">{exportSummary.partial + exportSummary.manual}</div>
-      <div className="mt-1 text-xs text-amber-700/80">Aproximadas ou manuais</div>
+    <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm lg:min-h-[176px] lg:p-5">
+      <div className="flex h-full flex-col justify-between">
+        <div className="flex flex-col items-center gap-3 text-center xl:flex-row xl:items-start xl:text-left">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-500 lg:h-12 lg:w-12">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="lg:h-5 lg:w-5">
+              <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
+              <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <div className="text-[10px] font-semibold text-slate-600 md:text-[11px]">
+              Aproximados
+            </div>
+            <div className="mt-2 text-3xl font-black leading-none text-amber-600 lg:text-[42px]">{exportSummary.partial + exportSummary.manual}</div>
+            <div className="mt-2 text-[11px] font-semibold text-amber-600 lg:text-xs">{summaryPercentText(exportSummary.partial + exportSummary.manual)}</div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-amber-500"
+            style={{ width: `${summaryPercent(exportSummary.partial + exportSummary.manual)}%` }}
+          />
+        </div>
+      </div>
     </div>
-    <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-700">Pendências Críticas</div>
-      <div className="mt-2 text-2xl font-black text-rose-900">{exportSummary.notFound}</div>
-      <div className="mt-1 text-xs text-rose-700/80">Sem localização segura</div>
+    <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm lg:min-h-[176px] lg:p-5">
+      <div className="flex h-full flex-col justify-between">
+        <div className="flex flex-col items-center gap-3 text-center xl:flex-row xl:items-start xl:text-left">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 lg:h-12 lg:w-12">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="lg:h-5 lg:w-5">
+              <path d="M12 8v5M12 17h.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M10.3 4.1 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.1a2 2 0 0 0-3.4 0Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0 pt-0.5">
+            <div className="text-[10px] font-semibold text-slate-600 md:text-[11px]">
+              Pendentes
+            </div>
+            <div className="mt-2 text-3xl font-black leading-none text-rose-600 lg:text-[42px]">{exportSummary.notFound}</div>
+            <div className="mt-2 text-[11px] font-semibold text-rose-600 lg:text-xs">{summaryPercentText(exportSummary.notFound)}</div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full bg-rose-500"
+            style={{ width: `${summaryPercent(exportSummary.notFound)}%` }}
+          />
+        </div>
+      </div>
     </div>
   </div>
-  <div className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-    <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-center">
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Fonte dos dados
+  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white shadow-sm">
+    <div className="grid gap-0 divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
+      <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M14 3.5V8h4M9 12h6M9 16h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
-        <div className="mt-1 text-sm font-semibold text-slate-900">
-          {historyName && historyName !== "Planilha" ? historyName : file?.name || "Planilha importada"}
-        </div>
-      </div>
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Pontos da importação
-        </div>
-        <div className="mt-1 text-sm font-semibold text-slate-900">
-          {rows.length} pontos
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium text-slate-500">Fonte dos dados</div>
+          <div className="mt-0.5 truncate text-sm font-bold text-slate-900">
+            {historyName && historyName !== "Planilha" ? historyName : file?.name || "Planilha importada"}
+          </div>
         </div>
       </div>
-      <div className="flex md:justify-end">
-        <button
-          type="button"
-          onClick={() => setIsOverviewMapOpen(true)}
-          disabled={overviewMapPoints.length === 0}
-          data-tour="open-map-button"
-          className={`inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition md:w-auto ${
-            overviewMapPoints.length === 0
-              ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-              : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
-          }`}
-          title={
-            overviewMapPoints.length === 0
-              ? "Nenhuma parada com coordenadas para exibir"
-              : "Abrir mapa com todas as paradas"
-          }
-        >
-          Revisar no Mapa
-        </button>
+      <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 6h11M8 12h11M8 18h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium text-slate-500">Pontos da importação</div>
+          <div className="mt-0.5 text-sm font-bold text-slate-900">{rows.length} pontos</div>
+        </div>
+      </div>
+      <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M9 18 3.5 20.5v-14L9 4m0 14 6 2.5m-6-2.5V4m6 16.5 5.5-2.5v-14L15 6.5m0 14V6.5M15 6.5 9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium text-slate-500">Ação no mapa</div>
+          <button
+            type="button"
+            onClick={() => setIsOverviewMapOpen(true)}
+            disabled={overviewMapPoints.length === 0}
+            data-tour="open-map-button"
+            className={`mt-1.5 inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-bold shadow-sm transition ${
+              overviewMapPoints.length === 0
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                : "border-sky-200 bg-white text-sky-700 hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50"
+            }`}
+            title={
+              overviewMapPoints.length === 0
+                ? "Nenhuma parada com coordenadas para exibir"
+                : "Abrir mapa com todas as paradas"
+            }
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9 18 3.5 20.5v-14L9 4m0 14 6 2.5m-6-2.5V4m6 16.5 5.5-2.5v-14L15 6.5m0 14V6.5M15 6.5 9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M12 10.5c2.4 0 4.3 1.5 5.2 3.5-.9 2-2.8 3.5-5.2 3.5S7.7 16 6.8 14c.9-2 2.8-3.5 5.2-3.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+              <circle cx="12" cy="14" r="1.5" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            Revisar no mapa
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -3372,10 +3471,8 @@ useEffect(() => {
                                     title="Revisar no mapa"
                                   >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="2"/>
-                                      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2"/>
-                                      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                                      <path d="M16.5 16.5 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
                                     </svg>
                                   </button>
                                 )}
@@ -3387,11 +3484,13 @@ useEffect(() => {
                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
                                     data-tour="mobile-stop-group-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                    title="Agrupar Paradas Manualmente"
+                                    title="Agrupar paradas"
                                   >
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white text-[10px] font-black leading-none tracking-tight text-slate-700">
-                                      AG
-                                    </span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                      <path d="M4 7h8M16 7h4M4 17h4M12 17h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      <circle cx="14" cy="7" r="2" stroke="currentColor" strokeWidth="2" />
+                                      <circle cx="10" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
+                                    </svg>
                                   </button>
                                 )}
 
@@ -3483,6 +3582,19 @@ useEffect(() => {
             </div>
 
              <div className="hidden md:block w-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.07)] mt-3 md:mt-4">
+  <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/70 px-4 py-3">
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        Paradas processadas
+      </div>
+      <div className="mt-0.5 text-sm font-semibold text-slate-900">
+        Tabela consolidada para revisão operacional
+      </div>
+    </div>
+    <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+      {groupedRows.length} linhas
+    </div>
+  </div>
   <div className="w-full overflow-x-auto">
    <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-[linear-gradient(180deg,#f9fbfb_0%,#f1f6f7_100%)] text-slate-600">
@@ -3495,11 +3607,11 @@ useEffect(() => {
   </th>
 
   <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[82px] md:w-[120px]">
-    Sequence
+    Sequência
   </th>
 
   <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] min-w-[0] w-auto md:min-w-[360px]">
-    Destination Address
+    Endereço
   </th>
 
   <th className="hidden md:table-cell px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] w-[200px]">
@@ -3507,7 +3619,7 @@ useEffect(() => {
   </th>
 
   <th className="hidden md:table-cell px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] w-[160px]">
-    City
+    Cidade
   </th>
 
  
@@ -3575,10 +3687,8 @@ onContextMenu={(e) => {
     title="Revisar no mapa"
   >
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="2"/>
-      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="2"/>
-      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-      <path d="M16.5 16.5 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
     </svg>
   </button>
 )}
@@ -3588,14 +3698,16 @@ onContextMenu={(e) => {
                                    <button
                                      type="button"
                                      onClick={() => enterGroupModeWithFirst(baseIdx)}
-                                    data-tour="manual-group-button"
-                                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-                                   title="Agrupar Paradas Manualmente"
-                                 >
-                                     <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-300 bg-white text-[10px] font-black leading-none tracking-tight text-slate-700">
-                                       AG
-                                     </span>
-                                  </button>
+                                   data-tour="manual-group-button"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+                                    title="Agrupar paradas"
+                                  >
+                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M4 7h8M16 7h4M4 17h4M12 17h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                        <circle cx="14" cy="7" r="2" stroke="currentColor" strokeWidth="2" />
+                                        <circle cx="10" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
+                                      </svg>
+                                   </button>
                                 )}
 
                              {groupMode && (
