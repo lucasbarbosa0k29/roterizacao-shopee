@@ -104,6 +104,14 @@ type AparecidaLocalStreetShadow = {
   streetMatch: boolean | null;
 };
 
+type AparecidaHelveciaLocalFirstBlocked = {
+  expectedBairro: string;
+  localBairro: string;
+  quadra: string;
+  lote: string;
+  motivo: string;
+};
+
 type MemoryDebugRow = {
   memoryKey: string;
   memoryBaseKey: string | null;
@@ -120,6 +128,7 @@ type MemoryDebugRow = {
   aparecidaShadowFlags?: string[];
   aparecidaShadowDebug?: AparecidaShadowDebug | null;
   aparecidaLocalStreetShadow?: AparecidaLocalStreetShadow | null;
+  aparecidaHelveciaLocalFirstBlocked?: AparecidaHelveciaLocalFirstBlocked | null;
   approxMemoryStrength?: ApproxMemoryStrength | null;
   approxMemoryScore?: number | null;
   approxMemoryReasons?: string[];
@@ -244,6 +253,38 @@ function normalizeKey(text: string) {
     .trim();
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
+function buildAparecidaHelveciaLocalFirstBlocked(args: {
+  isAparecida: boolean;
+  localLotCandidateFound: boolean;
+  localLotLocalAliasAccepted: boolean;
+  expectedBairro: string;
+  localBairro: string;
+  quadra: string;
+  lote: string;
+}): AparecidaHelveciaLocalFirstBlocked | null {
+  if (!args.isAparecida || !args.localLotCandidateFound || args.localLotLocalAliasAccepted) {
+    return null;
+  }
+
+  const expectedBairroKey = normalizeKey(args.expectedBairro);
+  const localBairroKey = normalizeKey(args.localBairro);
+
+  if (
+    expectedBairroKey !== "JARDIM HELVECIA" ||
+    (localBairroKey !== "JARDIM LUZ" && localBairroKey !== "VEIGA JARDIM")
+  ) {
+    return null;
+  }
+
+  return {
+    expectedBairro: args.expectedBairro,
+    localBairro: args.localBairro,
+    quadra: args.quadra,
+    lote: args.lote,
+    motivo: "APARECIDA_HELVECIA_LOCAL_FIRST_TO_JARDIM_LUZ_OR_VEIGA_JARDIM",
+  };
+}
+
 function normalizeAparecidaLocalStreetKey(value: string) {
   let t = normalizeKey(value)
     .replace(/\bRUA\b/g, "R")
@@ -2168,6 +2209,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotFinalArc: any = null;
   let localFirstBypassHere = false;
   let localFirstMatchedBy: "normalized" | "original" | null = null;
+  let aparecidaHelveciaLocalFirstBlocked: AparecidaHelveciaLocalFirstBlocked | null = null;
   let partialStreetFallbackUsed = false;
   let partialStreetFallbackReason: "PARTIAL_STREET_LEVEL_MATCH" | "PARTIAL_SECTOR_MATCH" | null = null;
 
@@ -2265,55 +2307,73 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
 
       localLotCandidateFound = true;
       localLotStrongMatch = true;
-      localLotBoostApplied = true;
-      localLotUsedAsFinal = true;
       localLotQuadra = localAparecidaCandidate.quadra || "";
       localLotLote = localAparecidaCandidate.lote || "";
       localLotBairro = localAparecidaCandidate.bairro || "";
       localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
-      localLotFinalItem = localItem;
-      localLotFinalScore = localRerank.total;
-      localLotFinalArc = localArc;
-
-      bestItem = localItem;
-      bestArcgisFromTop = localArc;
-      bestHereScore = localRerank.total;
-      finalRankedKind = "local";
-      lat = localAparecidaCandidate.centroid.lat;
-      lng = localAparecidaCandidate.centroid.lng;
-      scored.push({
-        it: localItem,
-        score: localRerank.total,
-        from: "LOCAL_APARECIDA_LOT",
-        kind: "geocode",
-      });
-
-      localFirstBypassHere = true;
       localFirstMatchedBy = localFirstCandidate.matchedBy;
 
-      console.info("[LOCAL_FIRST_HIT]", {
-        sequence: row?.sequence ?? "",
-        matchedBy: localFirstMatchedBy,
+      aparecidaHelveciaLocalFirstBlocked = buildAparecidaHelveciaLocalFirstBlocked({
+        isAparecida,
+        localLotCandidateFound,
+        localLotLocalAliasAccepted,
+        expectedBairro: normalized.bairro || bairroIn,
+        localBairro: localLotBairro,
         quadra: localLotQuadra,
         lote: localLotLote,
-        bairro: localLotBairro,
-        flags: [
-          ...(localAparecidaCandidate.bairroDivergenteLocalForte
-            ? ["BAIRRO_DIVERGENTE_LOCAL_FORTE"]
-            : []),
-          ...(localAparecidaCandidate.localAliasAccepted
-            ? ["LOCAL_ALIAS_ACCEPTED"]
-            : []),
-        ],
       });
-      console.info("[LOCAL_FIRST_BYPASS_HERE]", {
-        sequence: row?.sequence ?? "",
-        query: "LOCAL_APARECIDA_LOT",
-        quadra: localLotQuadra,
-        lote: localLotLote,
-        bairro: localLotBairro,
-      });
+
+      if (aparecidaHelveciaLocalFirstBlocked) {
+        console.info("[APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED]", {
+          sequence: row?.sequence ?? "",
+          ...aparecidaHelveciaLocalFirstBlocked,
+        });
+      } else {
+        localLotBoostApplied = true;
+        localLotUsedAsFinal = true;
+        localLotFinalItem = localItem;
+        localLotFinalScore = localRerank.total;
+        localLotFinalArc = localArc;
+
+        bestItem = localItem;
+        bestArcgisFromTop = localArc;
+        bestHereScore = localRerank.total;
+        finalRankedKind = "local";
+        lat = localAparecidaCandidate.centroid.lat;
+        lng = localAparecidaCandidate.centroid.lng;
+        scored.push({
+          it: localItem,
+          score: localRerank.total,
+          from: "LOCAL_APARECIDA_LOT",
+          kind: "geocode",
+        });
+
+        localFirstBypassHere = true;
+
+        console.info("[LOCAL_FIRST_HIT]", {
+          sequence: row?.sequence ?? "",
+          matchedBy: localFirstMatchedBy,
+          quadra: localLotQuadra,
+          lote: localLotLote,
+          bairro: localLotBairro,
+          flags: [
+            ...(localAparecidaCandidate.bairroDivergenteLocalForte
+              ? ["BAIRRO_DIVERGENTE_LOCAL_FORTE"]
+              : []),
+            ...(localAparecidaCandidate.localAliasAccepted
+              ? ["LOCAL_ALIAS_ACCEPTED"]
+              : []),
+          ],
+        });
+        console.info("[LOCAL_FIRST_BYPASS_HERE]", {
+          sequence: row?.sequence ?? "",
+          query: "LOCAL_APARECIDA_LOT",
+          quadra: localLotQuadra,
+          lote: localLotLote,
+          bairro: localLotBairro,
+        });
+      }
     }
   }
 
@@ -2595,6 +2655,23 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
 
+      const localHelveciaBlock = buildAparecidaHelveciaLocalFirstBlocked({
+        isAparecida,
+        localLotCandidateFound,
+        localLotLocalAliasAccepted,
+        expectedBairro: normalized.bairro || bairroIn,
+        localBairro: localLotBairro,
+        quadra: localLotQuadra,
+        lote: localLotLote,
+      });
+      if (localHelveciaBlock && !aparecidaHelveciaLocalFirstBlocked) {
+        aparecidaHelveciaLocalFirstBlocked = localHelveciaBlock;
+        console.info("[APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED]", {
+          sequence: row?.sequence ?? "",
+          ...aparecidaHelveciaLocalFirstBlocked,
+        });
+      }
+
       const localAddressLabel = cleanAddressForHere(
         [
           normalized.rua || "Aparecida",
@@ -2637,8 +2714,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         lote: localAparecidaCandidate.lote,
         bairro: localAparecidaCandidate.bairro,
       };
-      localLotFinalArc = localArc;
-      if (!seen.has(localKey)) {
+      if (!aparecidaHelveciaLocalFirstBlocked && !seen.has(localKey)) {
+        localLotFinalArc = localArc;
         seen.set(localKey, localItem);
         const localRerank = scoreAparecidaRerankCandidate({
           baseScore: scoreHereItemSmart(localItem, want),
@@ -3400,6 +3477,13 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
   lote: localLotLote,
 });
 
+const aparecidaMemoryDebugFlags = [
+  ...(aparecidaShadowDebug?.flags || []),
+  ...(aparecidaHelveciaLocalFirstBlocked
+    ? ["APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED"]
+    : []),
+];
+
 const autoSaveCurrentBehaviorWouldSave = !memoryHit && lat != null && lng != null && status === "OK";
 const autoSaveAudit = auditAutoSaveMemory({
   currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
@@ -3568,9 +3652,10 @@ if (shouldAutoSaveAddressMemory) {
       geocodeConfidenceLevel: geocodeConfidenceDiag.level,
       geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
       geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
-      aparecidaShadowFlags: aparecidaShadowDebug?.flags || [],
+      aparecidaShadowFlags: aparecidaMemoryDebugFlags,
       aparecidaShadowDebug,
       aparecidaLocalStreetShadow,
+      aparecidaHelveciaLocalFirstBlocked,
       approxMemoryStrength,
       approxMemoryScore,
       approxMemoryReasons,
@@ -3892,6 +3977,9 @@ if (jobId) {
         ),
         aparecidaLocalBairroMismatchWithUnverifiedRuaShadow: countAparecidaShadow(
           "APARECIDA_LOCAL_BAIRRO_MISMATCH_WITH_UNVERIFIED_RUA_SHADOW",
+        ),
+        aparecidaHelveciaLocalFirstBlocked: countAparecidaShadow(
+          "APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED",
         ),
         aparecidaLocalStreetShadowTotal,
         aparecidaLocalStreetMatchShadow: countAparecidaLocalStreetShadow("STREET_MATCH"),
