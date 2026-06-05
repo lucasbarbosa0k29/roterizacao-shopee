@@ -104,12 +104,13 @@ type AparecidaLocalStreetShadow = {
   streetMatch: boolean | null;
 };
 
-type AparecidaHelveciaLocalFirstBlocked = {
+type AparecidaBlockedLocalFirstPair = {
   expectedBairro: string;
   localBairro: string;
   quadra: string;
   lote: string;
   motivo: string;
+  blockedPairKey: string;
 };
 
 type MemoryDebugRow = {
@@ -128,7 +129,7 @@ type MemoryDebugRow = {
   aparecidaShadowFlags?: string[];
   aparecidaShadowDebug?: AparecidaShadowDebug | null;
   aparecidaLocalStreetShadow?: AparecidaLocalStreetShadow | null;
-  aparecidaHelveciaLocalFirstBlocked?: AparecidaHelveciaLocalFirstBlocked | null;
+  aparecidaBlockedLocalFirstPair?: AparecidaBlockedLocalFirstPair | null;
   approxMemoryStrength?: ApproxMemoryStrength | null;
   approxMemoryScore?: number | null;
   approxMemoryReasons?: string[];
@@ -253,7 +254,28 @@ function normalizeKey(text: string) {
     .trim();
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
-function buildAparecidaHelveciaLocalFirstBlocked(args: {
+const APARECIDA_BLOCKED_LOCAL_FIRST_PAIRS = new Set([
+  "JARDIM HELVECIA->JARDIM LUZ",
+  "JARDIM HELVECIA->VEIGA JARDIM",
+  "JARDIM CRISTAL->JARDIM LUZ",
+  "JARDIM IPANEMA->JARDIM LUZ",
+  "JARDIM RIO GRANDE->JARDIM LUZ",
+  "SETOR SANTO ANDRE->INDUSTRIAL SANTO ANTONIO",
+  "SETOR SANTO ANDRE->SANTO ANTONIO",
+  "SETOR SANTO ANDRE->SANTO ANTONIO CONJUNTO HABITACIONAL PROGRESSO",
+  "SETOR SANTO ANDRE->SANTO ANTONIO CONJUNTO PROGRESSO",
+  "SETOR SANTO ANDRE->CONJUNTO HABITACIONAL PROGRESSO",
+]);
+
+function normalizeAparecidaBlockedLocalFirstBairroKey(value: string) {
+  return normalizeKey(value)
+    .replace(/\bANT NIO\b/g, "ANTONIO")
+    .replace(/\bCONJ\b/g, "CONJUNTO")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildAparecidaBlockedLocalFirstPair(args: {
   isAparecida: boolean;
   localLotCandidateFound: boolean;
   localLotLocalAliasAccepted: boolean;
@@ -261,18 +283,16 @@ function buildAparecidaHelveciaLocalFirstBlocked(args: {
   localBairro: string;
   quadra: string;
   lote: string;
-}): AparecidaHelveciaLocalFirstBlocked | null {
+}): AparecidaBlockedLocalFirstPair | null {
   if (!args.isAparecida || !args.localLotCandidateFound || args.localLotLocalAliasAccepted) {
     return null;
   }
 
-  const expectedBairroKey = normalizeKey(args.expectedBairro);
-  const localBairroKey = normalizeKey(args.localBairro);
+  const expectedBairroKey = normalizeAparecidaBlockedLocalFirstBairroKey(args.expectedBairro);
+  const localBairroKey = normalizeAparecidaBlockedLocalFirstBairroKey(args.localBairro);
+  const blockedPairKey = `${expectedBairroKey}->${localBairroKey}`;
 
-  if (
-    expectedBairroKey !== "JARDIM HELVECIA" ||
-    (localBairroKey !== "JARDIM LUZ" && localBairroKey !== "VEIGA JARDIM")
-  ) {
+  if (!APARECIDA_BLOCKED_LOCAL_FIRST_PAIRS.has(blockedPairKey)) {
     return null;
   }
 
@@ -281,7 +301,8 @@ function buildAparecidaHelveciaLocalFirstBlocked(args: {
     localBairro: args.localBairro,
     quadra: args.quadra,
     lote: args.lote,
-    motivo: "APARECIDA_HELVECIA_LOCAL_FIRST_TO_JARDIM_LUZ_OR_VEIGA_JARDIM",
+    motivo: "APARECIDA_BLOCKED_LOCAL_FIRST_PAIR",
+    blockedPairKey,
   };
 }
 
@@ -2209,7 +2230,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotFinalArc: any = null;
   let localFirstBypassHere = false;
   let localFirstMatchedBy: "normalized" | "original" | null = null;
-  let aparecidaHelveciaLocalFirstBlocked: AparecidaHelveciaLocalFirstBlocked | null = null;
+  let aparecidaBlockedLocalFirstPair: AparecidaBlockedLocalFirstPair | null = null;
   let partialStreetFallbackUsed = false;
   let partialStreetFallbackReason: "PARTIAL_STREET_LEVEL_MATCH" | "PARTIAL_SECTOR_MATCH" | null = null;
 
@@ -2314,7 +2335,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
       localFirstMatchedBy = localFirstCandidate.matchedBy;
 
-      aparecidaHelveciaLocalFirstBlocked = buildAparecidaHelveciaLocalFirstBlocked({
+      aparecidaBlockedLocalFirstPair = buildAparecidaBlockedLocalFirstPair({
         isAparecida,
         localLotCandidateFound,
         localLotLocalAliasAccepted,
@@ -2324,10 +2345,10 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         lote: localLotLote,
       });
 
-      if (aparecidaHelveciaLocalFirstBlocked) {
-        console.info("[APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED]", {
+      if (aparecidaBlockedLocalFirstPair) {
+        console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
-          ...aparecidaHelveciaLocalFirstBlocked,
+          ...aparecidaBlockedLocalFirstPair,
         });
       } else {
         localLotBoostApplied = true;
@@ -2655,7 +2676,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
 
-      const localHelveciaBlock = buildAparecidaHelveciaLocalFirstBlocked({
+      const localBlockedPair = buildAparecidaBlockedLocalFirstPair({
         isAparecida,
         localLotCandidateFound,
         localLotLocalAliasAccepted,
@@ -2664,11 +2685,11 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         quadra: localLotQuadra,
         lote: localLotLote,
       });
-      if (localHelveciaBlock && !aparecidaHelveciaLocalFirstBlocked) {
-        aparecidaHelveciaLocalFirstBlocked = localHelveciaBlock;
-        console.info("[APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED]", {
+      if (localBlockedPair && !aparecidaBlockedLocalFirstPair) {
+        aparecidaBlockedLocalFirstPair = localBlockedPair;
+        console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
-          ...aparecidaHelveciaLocalFirstBlocked,
+          ...aparecidaBlockedLocalFirstPair,
         });
       }
 
@@ -2714,7 +2735,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         lote: localAparecidaCandidate.lote,
         bairro: localAparecidaCandidate.bairro,
       };
-      if (!aparecidaHelveciaLocalFirstBlocked && !seen.has(localKey)) {
+      if (!aparecidaBlockedLocalFirstPair && !seen.has(localKey)) {
         localLotFinalArc = localArc;
         seen.set(localKey, localItem);
         const localRerank = scoreAparecidaRerankCandidate({
@@ -3479,8 +3500,8 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
 
 const aparecidaMemoryDebugFlags = [
   ...(aparecidaShadowDebug?.flags || []),
-  ...(aparecidaHelveciaLocalFirstBlocked
-    ? ["APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED"]
+  ...(aparecidaBlockedLocalFirstPair
+    ? ["APARECIDA_BLOCKED_LOCAL_FIRST_PAIR"]
     : []),
 ];
 
@@ -3655,7 +3676,7 @@ if (shouldAutoSaveAddressMemory) {
       aparecidaShadowFlags: aparecidaMemoryDebugFlags,
       aparecidaShadowDebug,
       aparecidaLocalStreetShadow,
-      aparecidaHelveciaLocalFirstBlocked,
+      aparecidaBlockedLocalFirstPair,
       approxMemoryStrength,
       approxMemoryScore,
       approxMemoryReasons,
@@ -3978,8 +3999,8 @@ if (jobId) {
         aparecidaLocalBairroMismatchWithUnverifiedRuaShadow: countAparecidaShadow(
           "APARECIDA_LOCAL_BAIRRO_MISMATCH_WITH_UNVERIFIED_RUA_SHADOW",
         ),
-        aparecidaHelveciaLocalFirstBlocked: countAparecidaShadow(
-          "APARECIDA_HELVECIA_LOCAL_FIRST_BLOCKED",
+        aparecidaBlockedLocalFirstPair: countAparecidaShadow(
+          "APARECIDA_BLOCKED_LOCAL_FIRST_PAIR",
         ),
         aparecidaLocalStreetShadowTotal,
         aparecidaLocalStreetMatchShadow: countAparecidaLocalStreetShadow("STREET_MATCH"),
