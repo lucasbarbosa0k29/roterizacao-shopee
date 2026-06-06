@@ -38,6 +38,7 @@ import { authOptions } from "@/app/lib/auth";
 import { AccessControlError, consumeRouteAllowance } from "@/app/lib/access-control";
 import { Prisma } from "@prisma/client";
 import {
+  areAparecidaBairrosCompatible,
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
 } from "@/app/lib/aparecida-local-lots";
@@ -783,7 +784,7 @@ function pickAparecidaLocalFirstCandidate(args: {
     if (!candidate) continue;
     if (
       !candidate.localAliasAccepted &&
-      normalizeKey(candidate.bairro) !== normalizeKey(target.bairro)
+      !areAparecidaBairrosCompatible(target.bairro, candidate.bairro)
     ) continue;
 
     return { candidate, matchedBy: target.label };

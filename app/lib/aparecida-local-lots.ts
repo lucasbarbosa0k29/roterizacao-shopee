@@ -115,6 +115,20 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function repairAparecidaBairroEncoding(value: string) {
+  return String(value || "")
+    .replace(/BRAS\uFFFDLIA/gi, "BRASILIA")
+    .replace(/NA\uFFFDOES/gi, "NACOES")
+    .replace(/CEC\uFFFDLIA/gi, "CECILIA")
+    .replace(/EL\uFFFDSIOS/gi, "ELISIOS")
+    .replace(/EL\uFFFDSIO/gi, "ELISIO")
+    .replace(/PARA\uFFFDSO/gi, "PARAISO")
+    .replace(/CONTINUA\uFFFDAO/gi, "CONTINUACAO")
+    .replace(/SAT\uFFFDLITE/gi, "SATELITE")
+    .replace(/ACR\uFFFDSCIMO/gi, "ACRESCIMO")
+    .replace(/GOI\uFFFDNIA/gi, "GOIANIA");
+}
+
 function canonicalLot(value: string) {
   let t = String(value || "")
     .toUpperCase()
@@ -142,12 +156,18 @@ function normalizeQuadraLoteValue(value: string) {
 }
 
 function normalizeBairroValue(value: string) {
-  return normalizeText(value).replace(/\s+/g, " ");
+  return normalizeText(repairAparecidaBairroEncoding(value))
+    .replace(/\bELISEOS\b/g, "ELISIOS")
+    .replace(/\s+/g, " ");
 }
 
-function bairroCompatible(expected: string, actual: string) {
-  const left = normalizeBairroValue(expected);
-  const right = normalizeBairroValue(actual);
+export function normalizeAparecidaBairroForCompare(value: string) {
+  return normalizeBairroValue(value);
+}
+
+export function areAparecidaBairrosCompatible(expected: string, actual: string) {
+  const left = normalizeAparecidaBairroForCompare(expected);
+  const right = normalizeAparecidaBairroForCompare(actual);
   if (!left || !right) return false;
   if (left === right) return true;
   if (left.includes(right) || right.includes(left)) return true;
@@ -156,6 +176,10 @@ function bairroCompatible(expected: string, actual: string) {
   const rightTokens = right.split(" ").filter((t) => t.length >= 4);
 
   return leftTokens.some((token) => rightTokens.includes(token));
+}
+
+function bairroCompatible(expected: string, actual: string) {
+  return areAparecidaBairrosCompatible(expected, actual);
 }
 
 function centroidDistanceMeters(a: CentroidRecord, b: CentroidRecord) {
