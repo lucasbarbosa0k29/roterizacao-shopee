@@ -41,6 +41,10 @@ import {
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
 } from "@/app/lib/aparecida-local-lots";
+import {
+  lookupGoianiaLocalFirstShadow,
+  type GoianiaLocalFirstShadow,
+} from "@/app/lib/goiania-local-first";
 
 
 export const runtime = "nodejs";
@@ -162,6 +166,24 @@ type MemoryDebugRow = {
   localLotBairro?: string | null;
   localLotBoostApplied?: boolean;
   localLotUsedAsFinal?: boolean;
+  localFirstGoianiaAttempted?: boolean;
+  localFirstGoianiaFound?: boolean;
+  localFirstGoianiaMatchType?: GoianiaLocalFirstShadow["matchType"];
+  localFirstGoianiaConfidence?: "HIGH" | "MEDIUM" | null;
+  localFirstGoianiaDistanceM?: number | null;
+  localFirstGoianiaCandidatesCount?: number;
+  localFirstGoianiaReason?: string;
+  localFirstGoianiaKey?: string | null;
+  localFirstGoianiaCandidateEligible?: boolean;
+  localFirstGoianiaCandidateScore?: number | null;
+  localFirstGoianiaWouldBeatFinal?: boolean;
+  localFirstGoianiaDistanceToFinalM?: number | null;
+  localFirstGoianiaCandidateLat?: number | null;
+  localFirstGoianiaCandidateLng?: number | null;
+  localFirstGoianiaCandidateStreet?: string | null;
+  localFirstGoianiaWouldBypass?: boolean;
+  localFirstGoianiaBypassReason?: string | null;
+  localFirstGoianiaUsedAsFinal?: boolean;
   urbanPatternDetected?: boolean;
   urbanPatternType?: string | null;
   urbanPatternQuery?: string | null;
@@ -627,6 +649,9 @@ function normalizeQLValue(v: string, suffix = "") {
   return "";
 }
 
+const QUADRA_LOTE_VALUE_END =
+  String.raw`(?=\s*(?:,|\.|$|\b(?:LOTE|LOT|LT|L(?![A-Z]))\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO)\b))`;
+
 function extractQuadraLoteSmart(raw: string) {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
 
@@ -635,12 +660,20 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
-  const qMatch = up.match(/\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qMatch = up.match(
+    new RegExp(
+      String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+    ),
+  );
   if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
-  const lMatch = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const lMatch = up.match(
+    new RegExp(
+      String.raw`\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+    ),
+  );
   if (lMatch) lote = normalizeQLValue(lMatch[1], lMatch[2]);
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
@@ -2199,6 +2232,63 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
 
   const cityForDecision = normalized.cidade || cityIn || "";
   const isAparecida = isAparecidaCity(cityForDecision);
+  const goianiaLocalFirstShadowEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_SHADOW === "1";
+  const goianiaLocalFirstBypassEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_BYPASS === "1";
+  const exposeGoianiaLocalFirstDiagnostics =
+    goianiaLocalFirstShadowEnabled || goianiaLocalFirstBypassEnabled;
+  const localFirstGoianiaShadow = lookupGoianiaLocalFirstShadow({
+    city: cityForDecision,
+    bairro: normalized.bairro || bairroIn,
+    quadra: normalized.quadra,
+    lote: normalized.lote,
+  });
+  const localFirstGoianiaCandidate = localFirstGoianiaShadow.candidate;
+  let localFirstGoianiaCandidateEligible = false;
+  let localFirstGoianiaCandidateScore: number | null = null;
+  let localFirstGoianiaWouldBeatFinal = false;
+  let localFirstGoianiaDistanceToFinalM: number | null = null;
+  let localFirstGoianiaCandidateLat: number | null = localFirstGoianiaCandidate?.lat ?? null;
+  let localFirstGoianiaCandidateLng: number | null = localFirstGoianiaCandidate?.lng ?? null;
+  let localFirstGoianiaCandidateStreet: string | null = localFirstGoianiaCandidate?.streetLabel ?? null;
+  let localFirstGoianiaWouldBypass = false;
+  let localFirstGoianiaBypassReason: string | null = null;
+  let localFirstGoianiaUsedAsFinal = false;
+
+  const resolveGoianiaLocalFirstBypassReason = () => {
+    const cityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
+    if (!cityKey.includes("GOIANIA") || cityKey.includes("APARECIDA")) return "CITY_NOT_GOIANIA";
+    if (!(normalized.bairro || bairroIn)) return "MISSING_BAIRRO";
+    if (!normalized.quadra) return "MISSING_QUADRA";
+    if (!normalized.lote) return "MISSING_LOTE";
+    if (localFirstGoianiaShadow.matchType === "same_quadra") return "SAME_QUADRA";
+    if (localFirstGoianiaShadow.matchType === "missing_parts") return "MISSING_PARTS";
+    if (localFirstGoianiaShadow.matchType === "bairro_not_found") return "BAIRRO_NOT_FOUND";
+    if (!localFirstGoianiaShadow.found || !localFirstGoianiaCandidate) return "NO_LOCAL_CANDIDATE";
+    if (
+      localFirstGoianiaShadow.matchType !== "exact" &&
+      localFirstGoianiaShadow.matchType !== "compound_lot"
+    ) {
+      return "NO_LOCAL_CANDIDATE";
+    }
+    if (localFirstGoianiaShadow.confidence !== "HIGH") return "NOT_HIGH_CONFIDENCE";
+    if (
+      typeof localFirstGoianiaShadow.distanceM !== "number" ||
+      localFirstGoianiaShadow.distanceM > 120
+    ) {
+      return "DISTANCE_OVER_LIMIT";
+    }
+    if (
+      typeof localFirstGoianiaCandidate.lat !== "number" ||
+      typeof localFirstGoianiaCandidate.lng !== "number"
+    ) {
+      return "NO_LOCAL_CANDIDATE";
+    }
+    return "WOULD_BYPASS";
+  };
+
+  localFirstGoianiaBypassReason = resolveGoianiaLocalFirstBypassReason();
+  localFirstGoianiaWouldBypass = localFirstGoianiaBypassReason === "WOULD_BYPASS";
+  localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
 
 // 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
   let lat: number | null = memoryHit?.lat ?? approxMemoryHit?.lat ?? null;
@@ -2243,6 +2333,56 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
 
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: RankedHereEntry[] = [];
+
+  if (
+    goianiaLocalFirstBypassEnabled &&
+    localFirstGoianiaWouldBypass &&
+    localFirstGoianiaCandidate
+  ) {
+    const localCandidateLat = localFirstGoianiaCandidate.lat as number;
+    const localCandidateLng = localFirstGoianiaCandidate.lng as number;
+    const localAddressLabel = cleanAddressForHere(
+      [
+        localFirstGoianiaCandidate.streetLabel || normalized.rua || "Goiânia",
+        `Quadra ${localFirstGoianiaCandidate.quadra}`,
+        `Lote ${localFirstGoianiaCandidate.lote}`,
+        localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn,
+        normalized.cidade || cityIn || "Goiânia",
+        normalized.estado || "GO",
+        normalizeCep(normalized.cep || cepIn),
+      ]
+        .filter(Boolean)
+        .join(", "),
+    );
+
+    bestItem = {
+      title: localAddressLabel,
+      id: `goiania-local-first:${localFirstGoianiaShadow.key}`,
+      resultType: "street",
+      address: {
+        label: localAddressLabel,
+        countryCode: "BRA",
+        countryName: "Brasil",
+        stateCode: "GO",
+        state: "Goiás",
+        city: normalized.cidade || cityIn || "Goiânia",
+        district: localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn || "",
+        street: localFirstGoianiaCandidate.streetLabel || normalized.rua || "",
+        postalCode: normalizeCep(normalized.cep || cepIn),
+      },
+      position: {
+        lat: localCandidateLat,
+        lng: localCandidateLng,
+      },
+    };
+    bestHereScore = 999;
+    finalRankedKind = "local";
+    lat = localCandidateLat;
+    lng = localCandidateLng;
+    decisionReason = "LOCAL_GOIANIA_FIRST_SAFE_BYPASS";
+    localFirstBypassHere = true;
+    localFirstGoianiaUsedAsFinal = true;
+  }
 
   if (isAparecida && !memoryHit && !approxMemoryHit && normalized.quadra && normalized.lote) {
     const localFirstCandidate = pickAparecidaLocalFirstCandidate({
@@ -3405,7 +3545,9 @@ if (conflictQL) {
   const bestRankedAddress = bestItem?.address || {};
 
   const geocodeConfidenceDiag = computeGeocodeConfidence({
-    source: memoryHit
+    source: localFirstGoianiaUsedAsFinal
+      ? "LOCAL_GOIANIA_FIRST"
+      : memoryHit
       ? memoryHitKind === "base"
         ? "MEMORY_BASE"
         : "MEMORY_EXACT"
@@ -3414,7 +3556,9 @@ if (conflictQL) {
         : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
           : finalRankedKind === "local"
-            ? "LOCAL_APARECIDA_LOT"
+            ? localFirstGoianiaUsedAsFinal
+              ? "LOCAL_GOIANIA_FIRST"
+              : "LOCAL_APARECIDA_LOT"
           : finalRankedKind === "geocode"
             ? "HERE_GEOCODE"
             : "NONE",
@@ -3505,7 +3649,77 @@ const aparecidaMemoryDebugFlags = [
     : []),
 ];
 
-const autoSaveCurrentBehaviorWouldSave = !memoryHit && lat != null && lng != null && status === "OK";
+localFirstGoianiaCandidateLat = localFirstGoianiaCandidate?.lat ?? null;
+localFirstGoianiaCandidateLng = localFirstGoianiaCandidate?.lng ?? null;
+localFirstGoianiaCandidateStreet = localFirstGoianiaCandidate?.streetLabel ?? null;
+
+localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
+
+if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
+  const localCandidateLat = localFirstGoianiaCandidate.lat as number;
+  const localCandidateLng = localFirstGoianiaCandidate.lng as number;
+  const localCandidateDistanceM = localFirstGoianiaShadow.distanceM as number;
+  const localAddressLabel = cleanAddressForHere(
+    [
+      localFirstGoianiaCandidate.streetLabel || normalized.rua || "Goiânia",
+      `Quadra ${localFirstGoianiaCandidate.quadra}`,
+      `Lote ${localFirstGoianiaCandidate.lote}`,
+      localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn,
+      normalized.cidade || cityIn || "Goiânia",
+      normalized.estado || "GO",
+      normalizeCep(normalized.cep || cepIn),
+    ]
+      .filter(Boolean)
+      .join(", "),
+  );
+
+  const localItem = {
+    title: localAddressLabel,
+    id: `goiania-local-first:${localFirstGoianiaShadow.key}`,
+    resultType: "street",
+    address: {
+      label: localAddressLabel,
+      countryCode: "BRA",
+      countryName: "Brasil",
+      stateCode: "GO",
+      state: "Goiás",
+      city: normalized.cidade || cityIn || "Goiânia",
+      district: localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn || "",
+      street: localFirstGoianiaCandidate.streetLabel || normalized.rua || "",
+      postalCode: normalizeCep(normalized.cep || cepIn),
+    },
+    position: {
+      lat: localCandidateLat,
+      lng: localCandidateLng,
+    },
+  };
+
+  const localBaseScore = scoreHereItemSmart(localItem, {
+    cep: normalized.cep || cepIn,
+    city: normalized.cidade || cityIn,
+    bairro: normalized.bairro || bairroIn,
+    rua: normalized.rua,
+    quadra: normalized.quadra,
+    lote: normalized.lote,
+  });
+  const localEvidenceBonus =
+    25 +
+    (localFirstGoianiaShadow.matchType === "exact" ? 10 : 0) +
+    (localCandidateDistanceM <= 50 ? 10 : 0);
+
+  localFirstGoianiaCandidateScore = localBaseScore + localEvidenceBonus;
+  localFirstGoianiaWouldBeatFinal = localFirstGoianiaCandidateScore > bestHereScore;
+
+  if (lat != null && lng != null) {
+    localFirstGoianiaDistanceToFinalM = haversineMeters(
+      { lat: localCandidateLat, lng: localCandidateLng },
+      { lat, lng },
+    );
+  }
+}
+
+const autoSaveCurrentBehaviorWouldSave =
+  !localFirstGoianiaUsedAsFinal && !memoryHit && lat != null && lng != null && status === "OK";
 const autoSaveAudit = auditAutoSaveMemory({
   currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
   status,
@@ -3569,6 +3783,30 @@ if (shouldAutoSaveAddressMemory) {
     console.warn("AddressMemory save failed:", e);
   }
 }
+
+  const goianiaLocalFirstDiagnostics = exposeGoianiaLocalFirstDiagnostics
+    ? {
+        localFirstGoianiaAttempted: localFirstGoianiaShadow.attempted,
+        localFirstGoianiaFound: localFirstGoianiaShadow.found,
+        localFirstGoianiaMatchType: localFirstGoianiaShadow.matchType,
+        localFirstGoianiaConfidence: localFirstGoianiaShadow.confidence,
+        localFirstGoianiaDistanceM: localFirstGoianiaShadow.distanceM,
+        localFirstGoianiaCandidatesCount: localFirstGoianiaShadow.candidatesCount,
+        localFirstGoianiaReason: localFirstGoianiaShadow.reason,
+        localFirstGoianiaKey: localFirstGoianiaShadow.key,
+        localFirstGoianiaCandidateEligible,
+        localFirstGoianiaCandidateScore,
+        localFirstGoianiaWouldBeatFinal,
+        localFirstGoianiaDistanceToFinalM,
+        localFirstGoianiaCandidateLat,
+        localFirstGoianiaCandidateLng,
+        localFirstGoianiaCandidateStreet,
+        localFirstGoianiaWouldBypass,
+        localFirstGoianiaBypassReason,
+        localFirstGoianiaUsedAsFinal,
+      }
+    : {};
+
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
@@ -3624,6 +3862,7 @@ if (shouldAutoSaveAddressMemory) {
     localLotBairro,
     localLotBoostApplied,
     localLotUsedAsFinal,
+    ...goianiaLocalFirstDiagnostics,
     urbanPatternDetected,
     urbanPatternType,
     urbanPatternQuery,
@@ -3709,6 +3948,7 @@ if (shouldAutoSaveAddressMemory) {
       localLotBairro,
       localLotBoostApplied,
       localLotUsedAsFinal,
+      ...goianiaLocalFirstDiagnostics,
       urbanPatternDetected,
       urbanPatternType,
       urbanPatternQuery,

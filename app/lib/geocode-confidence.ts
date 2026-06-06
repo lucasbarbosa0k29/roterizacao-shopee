@@ -5,6 +5,7 @@ export type GeocodeConfidenceSource =
   | "MEMORY_BASE"
   | "MEMORY_APPROX"
   | "LOCAL_APARECIDA_LOT"
+  | "LOCAL_GOIANIA_FIRST"
   | "HERE_GEOCODE"
   | "HERE_DISCOVER"
   | "NONE";
@@ -107,6 +108,11 @@ export function computeGeocodeConfidence(
     case "LOCAL_APARECIDA_LOT":
       flags.add("SOURCE_LOCAL_APARECIDA_LOT");
       reasons.push("Origem principal: local lots de Aparecida.");
+      score += 10;
+      break;
+    case "LOCAL_GOIANIA_FIRST":
+      flags.add("SOURCE_LOCAL_GOIANIA_FIRST");
+      reasons.push("Origem principal: Local First Goiânia.");
       score += 10;
       break;
     case "HERE_DISCOVER":
