@@ -136,6 +136,14 @@ function canonicalLot(value: string) {
     .replace(/^[\s\-:]+|[\s\-:]+$/g, "")
     .replace(/[^A-Z0-9\-]/g, "");
 
+  if (/^[A-Z]/.test(t)) {
+    const compact = t.replace(/-/g, "");
+    if (/^[A-Z]$/.test(compact)) return compact;
+    const m = compact.match(/^([A-Z])(\d+[A-Z0-9]*)?$/);
+    if (m) return `${m[1]}${m[2] || ""}`;
+    return compact;
+  }
+
   if (/^\d/.test(t)) {
     const compact = t.replace(/-/g, "");
     const m = compact.match(/^0*(\d+)([A-Z][A-Z0-9]*)?$/);

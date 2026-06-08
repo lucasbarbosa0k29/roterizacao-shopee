@@ -609,11 +609,19 @@ function extractByRegex(raw: string) {
   }
 
   let quadra = "";
-  const qd = up.match(/\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const qd = up.match(
+    new RegExp(
+      String.raw`\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))`,
+    ),
+  );
   if (qd) quadra = String(qd[2] || "").trim();
 
   let lote = "";
-  const lt = up.match(/\b(LT|LOTE|LOT|L\.)\s*([0-9][A-Z0-9\-]*)(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))/);
+  const lt = up.match(
+    new RegExp(
+      String.raw`\b(LT|LOTE|LOT|L\.)\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))`,
+    ),
+  );
   if (lt) {
     const base = String(lt[2] || "").trim();
     const suffix = String(lt[3] || "").trim();
@@ -635,6 +643,14 @@ function normalizeQLValue(v: string, suffix = "") {
     .trim()
     .replace(/[^A-Z0-9]/g, "");
 
+  if (/^[A-Z]/.test(t)) {
+    const compact = t.replace(/-/g, "");
+    if (/^[A-Z]$/.test(compact)) return compact;
+    const m = compact.match(/^([A-Z])(\d+[A-Z0-9]*)?$/);
+    if (m) return `${m[1]}${m[2] || extra}`;
+    return compact;
+  }
+
   if (/^\d/.test(t)) {
     const compact = t.replace(/-/g, "");
     const m = compact.match(/^0*(\d+)([A-Z][A-Z0-9]*)?$/);
@@ -653,6 +669,9 @@ function normalizeQLValue(v: string, suffix = "") {
 const QUADRA_LOTE_VALUE_END =
   String.raw`(?=\s*(?:,|\.|$|\b(?:LOTE|LOT|LT|L(?![A-Z]))\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO)\b))`;
 
+const QUADRA_LOTE_TOKEN =
+  String.raw`(?:[A-Z](?:\s*[-:]?\s*\d+[A-Z0-9\-]*)?|[A-Z]|\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
+
 function extractQuadraLoteSmart(raw: string) {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
 
@@ -663,7 +682,7 @@ function extractQuadraLoteSmart(raw: string) {
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
   const qMatch = up.match(
     new RegExp(
-      String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
@@ -672,7 +691,7 @@ function extractQuadraLoteSmart(raw: string) {
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
   const lMatch = up.match(
     new RegExp(
-      String.raw`\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*0*([0-9][A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      String.raw`\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (lMatch) lote = normalizeQLValue(lMatch[1], lMatch[2]);
