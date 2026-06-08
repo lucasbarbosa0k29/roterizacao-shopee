@@ -37,28 +37,34 @@ type AccessSnapshot = {
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
 
-function PaymentButton({ href, label }: { href?: string; label: string }) {
-  if (!href) {
-    return (
-      <button
-        type="button"
-        disabled
-        className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-400"
-      >
-        Link não configurado
-      </button>
-    );
-  }
+type PaymentProductType = "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
 
+type CheckoutResponse = {
+  checkoutUrl?: string;
+  paymentTransactionId?: string;
+  error?: string;
+};
+
+function PaymentButton({
+  label,
+  loading,
+  productType,
+  onCheckout,
+}: {
+  label: string;
+  loading: boolean;
+  productType: PaymentProductType;
+  onCheckout: (productType: PaymentProductType) => void;
+}) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="block w-full rounded-2xl bg-[#17313b] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#10242c]"
+    <button
+      type="button"
+      disabled={loading}
+      onClick={() => onCheckout(productType)}
+      className="block w-full rounded-2xl bg-[#17313b] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#10242c] disabled:cursor-wait disabled:bg-slate-400"
     >
-      {label}
-    </a>
+      {loading ? "Redirecionando..." : label}
+    </button>
   );
 }
 
@@ -92,6 +98,8 @@ export default function PlanosPage() {
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState<PaymentProductType | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -111,7 +119,11 @@ export default function PlanosPage() {
         if (!alive) return;
 
         if (!res.ok) {
-          setError(data?.error || "Erro ao carregar dados da conta.");
+          setError(
+            res.status === 401
+              ? "Entre na sua conta para consultar seus planos e iniciar o pagamento."
+              : data?.error || "Erro ao carregar dados da conta."
+          );
           setAccess(null);
           return;
         }
@@ -127,9 +139,42 @@ export default function PlanosPage() {
     };
   }, []);
 
-  const basicUrl = process.env.NEXT_PUBLIC_PAYMENT_BASIC_URL;
-  const proUrl = process.env.NEXT_PUBLIC_PAYMENT_PRO_URL;
-  const extraUrl = process.env.NEXT_PUBLIC_PAYMENT_EXTRA_ROUTE_URL;
+  async function startCheckout(productType: PaymentProductType) {
+    try {
+      setCheckoutError(null);
+      setCheckoutLoading(productType);
+
+      const res = await fetch("/api/payments/mercadopago/checkout", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productType,
+          quantity: 1,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as CheckoutResponse;
+
+      if (res.status === 401) {
+        setCheckoutError("Entre na sua conta para iniciar o pagamento.");
+        return;
+      }
+
+      if (!res.ok || !data.checkoutUrl) {
+        setCheckoutError(data.error || "Não foi possível iniciar o checkout. Tente novamente.");
+        return;
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch {
+      setCheckoutError("Não foi possível iniciar o checkout. Verifique sua conexão e tente novamente.");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-transparent">
@@ -223,6 +268,12 @@ export default function PlanosPage() {
               </div>
             </div>
 
+            {checkoutError ? (
+              <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 shadow-sm">
+                {checkoutError}
+              </div>
+            ) : null}
+
             <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-3">
               <section className="flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                 <div className="text-sm font-semibold uppercase tracking-wide text-blue-600">
@@ -238,7 +289,12 @@ export default function PlanosPage() {
                   <li>Liberação comercial manual pelo administrador.</li>
                 </ul>
                 <div className="mt-auto pt-8">
-                  <PaymentButton href={basicUrl} label="Assinar BASIC" />
+                  <PaymentButton
+                    label="Assinar BASIC"
+                    productType="BASIC_PLAN"
+                    loading={checkoutLoading === "BASIC_PLAN"}
+                    onCheckout={startCheckout}
+                  />
                 </div>
               </section>
 
@@ -261,7 +317,12 @@ export default function PlanosPage() {
                   <li>Liberação comercial manual pelo administrador.</li>
                 </ul>
                 <div className="mt-auto pt-8">
-                  <PaymentButton href={proUrl} label="Assinar PRO" />
+                  <PaymentButton
+                    label="Assinar PRO"
+                    productType="PRO_PLAN"
+                    loading={checkoutLoading === "PRO_PLAN"}
+                    onCheckout={startCheckout}
+                  />
                 </div>
               </section>
 
@@ -278,7 +339,12 @@ export default function PlanosPage() {
                   <li>Liberação manual pelo administrador após confirmação.</li>
                 </ul>
                 <div className="mt-auto pt-8">
-                  <PaymentButton href={extraUrl} label="Comprar Rota Avulsa" />
+                  <PaymentButton
+                    label="Comprar Rota Avulsa"
+                    productType="EXTRA_ROUTE"
+                    loading={checkoutLoading === "EXTRA_ROUTE"}
+                    onCheckout={startCheckout}
+                  />
                 </div>
               </section>
             </div>
