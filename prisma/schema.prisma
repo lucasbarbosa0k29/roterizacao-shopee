@@ -45,24 +45,46 @@ enum RouteCreditReason {
   CONSUMPTION
 }
 
+enum PaymentProvider {
+  MERCADOPAGO
+}
+
+enum PaymentProductType {
+  EXTRA_ROUTE
+  BASIC_PLAN
+  PRO_PLAN
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  APPROVED
+  REJECTED
+  CANCELED
+  REFUNDED
+  EXPIRED
+  FULFILLED
+}
+
 model User {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   name              String?
-  email             String   @unique
+  email             String    @unique
   password          String
-  role              Role     @default(USER)
-  active            Boolean  @default(true)
+  role              Role      @default(USER)
+  active            Boolean   @default(true)
   accessBlockedAt   DateTime?
   accessBlockReason String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  importJobs        ImportJob[]
-  subscriptions     UserSubscription[] @relation("UserSubscriptions")
-  routeUsages       RouteUsage[]
-  routeCredits      RouteCredit[]
-  adminActionLogs   AdminAccessLog[]   @relation("AdminActor")
-  targetActionLogs  AdminAccessLog[]   @relation("AdminTarget")
+  importJobs          ImportJob[]
+  subscriptions       UserSubscription[]   @relation("UserSubscriptions")
+  routeUsages         RouteUsage[]
+  routeCredits        RouteCredit[]
+  paymentTransactions PaymentTransaction[]
+  adminActionLogs     AdminAccessLog[]     @relation("AdminActor")
+  targetActionLogs    AdminAccessLog[]     @relation("AdminTarget")
 
   @@index([role])
   @@index([active])
@@ -83,42 +105,41 @@ enum ApiUsagePeriodType {
 }
 
 model ImportJob {
-  id             String       @id @default(cuid())
+  id String @id @default(cuid())
 
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  routeUsage     RouteUsage?
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routeUsage RouteUsage?
 
-  originalName   String?
-  storedName     String?
-  status         ImportStatus @default(PENDING)
+  originalName String?
+  storedName   String?
+  status       ImportStatus @default(PENDING)
 
-  totalStops     Int          @default(0)
-  processedStops Int          @default(0)
+  totalStops     Int @default(0)
+  processedStops Int @default(0)
 
-  errorMessage   String?
-  errorStack     String?
+  errorMessage String?
+  errorStack   String?
 
-  startedAt      DateTime?
-  finishedAt     DateTime?
+  startedAt  DateTime?
+  finishedAt DateTime?
 
   // ✅ salva o resultado final do processamento (linhas/endereços)
-  resultJson     Json?
-  resultPath     String?      @db.Text
-  resultSavedAt  DateTime?
+  resultJson    Json?
+  resultPath    String?   @db.Text
+  resultSavedAt DateTime?
 
   // ✅ NOVO: salva o "estado da tela" (confirmado/revisão, agrupamentos, seleções etc.)
-  workspaceJson  Json?
+  workspaceJson Json?
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@unique([userId, storedName])
   @@index([userId])
   @@index([status])
   @@index([createdAt])
   @@index([resultSavedAt])
-
-  @@unique([userId, storedName])
 }
 
 model SubscriptionPlan {
@@ -132,7 +153,7 @@ model SubscriptionPlan {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  subscriptions   UserSubscription[]
+  subscriptions UserSubscription[]
 
   @@index([isActive])
 }
@@ -150,9 +171,9 @@ model UserSubscription {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
-  user             User             @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
-  plan             SubscriptionPlan @relation(fields: [planId], references: [id])
-  routeUsages      RouteUsage[]
+  user        User             @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+  routeUsages RouteUsage[]
 
   @@index([userId, status, expiresAt])
   @@index([planId])
@@ -161,17 +182,17 @@ model UserSubscription {
 }
 
 model RouteUsage {
-  id             String            @id @default(cuid())
+  id             String           @id @default(cuid())
   userId         String
-  importJobId    String?           @unique
+  importJobId    String?          @unique
   subscriptionId String?
   source         RouteUsageSource
   usageDayKey    String
-  createdAt      DateTime          @default(now())
+  createdAt      DateTime         @default(now())
 
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  importJob      ImportJob?        @relation(fields: [importJobId], references: [id], onDelete: SetNull)
-  subscription   UserSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  importJob    ImportJob?        @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  subscription UserSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@index([userId, usageDayKey])
   @@index([subscriptionId])
@@ -179,16 +200,47 @@ model RouteUsage {
 }
 
 model RouteCredit {
-  id         String            @id @default(cuid())
-  userId     String
-  delta      Int
-  reason     RouteCreditReason
-  notes      String?
-  createdAt  DateTime          @default(now())
+  id        String            @id @default(cuid())
+  userId    String
+  delta     Int
+  reason    RouteCreditReason
+  notes     String?
+  createdAt DateTime          @default(now())
 
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model PaymentTransaction {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider    PaymentProvider    @default(MERCADOPAGO)
+  productType PaymentProductType
+  amountCents Int
+  currency    String             @default("BRL")
+  status      PaymentStatus      @default(PENDING)
+
+  mercadoPagoPreferenceId String?
+  mercadoPagoPaymentId    String? @unique
+  externalReference       String  @unique
+  initPoint               String?
+  sandboxInitPoint        String?
+
+  approvedAt        DateTime?
+  fulfilledAt       DateTime?
+  fulfilledSourceId String?
+  rawPayload        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([provider, status])
+  @@index([productType, status])
+  @@index([approvedAt])
 }
 
 model AdminAccessLog {
@@ -199,8 +251,8 @@ model AdminAccessLog {
   metadata     Json?
   createdAt    DateTime @default(now())
 
-  admin        User     @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
-  targetUser   User     @relation("AdminTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  admin      User @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
+  targetUser User @relation("AdminTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
 
   @@index([adminId, createdAt])
   @@index([targetUserId, createdAt])
@@ -211,21 +263,21 @@ model AdminAccessLog {
 // ✅ Memória GLOBAL de endereços (1 para todos os usuários)
 //
 model AddressMemory {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   // chave normalizada do endereço (pra bater rápido e igual sempre)
-  key       String   @unique
+  key String @unique
 
   // dados "final" que vamos reutilizar
-  label     String?
-  lat       Float
-  lng       Float
+  label String?
+  lat   Float
+  lng   Float
 
   // quem salvou (só pra auditoria - mas a memória é global)
   createdBy String?
 
   // estatística (opcional, ajuda a ver o que mais usa)
-  hitCount  Int      @default(0)
+  hitCount Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
