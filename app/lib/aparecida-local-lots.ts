@@ -75,7 +75,7 @@ const dataset: LoadedDataset = {};
 const centroids: LoadedCentroids = {};
 const streetCentroids: LoadedStreetCentroids = {};
 const coordinateCache = new Map<string, any>();
-const LOCAL_ALIAS_MAX_SPREAD_METERS = 250;
+const LOCAL_ALIAS_MAX_SPREAD_METERS = 120;
 
 function disableDataset(reason: string, error?: unknown) {
   dataset.disabled = true;
