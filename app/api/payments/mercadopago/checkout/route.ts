@@ -114,6 +114,7 @@ async function createPaymentTransaction(params: {
 export async function POST(request: Request) {
   try {
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL;
     if (!accessToken) {
       return NextResponse.json(
         { error: "Mercado Pago access token not configured." },
@@ -185,6 +186,9 @@ export async function POST(request: Request) {
         productType,
         quantity,
       },
+      ...(notificationUrl
+        ? { notification_url: notificationUrl }
+        : {}),
     };
 
     let mercadoPagoResponse: Response;
