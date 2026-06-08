@@ -970,6 +970,52 @@ useEffect(() => {
     return "here";
   }
 
+  function buildHereSearchQuery(raw: string) {
+    const idx = modalIdx ?? 0;
+    const currentCity = String(modalCity || rows?.[idx]?.city || "").trim();
+    const currentBairro = String(rows?.[idx]?.bairro || "").trim();
+
+    let q = String(raw || "").trim();
+    if (!q) return "";
+
+    const normalizedQ = normalizeCityName(q);
+    const normalizedCity = normalizeCityName(currentCity);
+    const normalizedBairro = normalizeCityName(currentBairro);
+
+    if (currentBairro && !normalizedQ.includes(normalizedBairro)) {
+      q = `${q}, ${currentBairro}`;
+    }
+
+    if (currentCity && !normalizedQ.includes(normalizedCity)) {
+      q = `${q}, ${currentCity}`;
+    }
+
+    if (!normalizedQ.includes("GO")) {
+      q = `${q}, GO`;
+    }
+
+    if (!normalizedQ.includes("BRASIL")) {
+      q = `${q}, Brasil`;
+    }
+
+    return q;
+  }
+
+  function hereSuggestMatchesCurrentCity(item: HereSuggestItem) {
+    const idx = modalIdx ?? 0;
+    const currentCity = String(modalCity || rows?.[idx]?.city || "").trim();
+    if (!currentCity) return true;
+
+    const itemCity = String((item as any)?.address?.city || (item as any)?.address?.district || "").trim();
+    if (!itemCity) return true;
+
+    const normalizedExpected = normalizeCityName(currentCity);
+    const normalizedItem = normalizeCityName(itemCity);
+    if (!normalizedExpected || !normalizedItem) return true;
+
+    return normalizedItem.includes(normalizedExpected) || normalizedExpected.includes(normalizedItem);
+  }
+
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
   const arcgisCityKey = getArcgisCityKey(modalCity);
   const forceArcgisOnly = isModalOpen && isAparecidaCity(modalCity);
@@ -2285,21 +2331,10 @@ if (!hasPickedLabel && !sameCoordAsRow) {
 
 
     function runHereSearch(forceQ?: string) {
-      const H = typeof window !== "undefined" ? (window as any).H : null;
-      if (!H) return;
-      if (!searchRef.current || !hereMap.current) return;
-
       const idx = modalIdx ?? 0;
-      const city = String(rows?.[idx]?.city || "Goiânia");
-      const bairro = String(rows?.[idx]?.bairro || "");
-      const cep = String(modalCep || "").trim();
 
-      let q = (forceQ ?? modalValue).trim();
+      let q = buildHereSearchQuery(forceQ ?? modalValue);
       if (!q) return;
-
-      if (cep && !q.includes(cep)) q = `${q}, ${cep}`;
-      if (bairro && !q.toLowerCase().includes(bairro.toLowerCase())) q = `${q}, ${bairro}`;
-      if (city && !q.toLowerCase().includes(city.toLowerCase())) q = `${q}, ${city}, GO`;
 
       const at = pinLatLng ? `${pinLatLng.lat},${pinLatLng.lng}` : "-16.8233,-49.2439";
 
@@ -2310,36 +2345,44 @@ if (!hasPickedLabel && !sameCoordAsRow) {
       const cached = geocodeCacheRef.current.get(cacheKey);
       if (cached?.position) {
         const pos = cached.position;
-
-        setPinLatLng({ lat: pos.lat, lng: pos.lng });
-        hereMap.current.setCenter(pos);
-        hereMap.current.setZoom(17);
-        if (markerRef.current) markerRef.current.setGeometry(pos);
-
         const label = cached?.address?.label || cached?.title || "";
         const cepFound = cached?.address?.postalCode || "";
+        setPinLatLng({ lat: pos.lat, lng: pos.lng });
+        if (hereMap.current) {
+          hereMap.current.setCenter(pos);
+          hereMap.current.setZoom(17);
+        }
+        if (markerRef.current) markerRef.current.setGeometry(pos);
         setPickedLabel(label);
         setPickedCep(cepFound);
         if (!modalCep && cepFound) setModalCep(cepFound);
-
-      //  fetchQuadraLote(pos.lat, pos.lng);
         return;
       }
 
-      searchRef.current.geocode(
-        { q, at, lang: "pt-BR" },
-        async (res: any) => {
-          const item = res?.items?.[0];
+      const apiKey = (process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
+      if (!apiKey) return;
+
+      const url = new URL("https://geocode.search.hereapi.com/v1/geocode");
+      url.searchParams.set("q", q);
+      url.searchParams.set("at", at);
+      url.searchParams.set("lang", "pt-BR");
+      url.searchParams.set("in", "countryCode:BRA");
+      url.searchParams.set("apiKey", apiKey);
+
+      fetch(url.toString())
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const item = Array.isArray(data?.items) ? data.items[0] : null;
           if (!item?.position) return;
 
-          // ✅ salva no cache
           geocodeCacheRef.current.set(cacheKey, item);
 
           const pos = item.position;
-
           setPinLatLng({ lat: pos.lat, lng: pos.lng });
-          hereMap.current.setCenter(pos);
-          hereMap.current.setZoom(17);
+          if (hereMap.current) {
+            hereMap.current.setCenter(pos);
+            hereMap.current.setZoom(17);
+          }
           if (markerRef.current) markerRef.current.setGeometry(pos);
 
           const label = item?.address?.label || item?.title || "";
@@ -2347,11 +2390,8 @@ if (!hasPickedLabel && !sameCoordAsRow) {
           setPickedLabel(label);
           setPickedCep(cepFound);
           if (!modalCep && cepFound) setModalCep(cepFound);
-
-         // fetchQuadraLote(pos.lat, pos.lng);
-        },
-        () => {}
-      );
+        })
+        .catch(() => {});
     }
 
   async function fetchSuggest(qRaw: string) {
@@ -2447,6 +2487,11 @@ if (!hasPickedLabel && !sameCoordAsRow) {
   setSuggestActive(-1);
 
   if (item.position?.lat && item.position?.lng) {
+    if (!hereSuggestMatchesCurrentCity(item)) {
+      runHereSearch(label);
+      return;
+    }
+
     const pos = { lat: item.position.lat, lng: item.position.lng };
     setPinLatLng(pos);
 
@@ -4522,8 +4567,11 @@ onContextMenu={(e) => {
                   <button
                     key={`${it.id ?? idx}`}
                     type="button"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestItem(it);
+                    }}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => selectSuggestItem(it)}
                     className={[
                       "w-full px-3 py-2 text-left text-xs hover:bg-slate-50 md:text-sm",
                       idx === suggestActive ? "bg-slate-50" : "",
@@ -4758,8 +4806,11 @@ onContextMenu={(e) => {
                   <button
                     key={`${it.id ?? idx}`}
                     type="button"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestItem(it);
+                    }}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => selectSuggestItem(it)}
                     className={[
                       "w-full px-2.5 py-1.5 text-left text-xs hover:bg-slate-50",
                       idx === suggestActive ? "bg-slate-50" : "",
