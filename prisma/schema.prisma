@@ -219,6 +219,7 @@ model PaymentTransaction {
 
   provider    PaymentProvider    @default(MERCADOPAGO)
   productType PaymentProductType
+  quantity    Int                @default(1)
   amountCents Int
   currency    String             @default("BRL")
   status      PaymentStatus      @default(PENDING)
