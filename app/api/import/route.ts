@@ -136,10 +136,21 @@ export async function POST(req: Request) {
         select: {
           id: true,
           createdAt: true,
+          userId: true,
+          fileHash: true,
         },
         orderBy: {
           createdAt: "desc",
         },
+      });
+
+      console.info("[DUPLICATE_IMPORT_DEBUG]", {
+        currentUserId: userId,
+        fileName: file.name,
+        fileHash,
+        existingImportJobId: existingImportJob?.id,
+        existingImportJobUserId: existingImportJob?.userId,
+        existingImportJobHash: existingImportJob?.fileHash,
       });
 
       if (existingImportJob) {
