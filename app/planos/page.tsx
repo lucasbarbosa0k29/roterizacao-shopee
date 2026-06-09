@@ -252,7 +252,7 @@ export default function PlanosPage() {
                   </div>
                   <div className="mt-2 text-xl font-semibold tracking-tight text-slate-800">
                     {access?.activeSubscription
-                      ? `${access.subscriptionCycleAccrued} Rota${access.subscriptionCycleAccrued === 1 ? "" : "s"} Acumulada${access.subscriptionCycleAccrued === 1 ? "" : "s"}`
+                      ? `${access.subscriptionCycleRemaining} Rota${access.subscriptionCycleRemaining === 1 ? "" : "s"} Restante${access.subscriptionCycleRemaining === 1 ? "" : "s"}`
                       : "Sem saldo de plano"}
                   </div>
                 </div>
