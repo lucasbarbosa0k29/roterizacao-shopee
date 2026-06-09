@@ -115,6 +115,10 @@ export async function POST(request: Request) {
   try {
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL;
+    const baseUrl =
+      process.env.NEXTAUTH_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      "https://roterizacao-shopee.onrender.com";
     if (!accessToken) {
       return NextResponse.json(
         { error: "Mercado Pago access token not configured." },
@@ -186,6 +190,12 @@ export async function POST(request: Request) {
         productType,
         quantity,
       },
+      back_urls: {
+        success: `${baseUrl}/planos?payment=success`,
+        failure: `${baseUrl}/planos?payment=failure`,
+        pending: `${baseUrl}/planos?payment=pending`,
+      },
+      auto_return: "approved",
       ...(notificationUrl
         ? { notification_url: notificationUrl }
         : {}),
