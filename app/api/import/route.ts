@@ -1,5 +1,6 @@
 // app/api/import/route.ts
 import * as XLSX from "xlsx";
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
@@ -123,6 +124,38 @@ export async function POST(req: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    const fileHash = createHash("sha256").update(buffer).digest("hex");
+
+    if (currentUser.role !== "ADMIN") {
+      const existingImportJob = await prisma.importJob.findFirst({
+        where: {
+          userId,
+          fileHash,
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (existingImportJob) {
+        return NextResponse.json(
+          {
+            error:
+              "Você já enviou essa planilha anteriormente. Acesse o histórico para continuar essa rota.",
+            code: "DUPLICATE_IMPORT_FILE",
+            existingImportJobId: existingImportJob.id,
+            existingCreatedAt: existingImportJob.createdAt.toISOString(),
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const workbook = XLSX.read(buffer, { type: "buffer" });
 
     const sheetName = workbook.SheetNames[0];
@@ -191,6 +224,7 @@ export async function POST(req: Request) {
     const job = await prisma.importJob.create({
       data: {
         userId,
+        fileHash,
         originalName: file.name,
         storedName: null,
         status: "PENDING",
