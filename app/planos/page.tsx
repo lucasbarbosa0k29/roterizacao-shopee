@@ -100,6 +100,11 @@ export default function PlanosPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<PaymentProductType | null>(null);
+  const [extraRouteQuantity, setExtraRouteQuantity] = useState(1);
+
+  const EXTRA_ROUTE_MIN = 1;
+  const EXTRA_ROUTE_MAX = 100;
+  const EXTRA_ROUTE_UNIT_PRICE = 199;
 
   useEffect(() => {
     let alive = true;
@@ -144,6 +149,8 @@ export default function PlanosPage() {
       setCheckoutError(null);
       setCheckoutLoading(productType);
 
+      const quantity = productType === "EXTRA_ROUTE" ? extraRouteQuantity : 1;
+
       const res = await fetch("/api/payments/mercadopago/checkout", {
         method: "POST",
         credentials: "include",
@@ -152,7 +159,7 @@ export default function PlanosPage() {
         },
         body: JSON.stringify({
           productType,
-          quantity: 1,
+          quantity,
         }),
       });
 
@@ -286,7 +293,7 @@ export default function PlanosPage() {
                   <li>Rotas não usadas são acumuladas durante o período de 30 dias.</li>
                   <li>Após esse período, o saldo expira.</li>
                   <li>Ideal para operação de menor volume.</li>
-                  <li>Liberação comercial manual pelo administrador.</li>
+                  <li>Liberação automática após confirmação do pagamento.</li>
                 </ul>
                 <div className="mt-auto pt-8">
                   <PaymentButton
@@ -314,7 +321,7 @@ export default function PlanosPage() {
                   <li>Rotas não usadas são acumuladas durante o período de 30 dias.</li>
                   <li>Após esse período, o saldo expira.</li>
                   <li>Melhor opção para uso recorrente.</li>
-                  <li>Liberação comercial manual pelo administrador.</li>
+                  <li>Liberação automática após confirmação do pagamento.</li>
                 </ul>
                 <div className="mt-auto pt-8">
                   <PaymentButton
@@ -332,11 +339,39 @@ export default function PlanosPage() {
                 </div>
                 <div className="mt-3 text-3xl font-black tracking-tight text-slate-900">R$ 1,99</div>
                 <h2 className="mt-2 text-lg font-semibold text-slate-900">Uso extra</h2>
-                <p className="mt-1 text-sm text-slate-600">1 crédito adicional</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {extraRouteQuantity} crédito{extraRouteQuantity === 1 ? "" : "s"} adicional{extraRouteQuantity === 1 ? "" : "is"}
+                </p>
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="h-10 w-10 rounded-xl border border-slate-300 text-lg font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setExtraRouteQuantity((v) => Math.max(EXTRA_ROUTE_MIN, v - 1))}
+                    disabled={extraRouteQuantity <= EXTRA_ROUTE_MIN || checkoutLoading === "EXTRA_ROUTE"}
+                    aria-label="Diminuir quantidade"
+                  >
+                    -
+                  </button>
+                  <div className="min-w-[3rem] text-center text-base font-semibold text-slate-900">
+                    {extraRouteQuantity}
+                  </div>
+                  <button
+                    type="button"
+                    className="h-10 w-10 rounded-xl border border-slate-300 text-lg font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setExtraRouteQuantity((v) => Math.min(EXTRA_ROUTE_MAX, v + 1))}
+                    disabled={extraRouteQuantity >= EXTRA_ROUTE_MAX || checkoutLoading === "EXTRA_ROUTE"}
+                    aria-label="Aumentar quantidade"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-3 text-sm font-medium text-slate-700">
+                  Total: R$ {((EXTRA_ROUTE_UNIT_PRICE * extraRouteQuantity) / 100).toFixed(2).replace(".", ",")}
+                </div>
                 <ul className="mt-5 space-y-2 text-sm leading-6 text-slate-600">
                   <li>Crédito extra separado do plano.</li>
                   <li>Use quando o saldo do plano acabar.</li>
-                  <li>Liberação manual pelo administrador após confirmação.</li>
+                  <li>Crédito liberado automaticamente após confirmação do pagamento.</li>
                 </ul>
                 <div className="mt-auto pt-8">
                   <PaymentButton
@@ -350,7 +385,7 @@ export default function PlanosPage() {
             </div>
 
             <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Após o pagamento, a liberação é feita manualmente pelo administrador. Entre em contato para liberar seu acesso.
+              Após o pagamento aprovado, o acesso é liberado automaticamente.
               <div className="mt-4">
                 <a
                   href={WHATSAPP_BUSINESS_URL}

@@ -334,7 +334,7 @@ function NoAccessHomeState({ access }: { access: AccessSnapshot | null }) {
         </div>
 
         <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Após o pagamento, a liberação é feita manualmente pelo administrador.
+          Após o pagamento aprovado, a liberação é feita automaticamente.
         </div>
       </div>
     </main>

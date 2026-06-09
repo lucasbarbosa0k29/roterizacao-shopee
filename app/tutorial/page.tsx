@@ -43,7 +43,7 @@ const steps = [
     number: "6",
     title: "Planos e limites",
     description:
-      "BASIC libera 1 rota por dia, PRO libera 2 rotas por dia e créditos extras atendem demandas pontuais. Após o pagamento, a liberação é feita manualmente pelo administrador.",
+      "BASIC libera 1 rota por dia, PRO libera 2 rotas por dia e créditos extras atendem demandas pontuais. Após a confirmação do pagamento, a liberação ocorre automaticamente.",
   },
 ];
 
