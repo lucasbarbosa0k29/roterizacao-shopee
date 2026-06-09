@@ -3542,26 +3542,6 @@ if (conflictQL) {
     }
   }
 
-  if (
-    isAparecida &&
-    localLotUsedAsFinal &&
-    localLotStrongMatch &&
-    lat != null &&
-    lng != null &&
-    !!localLotQuadra &&
-    !!localLotLote &&
-    !!localLotBairro &&
-    !conflictQL
-  ) {
-    status = "OK";
-    decisionReason = "LOCAL_APARECIDA_LOT_OK";
-  } else if (isAparecida && partialStreetFallbackUsed) {
-    status = "PARCIAL";
-    if (partialStreetFallbackReason) {
-      decisionReason = partialStreetFallbackReason;
-    }
-  }
-
   const bestRankedAddress = bestItem?.address || {};
 
   const geocodeConfidenceDiag = computeGeocodeConfidence({
@@ -3661,6 +3641,37 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
   quadra: localLotQuadra,
   lote: localLotLote,
 });
+
+if (
+  isAparecida &&
+  localLotUsedAsFinal &&
+  localLotStrongMatch &&
+  lat != null &&
+  lng != null &&
+  !!localLotQuadra &&
+  !!localLotLote &&
+  !!localLotBairro &&
+  !conflictQL
+) {
+  const shouldDowngradeAparecidaLocalLot =
+    aparecidaLocalStreetShadow?.streetStatus === "STREET_MISMATCH" &&
+    !!aparecidaShadowDebug?.flags?.includes("APARECIDA_BAIRRO_MISMATCH_SHADOW") &&
+    !localLotLocalAliasAccepted &&
+    !localLotBairroDivergenteLocalForte;
+
+  if (shouldDowngradeAparecidaLocalLot) {
+    status = "PARCIAL";
+    decisionReason = "APARECIDA_LOCAL_LOT_REVIEW";
+  } else {
+    status = "OK";
+    decisionReason = "LOCAL_APARECIDA_LOT_OK";
+  }
+} else if (isAparecida && partialStreetFallbackUsed) {
+  status = "PARCIAL";
+  if (partialStreetFallbackReason) {
+    decisionReason = partialStreetFallbackReason;
+  }
+}
 
 const aparecidaMemoryDebugFlags = [
   ...(aparecidaShadowDebug?.flags || []),
