@@ -111,6 +111,7 @@ model ImportJob {
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   routeUsage RouteUsage?
 
+  fileHash     String?
   originalName String?
   storedName   String?
   status       ImportStatus @default(PENDING)
@@ -137,6 +138,7 @@ model ImportJob {
 
   @@unique([userId, storedName])
   @@index([userId])
+  @@index([userId, fileHash])
   @@index([status])
   @@index([createdAt])
   @@index([resultSavedAt])
