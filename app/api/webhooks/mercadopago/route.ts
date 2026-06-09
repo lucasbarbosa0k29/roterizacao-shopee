@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
+import { fulfillApprovedPaymentTransaction } from "@/app/lib/payment-fulfillment";
 
 export const runtime = "nodejs";
 
@@ -195,6 +196,10 @@ export async function POST(request: Request) {
         rawPayload: payload as Prisma.InputJsonValue,
       },
     });
+
+    if (nextStatus === "APPROVED") {
+      await fulfillApprovedPaymentTransaction(transaction.id);
+    }
 
     return NextResponse.json({
       ok: true,
