@@ -246,11 +246,12 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         }
 
         sharedView.on("click", (event: any) => {
-          const p = sharedView.toMap({ x: event.x, y: event.y });
+          const p = event?.mapPoint ?? sharedView.toMap({ x: event?.x, y: event?.y });
           if (!p) return;
 
-          const lat = Number(p.latitude);
-          const lng = Number(p.longitude);
+          const lat = Number(p.latitude ?? p.y);
+          const lng = Number(p.longitude ?? p.x);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
           suppressNextCenterGoTo = true;
           setMarker(lat, lng);
