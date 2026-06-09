@@ -340,7 +340,7 @@ export default function PlanosPage() {
                 <div className="mt-3 text-3xl font-black tracking-tight text-slate-900">R$ 1,99</div>
                 <h2 className="mt-2 text-lg font-semibold text-slate-900">Uso extra</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  {extraRouteQuantity} crédito{extraRouteQuantity === 1 ? "" : "s"} adicional{extraRouteQuantity === 1 ? "" : "is"}
+                  {extraRouteQuantity} crédito{extraRouteQuantity === 1 ? "" : "s"} adicional{extraRouteQuantity === 1 ? "" : "es"}
                 </p>
                 <div className="mt-4 flex items-center gap-3">
                   <button
