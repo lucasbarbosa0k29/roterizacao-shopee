@@ -429,8 +429,12 @@ function HomeInner() {
     totalStops: number;
     errorMessage?: string | null;
   } | null>(null);
- const [historyId, setHistoryId] = useState<string | null>(null);
- const [historyName, setHistoryName] = useState<string>("Planilha");
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [historyName, setHistoryName] = useState<string>("Planilha");
+  const [duplicateImportJob, setDuplicateImportJob] = useState<{
+    id: string;
+    createdAt: string;
+  } | null>(null);
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
   const lastWorkspaceUpdatedAtRef = useRef(0);
   const isApplyingRemoteWorkspaceRef = useRef(false);
@@ -1564,6 +1568,17 @@ useEffect(() => {
       const dataImport = await resImport.json();
 
       if (!resImport.ok) {
+        if (dataImport?.code === "DUPLICATE_IMPORT_FILE" && dataImport?.existingImportJobId) {
+          setLoading(false);
+          setJobProgress(null);
+          setIsExportOpen(false);
+          setDuplicateImportJob({
+            id: String(dataImport.existingImportJobId),
+            createdAt: String(dataImport.existingCreatedAt || ""),
+          });
+          return;
+        }
+
         alert(dataImport?.error || "Erro no import");
         return;
       }
@@ -4185,6 +4200,55 @@ onContextMenu={(e) => {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {duplicateImportJob && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+                  <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.24)]">
+                    <div className="border-b border-slate-200 px-6 py-5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1f5a6b]">
+                        Importação duplicada
+                      </div>
+                      <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
+                        Planilha já enviada
+                      </h2>
+                    </div>
+
+                    <div className="px-6 py-5 text-sm leading-6 text-slate-600">
+                      <p>Esta planilha já foi enviada anteriormente.</p>
+                      <p className="mt-3">
+                        Você pode continuar exatamente de onde parou sem precisar reenviar ou
+                        consumir novos créditos.
+                      </p>
+                      {duplicateImportJob.createdAt ? (
+                        <p className="mt-4 text-xs text-slate-500">
+                          Envio anterior em {new Date(duplicateImportJob.createdAt).toLocaleString("pt-BR")}.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-slate-200 px-6 py-4 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const jobToOpen = duplicateImportJob.id;
+                          setDuplicateImportJob(null);
+                          router.push(`/?job=${encodeURIComponent(jobToOpen)}`);
+                        }}
+                        className="inline-flex items-center justify-center rounded-2xl bg-[#17313b] px-4 py-3 text-sm font-semibold text-white hover:bg-[#10242c]"
+                      >
+                        Continuar rota
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDuplicateImportJob(null)}
+                        className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancelar
+                      </button>
                     </div>
                   </div>
                 </div>
