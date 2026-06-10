@@ -2899,7 +2899,11 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
         lote: localAparecidaCandidate.lote,
         bairro: localAparecidaCandidate.bairro,
       };
-      if (!aparecidaBlockedLocalFirstPair && !seen.has(localKey)) {
+      if (
+        !aparecidaBlockedLocalFirstPair &&
+        !localLotBlockedByBairro &&
+        !seen.has(localKey)
+      ) {
         localLotFinalArc = localArc;
         seen.set(localKey, localItem);
         const localRerank = scoreAparecidaRerankCandidate({
@@ -3348,7 +3352,12 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       }
     }
 
-    if (isAparecida && localLotStrongMatch && localLotFinalItem) {
+    if (
+      isAparecida &&
+      localLotStrongMatch &&
+      localLotFinalItem &&
+      !localLotBlockedByBairro
+    ) {
       bestItem = localLotFinalItem;
       bestArcgisFromTop = localLotFinalArc || bestArcgisFromTop;
       bestHereScore = Math.max(bestHereScore, localLotFinalScore);
@@ -3646,17 +3655,18 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
   lote: localLotLote,
 });
 
-if (
-  isAparecida &&
-  localLotUsedAsFinal &&
-  localLotStrongMatch &&
-  lat != null &&
-  lng != null &&
-  !!localLotQuadra &&
-  !!localLotLote &&
-  !!localLotBairro &&
-  !conflictQL
-) {
+  if (
+    isAparecida &&
+    localLotUsedAsFinal &&
+    localLotStrongMatch &&
+    !localLotBlockedByBairro &&
+    lat != null &&
+    lng != null &&
+    !!localLotQuadra &&
+    !!localLotLote &&
+    !!localLotBairro &&
+    !conflictQL
+  ) {
   const shouldDowngradeAparecidaLocalLot =
     aparecidaLocalStreetShadow?.streetStatus === "STREET_MISMATCH" &&
     !!aparecidaShadowDebug?.flags?.includes("APARECIDA_BAIRRO_MISMATCH_SHADOW") &&
