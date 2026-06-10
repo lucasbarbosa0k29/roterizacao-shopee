@@ -167,6 +167,7 @@ type MemoryDebugRow = {
   localLotBairro?: string | null;
   localLotBoostApplied?: boolean;
   localLotUsedAsFinal?: boolean;
+  localLotBlockedByBairro?: boolean;
   localFirstGoianiaAttempted?: boolean;
   localFirstGoianiaFound?: boolean;
   localFirstGoianiaMatchType?: GoianiaLocalFirstShadow["matchType"];
@@ -2330,6 +2331,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotStrongMatch = false;
   let localLotBoostApplied = false;
   let localLotUsedAsFinal = false;
+  let localLotBlockedByBairro = false;
   let localLotQuadra = "";
   let localLotLote = "";
   let localLotBairro = "";
@@ -2506,6 +2508,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       });
 
       if (aparecidaBlockedLocalFirstPair) {
+        localLotBlockedByBairro = true;
         console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
           ...aparecidaBlockedLocalFirstPair,
@@ -2847,6 +2850,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       });
       if (localBlockedPair && !aparecidaBlockedLocalFirstPair) {
         aparecidaBlockedLocalFirstPair = localBlockedPair;
+        localLotBlockedByBairro = true;
         console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
           ...aparecidaBlockedLocalFirstPair,
@@ -3893,6 +3897,7 @@ if (shouldAutoSaveAddressMemory) {
     localLotBairro,
     localLotBoostApplied,
     localLotUsedAsFinal,
+    localLotBlockedByBairro,
     ...goianiaLocalFirstDiagnostics,
     urbanPatternDetected,
     urbanPatternType,
