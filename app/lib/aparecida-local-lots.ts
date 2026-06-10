@@ -169,6 +169,37 @@ function normalizeBairroValue(value: string) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeAparecidaBairroPairKey(left: string, right: string) {
+  const a = normalizeAparecidaBairroForCompare(left);
+  const b = normalizeAparecidaBairroForCompare(right);
+  if (!a || !b) return "";
+  return a < b ? `${a}|||${b}` : `${b}|||${a}`;
+}
+
+const APARECIDA_BAIRRO_DENYLIST = new Set([
+  normalizeAparecidaBairroPairKey("JARDIM LUZ", "VEIGA JARDIM"),
+  normalizeAparecidaBairroPairKey("CIDADE SATELITE SAO LUIZ", "CIDADE LIVRE"),
+  normalizeAparecidaBairroPairKey("PAPILLON PARK", "VIRGINIA PARK"),
+  normalizeAparecidaBairroPairKey("MARIA INES", "CRUZEIRO DO SUL"),
+  normalizeAparecidaBairroPairKey("MARIA", "MARIA INES"),
+  normalizeAparecidaBairroPairKey("SANTA", "SANTA LUZIA"),
+  normalizeAparecidaBairroPairKey("GOIANI", "GOIANIA PARK SUL"),
+  normalizeAparecidaBairroPairKey("GARAVELO", "VILLAGE GARAVELO"),
+  normalizeAparecidaBairroPairKey("SANTO ANTONIO", "SANTO ANDRE"),
+  normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM HELVECIA"),
+  normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM CRISTAL"),
+  normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM IPANEMA"),
+  normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM RIO GRANDE"),
+  normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "SANTO ANTONIO"),
+  normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "INDUSTRIAL SANTO ANTONIO"),
+  normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "CONJUNTO HABITACIONAL PROGRESSO"),
+  normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "CONJUNTO PROGRESSO"),
+]);
+
+function isAparecidaBairroDenied(left: string, right: string) {
+  return APARECIDA_BAIRRO_DENYLIST.has(normalizeAparecidaBairroPairKey(left, right));
+}
+
 export function normalizeAparecidaBairroForCompare(value: string) {
   return normalizeBairroValue(value);
 }
@@ -177,6 +208,7 @@ export function areAparecidaBairrosCompatible(expected: string, actual: string) 
   const left = normalizeAparecidaBairroForCompare(expected);
   const right = normalizeAparecidaBairroForCompare(actual);
   if (!left || !right) return false;
+  if (isAparecidaBairroDenied(left, right)) return false;
   if (left === right) return true;
   if (left.includes(right) || right.includes(left)) return true;
 
@@ -664,6 +696,7 @@ export function findAparecidaLocalLotCandidate(args: {
         (bucketRecords.length > 1 && spread <= LOCAL_ALIAS_MAX_SPREAD_METERS)
       ) {
         const record = bucketRecords[0];
+        if (isAparecidaBairroDenied(bairro, record.bairro)) return null;
         return {
           quadra: normalizeQuadraLoteValue(record.quadra),
           lote: canonicalLot(record.lote),
