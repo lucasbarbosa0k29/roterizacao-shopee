@@ -185,6 +185,7 @@ const APARECIDA_BAIRRO_DENYLIST = new Set([
   normalizeAparecidaBairroPairKey("SANTA", "SANTA LUZIA"),
   normalizeAparecidaBairroPairKey("GOIANI", "GOIANIA PARK SUL"),
   normalizeAparecidaBairroPairKey("GARAVELO", "VILLAGE GARAVELO"),
+  normalizeAparecidaBairroPairKey("SETOR GARAVELO", "VILLAGE GARAVELO"),
   normalizeAparecidaBairroPairKey("SANTO ANTONIO", "SANTO ANDRE"),
   normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM HELVECIA"),
   normalizeAparecidaBairroPairKey("JARDIM LUZ", "JARDIM CRISTAL"),
@@ -196,8 +197,69 @@ const APARECIDA_BAIRRO_DENYLIST = new Set([
   normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "CONJUNTO PROGRESSO"),
 ]);
 
+const APARECIDA_BAIRRO_ALLOWLIST = new Set([
+  normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - JARDINS MONACO"),
+  normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - JARDINS VIENA"),
+  normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - COND. EMPRESARIAL VILLAGE"),
+  normalizeAparecidaBairroPairKey("CARDOSO", "CARDOSO CONTINUACAO"),
+  normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ 2", "CIDADE VERA CRUZ"),
+  normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ II", "CIDADE VERA CRUZ"),
+  normalizeAparecidaBairroPairKey("GARAVELO PARK", "GARAVELO"),
+  normalizeAparecidaBairroPairKey("SETOR GARAVELO", "GARAVELO"),
+]);
+
+const APARECIDA_BAIRRO_GENERIC_TOKENS = new Set([
+  "JARDIM",
+  "JD",
+  "CIDADE",
+  "PARK",
+  "PARQUE",
+  "SETOR",
+  "ST",
+  "RESIDENCIAL",
+  "RES",
+  "VILA",
+  "VL",
+  "SANTA",
+  "SANTO",
+  "SAO",
+  "LUZ",
+  "VERA",
+  "LIVRE",
+  "CRUZ",
+  "VALE",
+  "NOVA",
+  "SITIO",
+  "SITIOS",
+  "ACRESCIMO",
+  "CONTINUACAO",
+  "COMPLEMENTO",
+  "ETAPA",
+  "GLEBA",
+  "CONJUNTO",
+  "BAIRRO",
+  "INDUSTRIAL",
+]);
+
 function isAparecidaBairroDenied(left: string, right: string) {
   return APARECIDA_BAIRRO_DENYLIST.has(normalizeAparecidaBairroPairKey(left, right));
+}
+
+function isAparecidaBairroAllowed(left: string, right: string) {
+  return APARECIDA_BAIRRO_ALLOWLIST.has(normalizeAparecidaBairroPairKey(left, right));
+}
+
+function tokenizeAparecidaBairro(value: string) {
+  return normalizeAparecidaBairroForCompare(value)
+    .split(" ")
+    .filter(Boolean);
+}
+
+function hasStrongSharedAparecidaBairroToken(left: string, right: string) {
+  const rightTokens = new Set(tokenizeAparecidaBairro(right));
+  return tokenizeAparecidaBairro(left).some(
+    (token) => rightTokens.has(token) && !APARECIDA_BAIRRO_GENERIC_TOKENS.has(token),
+  );
 }
 
 export function normalizeAparecidaBairroForCompare(value: string) {
@@ -209,13 +271,12 @@ export function areAparecidaBairrosCompatible(expected: string, actual: string) 
   const right = normalizeAparecidaBairroForCompare(actual);
   if (!left || !right) return false;
   if (isAparecidaBairroDenied(left, right)) return false;
+  if (isAparecidaBairroAllowed(left, right)) return true;
   if (left === right) return true;
-  if (left.includes(right) || right.includes(left)) return true;
-
-  const leftTokens = left.split(" ").filter((t) => t.length >= 4);
-  const rightTokens = right.split(" ").filter((t) => t.length >= 4);
-
-  return leftTokens.some((token) => rightTokens.includes(token));
+  if (left.includes(right) || right.includes(left)) {
+    return hasStrongSharedAparecidaBairroToken(left, right);
+  }
+  return hasStrongSharedAparecidaBairroToken(left, right);
 }
 
 function bairroCompatible(expected: string, actual: string) {
@@ -697,6 +758,7 @@ export function findAparecidaLocalLotCandidate(args: {
       ) {
         const record = bucketRecords[0];
         if (isAparecidaBairroDenied(bairro, record.bairro)) return null;
+        if (!areAparecidaBairrosCompatible(bairro, record.bairro)) return null;
         return {
           quadra: normalizeQuadraLoteValue(record.quadra),
           lote: canonicalLot(record.lote),
