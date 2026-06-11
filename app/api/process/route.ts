@@ -795,6 +795,7 @@ function pickAparecidaLocalFirstCandidate(args: {
       quadra: args.quadra,
       lote: args.lote,
       bairro: target.bairro,
+      planilhaBairro: args.originalBairro || target.bairro || "",
       rua: args.rua,
       cidade: args.cidade,
       cep: args.cep,
@@ -2337,6 +2338,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let localLotBairro = "";
   let localLotLocalAliasAccepted = false;
   let localLotBairroDivergenteLocalForte = false;
+  let localLotBairroMismatchLocalFirst = false;
+  let localLotCanFinalizeLocalFirst = true;
   let localLotFinalItem: any = null;
   let localLotFinalScore = -999;
   let localLotFinalArc: any = null;
@@ -2824,6 +2827,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
           quadra: normalized.quadra,
           lote: normalized.lote,
           bairro: normalized.bairro || bairroIn,
+          planilhaBairro: bairroIn || normalized.bairro || "",
           rua: normalized.rua,
           cidade: normalized.cidade || cityIn,
           cep: normalized.cep || cepIn,
@@ -2838,6 +2842,8 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
       localLotBairro = localAparecidaCandidate.bairro || "";
       localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
+      localLotBairroMismatchLocalFirst = !!localAparecidaCandidate.bairroMismatchLocalFirst;
+      localLotCanFinalizeLocalFirst = localAparecidaCandidate.canFinalizeLocalFirst !== false;
 
       const localBlockedPair = buildAparecidaBlockedLocalFirstPair({
         isAparecida,
@@ -2940,6 +2946,17 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
           bestGeocodeScoreOverall = localScore;
           bestGeocodeQuery = "LOCAL_APARECIDA_LOT";
           bestGeocodeItem = localItem;
+        }
+
+        if (localLotBairroMismatchLocalFirst) {
+          console.info("[BAIRRO_MISMATCH_LOCALFIRST]", {
+            sequence: row?.sequence ?? "",
+            planilhaBairro: bairroIn || "",
+            localBairro: localLotBairro,
+            quadra: localLotQuadra,
+            lote: localLotLote,
+            matchedBy: localFirstMatchedBy,
+          });
         }
       }
     }
@@ -3667,19 +3684,22 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
     !!localLotBairro &&
     !conflictQL
   ) {
-  const shouldDowngradeAparecidaLocalLot =
-    aparecidaLocalStreetShadow?.streetStatus === "STREET_MISMATCH" &&
-    !!aparecidaShadowDebug?.flags?.includes("APARECIDA_BAIRRO_MISMATCH_SHADOW") &&
-    !localLotLocalAliasAccepted &&
-    !localLotBairroDivergenteLocalForte;
+    const shouldDowngradeAparecidaLocalLot =
+      !localLotCanFinalizeLocalFirst ||
+      (
+        aparecidaLocalStreetShadow?.streetStatus === "STREET_MISMATCH" &&
+        !!aparecidaShadowDebug?.flags?.includes("APARECIDA_BAIRRO_MISMATCH_SHADOW") &&
+        !localLotLocalAliasAccepted &&
+        !localLotBairroDivergenteLocalForte
+      );
 
-  if (shouldDowngradeAparecidaLocalLot) {
-    status = "PARCIAL";
-    decisionReason = "APARECIDA_LOCAL_LOT_REVIEW";
-  } else {
-    status = "OK";
-    decisionReason = "LOCAL_APARECIDA_LOT_OK";
-  }
+    if (shouldDowngradeAparecidaLocalLot) {
+      status = "PARCIAL";
+      decisionReason = "APARECIDA_LOCAL_LOT_REVIEW";
+    } else {
+      status = "OK";
+      decisionReason = "LOCAL_APARECIDA_LOT_OK";
+    }
 } else if (isAparecida && partialStreetFallbackUsed) {
   status = "PARCIAL";
   if (partialStreetFallbackReason) {

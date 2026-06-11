@@ -69,6 +69,9 @@ export type AparecidaLocalLotCandidate = {
   strongMatch: true;
   bairroDivergenteLocalForte?: boolean;
   localAliasAccepted?: boolean;
+  bairroPriority?: "exact" | "alias" | "mismatch";
+  bairroMismatchLocalFirst?: boolean;
+  canFinalizeLocalFirst?: boolean;
 };
 
 const dataset: LoadedDataset = {};
@@ -708,6 +711,7 @@ export function findAparecidaLocalLotCandidate(args: {
   quadra: string;
   lote: string;
   bairro: string;
+  planilhaBairro?: string;
   rua?: string;
   cidade?: string;
   cep?: string;
@@ -716,6 +720,8 @@ export function findAparecidaLocalLotCandidate(args: {
   const q = normalizeQuadraLoteValue(args.quadra || "");
   const l = canonicalLot(args.lote || "");
   const bairro = String(args.bairro || "").trim();
+  const sheetBairroSource = args.planilhaBairro || args.bairro || "";
+  const sheetBairro = normalizeAparecidaBairroForCompare(sheetBairroSource);
 
   if (!q || !l || !bairro) return null;
 
@@ -732,14 +738,30 @@ export function findAparecidaLocalLotCandidate(args: {
   const candidates = bucketRecords
     .map((record) => {
       const featureBairro = record.bairro;
-      if (!bairroCompatible(bairro, featureBairro)) return null;
-      return {
+      const candidate: AparecidaLocalLotCandidate = {
         quadra: normalizeQuadraLoteValue(record.quadra),
         lote: canonicalLot(record.lote),
         bairro: featureBairro,
         centroid: { lat: record.lat, lng: record.lng },
-        strongMatch: true as const,
-      } as AparecidaLocalLotCandidate;
+        strongMatch: true,
+      };
+
+      const sheetNorm = sheetBairro;
+      const featureNorm = normalizeAparecidaBairroForCompare(featureBairro);
+      if (sheetNorm && featureNorm && sheetNorm === featureNorm) {
+        candidate.bairroPriority = "exact";
+        candidate.canFinalizeLocalFirst = true;
+      } else if (sheetBairro && areAparecidaBairrosCompatible(sheetBairro, featureBairro)) {
+        candidate.bairroPriority = "alias";
+        candidate.localAliasAccepted = true;
+        candidate.canFinalizeLocalFirst = true;
+      } else {
+        candidate.bairroPriority = "mismatch";
+        candidate.bairroMismatchLocalFirst = !!sheetBairro;
+        candidate.canFinalizeLocalFirst = !sheetBairro;
+      }
+
+      return candidate;
     })
     .filter(Boolean) as AparecidaLocalLotCandidate[];
 
@@ -767,6 +789,9 @@ export function findAparecidaLocalLotCandidate(args: {
           strongMatch: true,
           bairroDivergenteLocalForte: true,
           localAliasAccepted: true,
+          bairroPriority: "alias",
+          bairroMismatchLocalFirst: false,
+          canFinalizeLocalFirst: true,
         };
       }
     }
@@ -775,6 +800,11 @@ export function findAparecidaLocalLotCandidate(args: {
   }
 
   candidates.sort((a, b) => {
+    const rank = (v?: "exact" | "alias" | "mismatch") =>
+      v === "exact" ? 0 : v === "alias" ? 1 : 2;
+    const priorityDiff = rank(a.bairroPriority) - rank(b.bairroPriority);
+    if (priorityDiff !== 0) return priorityDiff;
+
     const ba = normalizeBairroValue(a.bairro);
     const bb = normalizeBairroValue(b.bairro);
     const target = normalizeBairroValue(bairro);
