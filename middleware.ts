@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { SUPER_ADMIN_EMAIL } from "@/app/lib/admin-roles";
 
 const PUBLIC_PATHS = ["/login"];
 const ADMIN_PATHS = ["/admin"];
@@ -25,6 +26,12 @@ function isAdminPath(pathname: string) {
 
 function isAdminApi(pathname: string) {
   return pathname === ADMIN_API_PREFIX || pathname.startsWith(ADMIN_API_PREFIX + "/");
+}
+
+function isSuperAdminToken(token: unknown) {
+  const role = String((token as any)?.role ?? "").trim().toUpperCase();
+  const email = String((token as any)?.email ?? "").trim().toLowerCase();
+  return role === "ADMIN" && email === SUPER_ADMIN_EMAIL;
 }
 
 export async function middleware(req: NextRequest) {
@@ -56,12 +63,21 @@ url.searchParams.set("callbackUrl", callbackUrl);
       const url = new URL("/", req.url);
       return NextResponse.redirect(url);
     }
+
+    if (pathname.startsWith("/admin/administrators") && !isSuperAdminToken(token)) {
+      const url = new URL("/admin", req.url);
+      return NextResponse.redirect(url);
+    }
   }
 
   // ✅ protege ADMIN (APIs)
   if (isAdminApi(pathname)) {
     const role = (token as any)?.role;
     if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (pathname.startsWith("/api/admin/administrators") && !isSuperAdminToken(token)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { listHistoryDb } from "../lib/history-db";
+import { isSuperAdmin } from "@/app/lib/admin-roles";
 
 type SidebarProps = {
   isOpen?: boolean;
@@ -121,6 +122,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     () => (session?.user as any)?.role === "ADMIN",
     [session]
   );
+  const canSeeAdministrators = isSuperAdmin(session?.user as any);
   const canStartNewRoute = isAdmin || (!accessLoading && access?.canStartRoute === true);
   const hasActivePlan = !!access?.activeSubscription;
   const hasHistoryJob = historyCount > 0;
@@ -427,6 +429,28 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     </div>
                     {chevron}
                   </Link>
+
+                  {canSeeAdministrators && (
+                    <Link
+                      href="/admin/administrators"
+                      onClick={onClose}
+                      className={[
+                        itemRowBase,
+                        isActive("/admin/administrators") ? activeRow : idleRow,
+                      ].join(" ")}
+                    >
+                      <div className={leftSide}>
+                        <div className={iconBox}>
+                          <ShieldIcon />
+                        </div>
+                        <div className="leading-tight">
+                          <div className="text-[15px] font-semibold text-white">Administradores</div>
+                          <div className="mt-1 text-[12px] text-white/48">Permissões e auditoria</div>
+                        </div>
+                      </div>
+                      {chevron}
+                    </Link>
+                  )}
                 </>
               )}
             </nav>

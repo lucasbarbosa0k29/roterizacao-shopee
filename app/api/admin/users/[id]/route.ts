@@ -4,11 +4,7 @@ import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
-
-function isAdmin(session: any) {
-  const role = (session?.user as any)?.role;
-  return session?.user && role === "ADMIN";
-}
+import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 
 async function getIdFromCtx(ctx: any) {
   const maybeParams = ctx?.params;
@@ -121,7 +117,7 @@ async function resetTodayRouteUsageForAdminChange(tx: any, userId: string) {
 export async function PATCH(req: Request, ctx: any) {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -157,6 +153,17 @@ export async function PATCH(req: Request, ctx: any) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     }
 
+    const actorIsSuperAdmin = isSuperAdmin(session?.user as any);
+    const targetIsProtectedSuperAdmin = String(targetUser.email || "").trim().toLowerCase() ===
+      "lucasbarbosa0k29@gmail.com";
+
+    if (targetUser.role === "ADMIN" && !actorIsSuperAdmin) {
+      return NextResponse.json(
+        { error: "Somente SUPER_ADMIN pode alterar contas ADMIN." },
+        { status: 403 }
+      );
+    }
+
     if (!rawAction) {
       if (typeof active !== "boolean") {
         return NextResponse.json({ error: "Campo 'active' inválido." }, { status: 400 });
@@ -165,6 +172,13 @@ export async function PATCH(req: Request, ctx: any) {
       if (id === adminId && active === false) {
         return NextResponse.json(
           { error: "Você não pode desativar sua própria conta ADMIN." },
+          { status: 400 }
+        );
+      }
+
+      if (targetIsProtectedSuperAdmin && active === false) {
+        return NextResponse.json(
+          { error: "O super admin protegido não pode ser desativado." },
           { status: 400 }
         );
       }
@@ -705,7 +719,7 @@ export async function PATCH(req: Request, ctx: any) {
 export async function DELETE(req: Request, ctx: any) {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -713,10 +727,38 @@ export async function DELETE(req: Request, ctx: any) {
     if (!id) return NextResponse.json({ error: "ID invÃƒÂ¡lido" }, { status: 400 });
 
     const myId = String((session?.user as any)?.id || "");
+    const actorIsSuperAdmin = isSuperAdmin(session?.user as any);
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        active: true,
+      },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    }
     if (id === myId) {
       return NextResponse.json(
         { error: "VocÃƒÂª nÃƒÂ£o pode excluir sua prÃƒÂ³pria conta ADMIN." },
         { status: 400 }
+      );
+    }
+
+    if (String(targetUser.email || "").trim().toLowerCase() === "lucasbarbosa0k29@gmail.com") {
+      return NextResponse.json(
+        { error: "O super admin protegido não pode ser removido." },
+        { status: 400 }
+      );
+    }
+
+    if (targetUser.role === "ADMIN" && !actorIsSuperAdmin) {
+      return NextResponse.json(
+        { error: "Somente SUPER_ADMIN pode remover contas ADMIN." },
+        { status: 403 }
       );
     }
 

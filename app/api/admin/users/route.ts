@@ -7,17 +7,13 @@ import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
-
-function isAdmin(session: any) {
-  const role = (session?.user as any)?.role;
-  return !!session?.user && role === "ADMIN";
-}
+import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 
 // ✅ LISTAR USUÁRIOS
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -54,7 +50,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -64,6 +60,7 @@ export async function POST(req: Request) {
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "");
     const roleReq = String(body?.role ?? "USER").toUpperCase() === "ADMIN" ? "ADMIN" : "USER";
+    const canCreateAdmin = isSuperAdmin(session?.user as any);
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email e senha são obrigatórios." }, { status: 400 });
@@ -76,6 +73,13 @@ export async function POST(req: Request) {
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
       return NextResponse.json({ error: "Esse email já está cadastrado." }, { status: 409 });
+    }
+
+    if (roleReq === "ADMIN" && !canCreateAdmin) {
+      return NextResponse.json(
+        { error: "Somente SUPER_ADMIN pode criar novos administradores." },
+        { status: 403 }
+      );
     }
 
     const hash = await bcrypt.hash(password, 10);

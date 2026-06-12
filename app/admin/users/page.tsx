@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { isSuperAdmin } from "@/app/lib/admin-roles";
 
 type UserRow = {
   id: string;
@@ -52,6 +54,7 @@ const ACTIONS_MENU_GAP = 8;
 const ACTIONS_MENU_MARGIN = 8;
 
 export default function AdminUsersPage() {
+  const { data: session, status } = useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +70,7 @@ export default function AdminUsersPage() {
   const [openActionsMenu, setOpenActionsMenu] = useState<ActionsMenuState | null>(null);
   const [userDataModal, setUserDataModal] = useState<UserDataModalState | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const canManageAdmins = status === "authenticated" && isSuperAdmin(session?.user as any);
 
   function getSafeAccess(user: UserRow) {
     return {
@@ -224,6 +228,17 @@ export default function AdminUsersPage() {
         );
       });
   }, [users, q, onlyActive]);
+
+  const visibleUsers = useMemo(() => {
+    if (canManageAdmins) return filtered;
+    return filtered.filter((user) => user.role !== "ADMIN");
+  }, [filtered, canManageAdmins]);
+
+  useEffect(() => {
+    if (!canManageAdmins && role === "ADMIN") {
+      setRole("USER");
+    }
+  }, [canManageAdmins, role]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -537,7 +552,7 @@ export default function AdminUsersPage() {
               onChange={(e) => setRole(e.target.value as any)}
             >
               <option value="USER">USER</option>
-              <option value="ADMIN">ADMIN</option>
+              {canManageAdmins && <option value="ADMIN">ADMIN</option>}
             </select>
             <div className="text-xs text-slate-500 mt-1">Dica: deixe só você como ADMIN.</div>
           </div>
@@ -584,7 +599,7 @@ export default function AdminUsersPage() {
 
         {loadingUsers ? (
           <div className="p-5 text-slate-600">Carregando...</div>
-        ) : filtered.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div className="p-5 text-slate-600">Nenhum usuário encontrado.</div>
         ) : (
           <div className="p-5 overflow-auto">
@@ -605,7 +620,7 @@ export default function AdminUsersPage() {
               </thead>
 
               <tbody>
-                {filtered.map((u) => {
+                {visibleUsers.map((u) => {
                   const busy = busyId === u.id;
                   const access = getSafeAccess(u);
                   const actionsOpen = openActionsMenu?.userId === u.id;

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { isSuperAdmin } from "@/app/lib/admin-roles";
 
 type Job = {
   id: string;
@@ -49,10 +51,12 @@ type ObservabilityData = {
 };
 
 export default function AdminPage() {
+  const { data: session, status } = useSession();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [obs, setObs] = useState<ObservabilityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const canAccessAdministrators = status === "authenticated" && isSuperAdmin(session?.user as any);
 
   async function load() {
     try {
@@ -170,6 +174,14 @@ export default function AdminPage() {
         >
           Assinaturas
         </Link>
+        {canAccessAdministrators && (
+          <Link
+            href="/admin/administrators"
+            className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50"
+          >
+            Administradores
+          </Link>
+        )}
       </div>
 
       <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden">
