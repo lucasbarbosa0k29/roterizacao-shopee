@@ -44,6 +44,10 @@ import {
 } from "@/app/lib/aparecida-local-lots";
 import { buildCondoMemoryKeyPlan } from "@/app/lib/condo-memory-keys";
 import {
+  buildGoogleCommercialFallbackPlan,
+  lookupGoogleCommercialFallbackCandidate,
+} from "@/app/lib/google-commercial-fallback";
+import {
   lookupGoianiaLocalFirstShadow,
   type GoianiaLocalFirstShadow,
 } from "@/app/lib/goiania-local-first";
@@ -52,6 +56,15 @@ import {
 export const runtime = "nodejs";
 const PROGRESS_BATCH_SIZE = 25;
 const MAX_ROUTE_STOPS = 200;
+const GOOGLE_COMMERCIAL_FALLBACK_ENABLED = ["1", "true", "yes"].includes(
+  String(process.env.GOOGLE_COMMERCIAL_FALLBACK_ENABLED || "").trim().toLowerCase(),
+);
+const GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB = 5;
+
+type GoogleCommercialFallbackRunState = {
+  jobId: string;
+  googleCommercialFallbackCalls: number;
+};
 
 type Normalized = {
   rua: string;
@@ -187,6 +200,18 @@ type MemoryDebugRow = {
   localFirstGoianiaWouldBypass?: boolean;
   localFirstGoianiaBypassReason?: string | null;
   localFirstGoianiaUsedAsFinal?: boolean;
+  googleCommercialFallbackAttempted?: boolean;
+  googleCommercialFallbackFound?: boolean;
+  googleCommercialFallbackRejectedReason?: string | null;
+  googleCommercialFallbackQuery?: string | null;
+  googleCommercialFallbackCommercialName?: string | null;
+  googleCommercialFallbackScore?: number | null;
+  googleCommercialFallbackSimilarity?: number | null;
+  googleCommercialFallbackDistanceM?: number | null;
+  googleCommercialFallbackLat?: number | null;
+  googleCommercialFallbackLng?: number | null;
+  googleCommercialFallbackTitle?: string | null;
+  googleCommercialFallbackApplied?: boolean;
   urbanPatternDetected?: boolean;
   urbanPatternType?: string | null;
   urbanPatternQuery?: string | null;
@@ -1966,7 +1991,12 @@ async function getAparecidaLotFromArcgis(baseOrigin: string, lat: number, lng: n
 }
 
 // ===== processa 1 linha =====
-async function processOne(row: InputRow, baseOrigin: string, debugMemory = false) {
+async function processOne(
+  row: InputRow,
+  baseOrigin: string,
+  debugMemory = false,
+  runState?: GoogleCommercialFallbackRunState,
+) {
   const addressRaw = String(row?.original || "").trim(); // <-- FIEL AO EXCEL
   const bairroIn = row?.bairro ? String(row.bairro) : "";
   const cityIn = row?.city ? String(row.city) : "";
@@ -2332,6 +2362,18 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let hereUncertain = false;
   let hereSpreadMeters = 0;
   let discoverGateDebug: DiscoverGateDebugRow | null = null;
+  let googleCommercialFallbackAttempted = false;
+  let googleCommercialFallbackFound = false;
+  let googleCommercialFallbackRejectedReason: string | null = null;
+  let googleCommercialFallbackQuery: string | null = null;
+  let googleCommercialFallbackCommercialName: string | null = null;
+  let googleCommercialFallbackScore: number | null = null;
+  let googleCommercialFallbackSimilarity: number | null = null;
+  let googleCommercialFallbackDistanceM: number | null = null;
+  let googleCommercialFallbackLat: number | null = null;
+  let googleCommercialFallbackLng: number | null = null;
+  let googleCommercialFallbackTitle: string | null = null;
+  let googleCommercialFallbackApplied = false;
 
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: RankedHereEntry[] = [];
@@ -3639,6 +3681,110 @@ if (status === "OK") {
       ...(decisionReason === "LOW_SCORE" ? ["LOW_SCORE"] : []),
     ],
   });
+  const googleCommercialFallbackStatusBefore = status;
+  if (
+    GOOGLE_COMMERCIAL_FALLBACK_ENABLED &&
+    !memoryHit &&
+    !localLotUsedAsFinal &&
+    !localFirstGoianiaUsedAsFinal &&
+    ["PARCIAL", "HERE_SPREAD", "MISSING_CORE"].includes(googleCommercialFallbackStatusBefore)
+  ) {
+    const googleCommercialFallbackPlan = buildGoogleCommercialFallbackPlan({
+      addressRaw,
+      city: cityForDecision,
+      aptLike,
+      hasQL,
+    });
+
+    if (!googleCommercialFallbackPlan.shouldAttempt) {
+      googleCommercialFallbackAttempted = false;
+      googleCommercialFallbackRejectedReason = googleCommercialFallbackPlan.blockedReason || null;
+    } else if (runState && runState.googleCommercialFallbackCalls >= GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB) {
+      googleCommercialFallbackAttempted = false;
+      googleCommercialFallbackRejectedReason = "SKIPPED_LIMIT";
+      console.info("[GOOGLE_COMMERCIAL_FALLBACK_SKIPPED_LIMIT]", {
+        sequence: row?.sequence ?? "",
+        jobId: runState.jobId,
+        calls: runState.googleCommercialFallbackCalls,
+        limit: GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB,
+        commercialName: googleCommercialFallbackPlan.commercialName,
+      });
+    } else {
+      if (runState) {
+        runState.googleCommercialFallbackCalls += 1;
+      }
+      googleCommercialFallbackAttempted = true;
+      googleCommercialFallbackQuery = googleCommercialFallbackPlan.query;
+      googleCommercialFallbackCommercialName = googleCommercialFallbackPlan.commercialName;
+
+      console.info("[GOOGLE_COMMERCIAL_FALLBACK_ATTEMPT]", {
+        sequence: row?.sequence ?? "",
+        jobId: runState?.jobId ?? "",
+        calls: runState?.googleCommercialFallbackCalls ?? 1,
+        limit: GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB,
+        commercialName: googleCommercialFallbackCommercialName,
+        query: googleCommercialFallbackQuery,
+        status,
+        decisionReason,
+        city: cityForDecision,
+      });
+
+      const googleCandidate = await lookupGoogleCommercialFallbackCandidate({
+        query: googleCommercialFallbackQuery,
+        commercialName: googleCommercialFallbackCommercialName,
+        city: cityForDecision,
+        currentPosition:
+          lat != null && lng != null
+            ? { lat, lng }
+            : bestItem?.position?.lat != null && bestItem?.position?.lng != null
+              ? { lat: bestItem.position.lat, lng: bestItem.position.lng }
+              : null,
+      });
+
+      googleCommercialFallbackScore = googleCandidate.score;
+      googleCommercialFallbackSimilarity = googleCandidate.similarity;
+      googleCommercialFallbackDistanceM = googleCandidate.coordinateDistanceM;
+      googleCommercialFallbackRejectedReason = googleCandidate.rejectedReason;
+
+      if (googleCandidate.accepted && googleCandidate.item?.position) {
+        googleCommercialFallbackFound = true;
+        googleCommercialFallbackApplied = true;
+        googleCommercialFallbackLat = googleCandidate.item.position.lat ?? null;
+        googleCommercialFallbackLng = googleCandidate.item.position.lng ?? null;
+        googleCommercialFallbackTitle = String(googleCandidate.item.title || "");
+        lat = googleCommercialFallbackLat;
+        lng = googleCommercialFallbackLng;
+        status = "PARCIAL";
+        decisionReason = "GOOGLE_COMMERCIAL_MATCH";
+        console.info("[GOOGLE_COMMERCIAL_FALLBACK_SUCCESS]", {
+          sequence: row?.sequence ?? "",
+          jobId: runState?.jobId ?? "",
+          commercialName: googleCommercialFallbackCommercialName,
+          query: googleCommercialFallbackQuery,
+          score: googleCommercialFallbackScore,
+          similarity: googleCommercialFallbackSimilarity,
+          distanceM: googleCommercialFallbackDistanceM,
+          lat: googleCommercialFallbackLat,
+          lng: googleCommercialFallbackLng,
+          title: googleCommercialFallbackTitle,
+          city: cityForDecision,
+        });
+      } else {
+        googleCommercialFallbackRejectedReason = googleCandidate.rejectedReason || "REJECTED";
+        console.info("[GOOGLE_COMMERCIAL_FALLBACK_REJECTED]", {
+          sequence: row?.sequence ?? "",
+          jobId: runState?.jobId ?? "",
+          commercialName: googleCommercialFallbackCommercialName,
+          query: googleCommercialFallbackQuery,
+          reason: googleCommercialFallbackRejectedReason,
+          score: googleCommercialFallbackScore,
+          similarity: googleCommercialFallbackSimilarity,
+          distanceM: googleCommercialFallbackDistanceM,
+          city: cityForDecision,
+        });
+      }
+    }
+  }
 // ✅ SALVAR NA MEMÓRIA GLOBAL (se válido)
 const aparecidaShadowActualBairro =
   arcgisLot?.found && String(arcgisLot.bairro || "").trim()
@@ -3915,6 +4061,22 @@ if (shouldAutoSaveAddressMemory) {
     lat,
     lng,
     decisionReason,
+    ...(GOOGLE_COMMERCIAL_FALLBACK_ENABLED
+      ? {
+          googleCommercialFallbackAttempted,
+          googleCommercialFallbackFound,
+          googleCommercialFallbackApplied,
+          googleCommercialFallbackRejectedReason,
+          googleCommercialFallbackQuery,
+          googleCommercialFallbackCommercialName,
+          googleCommercialFallbackScore,
+          googleCommercialFallbackSimilarity,
+          googleCommercialFallbackDistanceM,
+          googleCommercialFallbackLat,
+          googleCommercialFallbackLng,
+          googleCommercialFallbackTitle,
+        }
+      : {}),
     geocodeConfidence: geocodeConfidenceDiag.confidence,
     geocodeConfidenceLevel: geocodeConfidenceDiag.level,
     geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
@@ -3999,6 +4161,22 @@ if (shouldAutoSaveAddressMemory) {
       matchedKey: matchedMemoryKey,
       hereSkippedBecauseMemory: !!memoryHit,
       decisionReason,
+      ...(GOOGLE_COMMERCIAL_FALLBACK_ENABLED
+        ? {
+            googleCommercialFallbackAttempted,
+            googleCommercialFallbackFound,
+            googleCommercialFallbackApplied,
+            googleCommercialFallbackRejectedReason,
+            googleCommercialFallbackQuery,
+            googleCommercialFallbackCommercialName,
+            googleCommercialFallbackScore,
+            googleCommercialFallbackSimilarity,
+            googleCommercialFallbackDistanceM,
+            googleCommercialFallbackLat,
+            googleCommercialFallbackLng,
+            googleCommercialFallbackTitle,
+          }
+        : {}),
       usedApproxMemory: !!approxMemoryHit,
       geocodeConfidence: geocodeConfidenceDiag.confidence,
       geocodeConfidenceLevel: geocodeConfidenceDiag.level,
@@ -4209,6 +4387,12 @@ export async function POST(req: Request) {
     }
 
     const baseOrigin = new URL(req.url).origin;
+    const runState: GoogleCommercialFallbackRunState | undefined = GOOGLE_COMMERCIAL_FALLBACK_ENABLED
+      ? {
+          jobId,
+          googleCommercialFallbackCalls: 0,
+        }
+      : undefined;
 
     const concurrency = 5;
     const results: any[] = new Array(rowsIn.length);
@@ -4220,7 +4404,7 @@ export async function POST(req: Request) {
       while (index < rowsIn.length) {
         const i = index++;
         try {
-          results[i] = await processOne(rowsIn[i], baseOrigin, debugMemory);
+          results[i] = await processOne(rowsIn[i], baseOrigin, debugMemory, runState);
         } catch (e: any) {
           results[i] = {
             sequence: rowsIn[i]?.sequence ?? "",
