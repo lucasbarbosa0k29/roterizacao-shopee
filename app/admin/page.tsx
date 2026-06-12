@@ -164,6 +164,12 @@ export default function AdminPage() {
         >
           Usuários
         </Link>
+        <Link
+          href="/admin/subscriptions"
+          className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50"
+        >
+          Assinaturas
+        </Link>
       </div>
 
       <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden">

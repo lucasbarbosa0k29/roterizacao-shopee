@@ -78,6 +78,17 @@ function UsersIcon() {
   );
 }
 
+function SubscriptionIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+      <path d="M6.5 4.5h11A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17V7a2.5 2.5 0 0 1 2.5-2.5Z" />
+      <path d="M7.5 8h9" strokeLinecap="round" />
+      <path d="M7.5 11.5h9" strokeLinecap="round" />
+      <path d="M7.5 15h5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function MoonIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -392,6 +403,26 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                       <div className="leading-tight">
                         <div className="text-[15px] font-semibold text-white">Usuários</div>
                         <div className="mt-1 text-[12px] text-white/48">Gestão de Contas</div>
+                      </div>
+                    </div>
+                    {chevron}
+                  </Link>
+
+                  <Link
+                    href="/admin/subscriptions"
+                    onClick={onClose}
+                    className={[
+                      itemRowBase,
+                      isActive("/admin/subscriptions") ? activeRow : idleRow,
+                    ].join(" ")}
+                  >
+                    <div className={leftSide}>
+                      <div className={iconBox}>
+                        <SubscriptionIcon />
+                      </div>
+                      <div className="leading-tight">
+                        <div className="text-[15px] font-semibold text-white">Assinaturas</div>
+                        <div className="mt-1 text-[12px] text-white/48">Planos e Créditos</div>
                       </div>
                     </div>
                     {chevron}
