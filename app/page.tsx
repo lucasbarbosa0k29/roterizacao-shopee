@@ -23,6 +23,7 @@ import {
   TUTORIAL_PENDING_MAP_REVIEW_KEY,
   TUTORIAL_START_PREPROCESS_KEY,
 } from "./lib/tutorial";
+import { buildCondoMemoryKeyPlan, type CondoMemoryKey } from "./lib/condo-memory-keys";
 
 const AparecidaArcgisMap = dynamic(
   () => import("./components/AparecidaArcgisMap"),
@@ -400,6 +401,341 @@ function makeAutoGroupKey(args: { address: string; city: string }) {
   return [normKey(args.address), normKey(args.city)].join("|");
 }
 
+const CONDO_GROUP_VERTICAL_HINT_RE =
+  /\b(?:AP|APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA|EDIF|EDIFICIO|PREDIO|COND|CONDOMINIO)\b|\b(?:APT|APTO|APART|APARTAMENTO|AP)\s*[-:]?\s*\d+[A-Z]?\b|\b[A-Z]\s*[-:]?\s*\d{3,4}[A-Z]?\b/i;
+const CONDO_GROUP_STREET_PREFIX_RE =
+  /^(RUA|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|VIELA|VIA|R)\b/;
+const CONDO_GROUP_STREET_PREFIX_CLEAN_RE =
+  /^(RUA|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|VIELA|VIA|R)\b\s*/;
+const CONDO_GROUP_LEADING_DESCRIPTOR_RE =
+  /^(?:EDIFICIO|EDIF|ED|PREDIO|PRED|CONDOMINIO|COND|RESIDENCIAL|RES|APT|APTO|APARTAMENTO|APART|BLOCO|BL|TORRE|ANDAR|SALA)\b[\s\-:]*/;
+const CONDO_GROUP_TRAILING_UNIT_RE =
+  /\b(?:APT|APTO|APART|APARTAMENTO|AP|BLOCO|TORRE|ANDAR|SALA)\s*[-:]?\s*[A-Z0-9\/\-]*\d+[A-Z]?(?:\s+[A-Z0-9\/\-]+)?$/i;
+const CONDO_GROUP_COMPACT_UNIT_RE =
+  /\b(?:APT|APTO|APART|APARTAMENTO|AP)\s*[-:]?\s*\d+[A-Z]?\b/i;
+const CONDO_GROUP_NUMERIC_UNIT_RE =
+  /\b(?:\d{3,4}\s*[-:]?\s*[A-Z]|[A-Z]\s*[-:]?\s*\d{3,4}|\d{3,4}\s+[A-Z])\b/i;
+const CONDO_GROUP_TRAILING_NUMBER_RE =
+  /\b(?:N(?:[ÂºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*[A-Z0-9\/\-]+$/;
+const CONDO_GROUP_UNIT_CODE_RE = /\b[A-Z]\s*[-]?\s*\d{3,4}[A-Z]?\b/;
+const CONDO_GROUP_NAME_STOPWORDS_RE = /\b(DO|DA|DE|DAS|DOS|DEL|DI)\b/g;
+const CONDO_GROUP_BLOCKED_HINT_RE =
+  /\b(?:Q(?:D)?|QUADRA|LTS?|LT|LOTE)\w*\b|\b(?:CASA|LOTEAMENTO|JARDINS|ALPHAVILLE)\b/;
+
+function escapeRegExp(value: string) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitCondoGroupSegments(address: string) {
+  return String(address || "")
+    .split(/[,;/|]+/g)
+    .map((part) => normKey(part))
+    .filter(Boolean);
+}
+
+function extractCondoGroupStreetName(segment: string) {
+  const cleaned = normKey(segment).replace(CONDO_GROUP_STREET_PREFIX_CLEAN_RE, "").trim();
+  if (!cleaned) return null;
+
+  const withoutInlineNumber = cleaned
+    .replace(
+      /\b(?:RESIDENCIAL|CONDOMINIO|COND|EDIFICIO|EDIF|PREDIO|PRED|APT|APTO|APARTAMENTO|APART|BLOCO|BL|TORRE|ANDAR|SALA)\b.*$/i,
+      "",
+    )
+    .replace(/\b(?:N(?:[ÂºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*(\d+[A-Z]?)$/i, "")
+    .replace(/\b(\d+[A-Z]?)$/i, "")
+    .replace(/\b(?:Q(?:D)?|QUADRA|LTS?|LT|LOTE)\w*(?:\s+[A-Z0-9\/\-]+)*/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return withoutInlineNumber || cleaned;
+}
+
+function extractCondoGroupStreetNumberFromSegment(segment: string) {
+  const cleaned = normKey(segment);
+  const markerMatch = cleaned.match(/\b(?:N(?:[ÂºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*(\d+[A-Z]?)$/i);
+  if (markerMatch) return markerMatch[1] || null;
+
+  const tailMatch = cleaned.match(/\b(\d+[A-Z]?)$/i);
+  if (tailMatch) return tailMatch[1] || null;
+
+  return null;
+}
+
+function extractCondoGroupNearestStreetNumber(segments: string[], streetIndex: number) {
+  const pureCandidates: Array<{
+    number: string;
+    distance: number;
+    afterStreet: boolean;
+    index: number;
+  }> = [];
+  const fallbackCandidates: Array<{
+    number: string;
+    distance: number;
+    afterStreet: boolean;
+    index: number;
+  }> = [];
+
+  for (let i = 0; i < segments.length; i += 1) {
+    if (i === streetIndex) continue;
+
+    const segment = segments[i];
+    if (CONDO_GROUP_VERTICAL_HINT_RE.test(segment)) continue;
+    if (CONDO_GROUP_BLOCKED_HINT_RE.test(segment)) continue;
+
+    const number = extractCondoGroupStreetNumberFromSegment(segment);
+    if (!number) continue;
+
+    const distance = Math.abs(i - streetIndex);
+    const afterStreet = i > streetIndex;
+    const candidate = { number, distance, afterStreet, index: i };
+
+    if (normKey(segment).match(/^\d+[A-Z]?$/)) {
+      pureCandidates.push(candidate);
+      continue;
+    }
+
+    fallbackCandidates.push(candidate);
+  }
+
+  const filteredPureCandidates = pureCandidates.filter((candidate, index) => {
+    if (candidate.number.length > 2) return true;
+
+    const prevSegment = candidate.index > 0 ? segments[candidate.index - 1] : null;
+    if (!prevSegment || !CONDO_GROUP_BLOCKED_HINT_RE.test(prevSegment)) return true;
+
+    const hasLaterPureCandidate = pureCandidates.slice(index + 1).length > 0;
+    if (hasLaterPureCandidate) return false;
+
+    return true;
+  });
+
+  let bestPureAfterStreet: { number: string; distance: number; afterStreet: boolean; index: number } | null = null;
+  for (const candidate of filteredPureCandidates) {
+    if (!bestPureAfterStreet) {
+      bestPureAfterStreet = candidate;
+      continue;
+    }
+
+    if (candidate.distance < bestPureAfterStreet.distance) {
+      bestPureAfterStreet = candidate;
+      continue;
+    }
+
+    if (
+      candidate.distance === bestPureAfterStreet.distance &&
+      candidate.afterStreet &&
+      !bestPureAfterStreet.afterStreet
+    ) {
+      bestPureAfterStreet = candidate;
+    }
+  }
+
+  let bestFallback: { number: string; distance: number; afterStreet: boolean; index: number } | null = null;
+  for (const candidate of fallbackCandidates) {
+    if (!bestFallback) {
+      bestFallback = candidate;
+      continue;
+    }
+
+    if (candidate.distance < bestFallback.distance) {
+      bestFallback = candidate;
+      continue;
+    }
+
+    if (candidate.distance === bestFallback.distance && candidate.afterStreet && !bestFallback.afterStreet) {
+      bestFallback = candidate;
+    }
+  }
+
+  return bestPureAfterStreet?.number || bestFallback?.number || null;
+}
+
+function extractCondoGroupBuildingName(segments: string[], streetIndex: number) {
+  const streetSegment = streetIndex >= 0 ? segments[streetIndex] : null;
+  const streetName =
+    streetSegment !== null ? extractCondoGroupStreetName(streetSegment) : null;
+  const streetNamePattern = streetName
+    ? new RegExp(`^${escapeRegExp(normKey(streetName))}\\b\\s*`, "i")
+    : null;
+
+  const candidates = Array.from(
+    new Set(
+      segments
+        .map((segment, idx) => {
+          const cleaned = normKey(segment)
+            .replace(CONDO_GROUP_STREET_PREFIX_CLEAN_RE, "")
+            .trim();
+          const withoutStreetName = streetNamePattern
+            ? cleaned.replace(streetNamePattern, "").trim()
+            : cleaned;
+          return stripCondoGroupNoise(withoutStreetName, { preserveStopwords: true });
+        })
+        .filter(Boolean),
+    ),
+  );
+
+  const strongCandidate = candidates.find((candidate) =>
+    /(?:RESIDENCIAL|CONDOMINIO|COND|EDIFICIO|EDIF|PREDIO|PRED|TORRE|BLOCO|BL)/.test(
+      normKey(candidate),
+    ),
+  );
+  if (strongCandidate) return strongCandidate;
+
+  const fallbackCandidate = candidates.find((candidate) => {
+    const normalized = normKey(candidate);
+    return !!normalized && !/^\d+$/.test(normalized) && normalized.split(" ").filter(Boolean).length >= 2;
+  });
+
+  return fallbackCandidate || null;
+}
+
+function stripCondoGroupNoise(
+  value: string,
+  options?: { preserveStopwords?: boolean },
+) {
+  let current = normKey(value);
+
+  for (let i = 0; i < 6; i += 1) {
+    const next = current
+      .replace(CONDO_GROUP_TRAILING_UNIT_RE, " ")
+      .replace(CONDO_GROUP_COMPACT_UNIT_RE, " ")
+      .replace(CONDO_GROUP_NUMERIC_UNIT_RE, " ")
+      .replace(CONDO_GROUP_UNIT_CODE_RE, " ")
+      .replace(/\b(?:Q(?:D)?|QUADRA|LTS?|LT|LOTE)\w*(?:\s+[A-Z0-9\/\-]+)*/g, " ")
+      .replace(/\b(?:N(?:[ÂºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*[A-Z0-9\/\-]+$/i, " ")
+      .replace(/\s*-\s*[A-Z0-9]+$/i, " ")
+      .replace(CONDO_GROUP_LEADING_DESCRIPTOR_RE, "")
+      .replace(/^\d+[A-Z]?\s+/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (next === current) break;
+    current = next;
+  }
+
+  if (!options?.preserveStopwords) {
+    current = current.replace(CONDO_GROUP_NAME_STOPWORDS_RE, " ").replace(/\s{2,}/g, " ").trim();
+  }
+
+  return current;
+}
+
+function normalizeCondoGroupNameKey(value: string) {
+  return normKey(value)
+    .replace(CONDO_GROUP_NAME_STOPWORDS_RE, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function isStrongCondoBuildingName(name: string | null) {
+  if (!name) return false;
+  const normalized = stripCondoGroupNoise(name, { preserveStopwords: true });
+  if (!normalized) return false;
+
+  const tokenCount = normalized.split(" ").filter(Boolean).length;
+  return tokenCount >= 1;
+}
+
+function buildCondoGroupPlan(address: string, city: string) {
+  const basePlan = buildCondoMemoryKeyPlan(address, city);
+  const normalizedAddress = normKey(address);
+  const segments = splitCondoGroupSegments(address);
+  const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
+  const streetName =
+    streetIndex >= 0 ? extractCondoGroupStreetName(segments[streetIndex]) : null;
+  const hasStructuredAddress =
+    String(address || "")
+      .split(/[,;/|]+/g)
+      .map((part) => normKey(part))
+      .filter(Boolean).length >= 3;
+  const hasVerticalHint =
+    CONDO_GROUP_VERTICAL_HINT_RE.test(normalizedAddress) ||
+    CONDO_GROUP_COMPACT_UNIT_RE.test(normalizedAddress) ||
+    CONDO_GROUP_NUMERIC_UNIT_RE.test(normalizedAddress) ||
+    (CONDO_GROUP_TRAILING_UNIT_RE.test(normalizedAddress) && hasStructuredAddress) ||
+    (isStrongCondoBuildingName(extractCondoGroupBuildingName(segments, streetIndex)) &&
+      CONDO_GROUP_UNIT_CODE_RE.test(normalizedAddress));
+
+  const hasBlockedHorizontalHint = CONDO_GROUP_BLOCKED_HINT_RE.test(normalizedAddress);
+  if (!normKey(city)) return null;
+  if (hasBlockedHorizontalHint && !hasVerticalHint) return null;
+  if (!basePlan.shouldAttempt && !hasVerticalHint) return null;
+
+  const streetNumber =
+    streetIndex >= 0 ? extractCondoGroupNearestStreetNumber(segments, streetIndex) : null;
+  const buildingName = extractCondoGroupBuildingName(segments, streetIndex);
+  const normalizedCity = normKey(city);
+
+  const physicalKey =
+    streetName && streetNumber
+      ? normKey(`${streetName} ${streetNumber} ${normalizedCity}`)
+      : basePlan.physicalKey || null;
+  const displayNameKey = buildingName
+    ? normKey(`${buildingName} ${normalizedCity}`)
+    : basePlan.nameKey || null;
+
+  const keys: CondoMemoryKey[] = [];
+  if (physicalKey) {
+    keys.push({ kind: "condo_physical" as const, key: physicalKey });
+  }
+  const normalizedDisplayNameKey = displayNameKey
+    ? normalizeCondoGroupNameKey(displayNameKey)
+    : null;
+  if (normalizedDisplayNameKey && normalizedDisplayNameKey !== physicalKey) {
+    keys.push({ kind: "condo_name" as const, key: normalizedDisplayNameKey });
+  }
+
+  if (keys.length === 0) {
+    if (basePlan.shouldAttempt && basePlan.keys.length) {
+      return {
+        ...basePlan,
+        physicalKey: basePlan.physicalKey,
+        nameKey: basePlan.nameKey,
+        keys: basePlan.keys.map((key) => ({
+          ...key,
+          key:
+            key.kind === "condo_name"
+              ? normalizeCondoGroupNameKey(key.key)
+              : normKey(key.key),
+          })),
+      };
+    }
+    if (hasVerticalHint) {
+      return {
+        shouldAttempt: true,
+        hasVerticalSignal: true,
+        hasBlockedCadastralSignal: hasBlockedHorizontalHint,
+        physicalKey: null,
+        nameKey: null,
+        keys: [],
+      };
+    }
+    return null;
+  }
+
+  return {
+    shouldAttempt: true,
+    hasVerticalSignal: true,
+    hasBlockedCadastralSignal: hasBlockedHorizontalHint,
+    physicalKey,
+    nameKey: displayNameKey,
+    keys,
+  };
+}
+
+function getCondoGroupStreetSignature(address: string, city: string) {
+  const segments = splitCondoGroupSegments(address);
+  const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
+  const streetName =
+    streetIndex >= 0 ? extractCondoGroupStreetName(segments[streetIndex]) : null;
+  const normalizedCity = normKey(city);
+
+  if (!streetName || !normalizedCity) return null;
+
+  return `${streetName}||${normalizedCity}`;
+}
+
 function makeId(prefix = "grp") {
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
 }
@@ -651,6 +987,8 @@ setHistoryId(job.id);
   // auto agrupar
   const [autoGrouped, setAutoGrouped] = useState(false);
   const [autoBreakIds, setAutoBreakIds] = useState<Set<string>>(new Set());
+  const [condoGrouped, setCondoGrouped] = useState(false);
+  const [condoBreakIds, setCondoBreakIds] = useState<Set<string>>(new Set());
 
   // modo agrupar manual (selecionar)
   const [groupMode, setGroupMode] = useState(false);
@@ -669,6 +1007,8 @@ setHistoryId(job.id);
     setManualGroups(p?.manualGroups ?? {});
     setAutoGrouped(!!p?.autoGrouped);
     setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
+    setCondoGrouped(!!p?.condoGrouped);
+    setCondoBreakIds(new Set(p?.condoBreakIds ?? []));
 
     if (!options?.preserveEphemeral) {
       setGroupMode(false);
@@ -799,15 +1139,17 @@ if (!rows || rows.length === 0) return;
   const t = setTimeout(() => {
   const updatedAtMs = Date.now();
   lastWorkspaceUpdatedAtRef.current = updatedAtMs;
- updateHistoryDb(historyId, {
-  version: 1,
-  manualEdits,
-  manualGroups,
-  autoGrouped,
-  autoBreakIds: Array.from(autoBreakIds),
-  name: historyName || file?.name || "Planilha",
-  updatedAtMs,
-}).catch(() => {});
+  updateHistoryDb(historyId, {
+   version: 1,
+   manualEdits,
+   manualGroups,
+   autoGrouped,
+   autoBreakIds: Array.from(autoBreakIds),
+   condoGrouped,
+   condoBreakIds: Array.from(condoBreakIds),
+   name: historyName || file?.name || "Planilha",
+   updatedAtMs,
+ }).catch(() => {});
 }, 1500);
 
   return () => clearTimeout(t);
@@ -818,6 +1160,8 @@ if (!rows || rows.length === 0) return;
   manualGroups,
   autoGrouped,
   autoBreakIds,
+  condoGrouped,
+  condoBreakIds,
   file,
   historyName,
 ]);
@@ -1197,6 +1541,13 @@ useEffect(() => {
     return String(manualEdits[i]?.notes || "").trim();
   }
 
+  function getGroupObservation(baseIdx: number, idxs: number[]) {
+    const manual = getManualObservation(baseIdx);
+    if (manual) return manual;
+    if (idxs.length >= 4) return `${idxs.length} PACOTES`;
+    return "";
+  }
+
   function openNotesEditor(idx: number) {
     setNotesEditorIdx(idx);
     setNotesDraft(String(manualEdits[idx]?.notes || "").trim());
@@ -1280,6 +1631,48 @@ useEffect(() => {
 
     const groupItems: { id: string; idxs: number[] }[] = [];
     const singles: number[] = [];
+    const singlesSet = new Set<number>();
+    const pushSingle = (...idxs: number[]) => {
+      for (const idx of idxs) {
+        if (singlesSet.has(idx)) continue;
+        singlesSet.add(idx);
+        singles.push(idx);
+      }
+    };
+
+    const remainingParent = new Map<number, number>();
+    const remainingRank = new Map<number, number>();
+    const autoKeyByIdx = new Map<number, string>();
+    const condoPlansByIdx = new Map<number, ReturnType<typeof buildCondoGroupPlan>>();
+    for (const idx of notInManual) {
+      remainingParent.set(idx, idx);
+      remainingRank.set(idx, 0);
+    }
+
+    const findRemaining = (x: number): number => {
+      const parent = remainingParent.get(x);
+      if (parent === undefined || parent === x) return x;
+      const root = findRemaining(parent);
+      remainingParent.set(x, root);
+      return root;
+    };
+
+    const unionRemaining = (a: number, b: number) => {
+      const ra = findRemaining(a);
+      const rb = findRemaining(b);
+      if (ra === rb) return;
+
+      const rankA = remainingRank.get(ra) || 0;
+      const rankB = remainingRank.get(rb) || 0;
+
+      if (rankA < rankB) {
+        remainingParent.set(ra, rb);
+        return;
+      }
+
+      remainingParent.set(rb, ra);
+      if (rankA === rankB) remainingRank.set(ra, rankA + 1);
+    };
 
     // ✅ AUTO GROUPING
     if (autoGrouped) {
@@ -1289,6 +1682,7 @@ useEffect(() => {
         const addr = getShownAddress(idx);
         const city = String(rows[idx]?.city || "");
         const key = makeAutoGroupKey({ address: addr, city });
+        autoKeyByIdx.set(idx, key);
 
         const arr = autoBuckets.get(key) || [];
         arr.push(idx);
@@ -1297,23 +1691,219 @@ useEffect(() => {
 
       for (const [k, idxs] of autoBuckets.entries()) {
         const id = `auto_${k}`;
-        if (autoBreakIds.has(id) || idxs.length <= 1) singles.push(...idxs);
-        else groupItems.push({ id, idxs: idxs.slice().sort((a, b) => a - b) });
+        if (autoBreakIds.has(id) || idxs.length <= 1) continue;
+        for (let i = 1; i < idxs.length; i += 1) {
+          unionRemaining(idxs[0], idxs[i]);
+        }
       }
-    } else {
-      singles.push(...notInManual);
+    }
+
+    // ✅ AGRUPAMENTO CONDOMÍNIOS / PRÉDIOS
+    if (condoGrouped) {
+      const condoPhysicalHintCounts = new Map<string, Map<string, number>>();
+      const condoStreetHintCounts = new Map<string, Map<string, number>>();
+      const condoBucketsByKey = new Map<string, number[]>();
+
+      for (const idx of notInManual) {
+        const addr = getShownAddress(idx);
+        const city = String(rows[idx]?.city || "");
+        const plan = buildCondoGroupPlan(addr, city);
+        if (!plan?.shouldAttempt) continue;
+
+        condoPlansByIdx.set(idx, plan);
+
+        const normalizedNameKey = plan.nameKey ? normalizeCondoGroupNameKey(plan.nameKey) : null;
+        if (normalizedNameKey && isStrongCondoBuildingName(plan.nameKey)) {
+          const physicalHintKey = plan.physicalKey ? normalizeCondoGroupNameKey(plan.physicalKey) : null;
+          if (physicalHintKey) {
+            const bucket = condoPhysicalHintCounts.get(physicalHintKey) || new Map<string, number>();
+            bucket.set(normalizedNameKey, (bucket.get(normalizedNameKey) || 0) + 1);
+            condoPhysicalHintCounts.set(physicalHintKey, bucket);
+          } else {
+            const streetSignature = getCondoGroupStreetSignature(addr, city);
+            if (streetSignature) {
+              const bucket = condoStreetHintCounts.get(streetSignature) || new Map<string, number>();
+              bucket.set(normalizedNameKey, (bucket.get(normalizedNameKey) || 0) + 1);
+              condoStreetHintCounts.set(streetSignature, bucket);
+            }
+          }
+        }
+      }
+
+      const condoPhysicalHintByKey = new Map<string, string>();
+      for (const [physicalHintKey, counts] of condoPhysicalHintCounts.entries()) {
+        let bestKey: string | null = null;
+        let bestCount = 0;
+        for (const [candidateKey, count] of counts.entries()) {
+          if (count > bestCount || (count === bestCount && candidateKey < (bestKey || ""))) {
+            bestKey = candidateKey;
+            bestCount = count;
+          }
+        }
+        if (bestKey) condoPhysicalHintByKey.set(physicalHintKey, bestKey);
+      }
+
+      const condoStreetHintBySignature = new Map<string, string>();
+      for (const [streetSignature, counts] of condoStreetHintCounts.entries()) {
+        let bestKey: string | null = null;
+        let bestCount = 0;
+        for (const [candidateKey, count] of counts.entries()) {
+          if (count > bestCount || (count === bestCount && candidateKey < (bestKey || ""))) {
+            bestKey = candidateKey;
+            bestCount = count;
+          }
+        }
+        if (bestKey) condoStreetHintBySignature.set(streetSignature, bestKey);
+      }
+
+      for (const idx of notInManual) {
+        const addr = getShownAddress(idx);
+        const city = String(rows[idx]?.city || "");
+        let plan = condoPlansByIdx.get(idx) || buildCondoGroupPlan(addr, city);
+        if (!plan?.shouldAttempt || !plan.keys.length) continue;
+
+        const planHasStrongName = !!plan.nameKey && isStrongCondoBuildingName(plan.nameKey);
+        const hasVerticalLikeSignal =
+          plan.hasVerticalSignal ||
+          CONDO_GROUP_VERTICAL_HINT_RE.test(normKey(addr)) ||
+          CONDO_GROUP_COMPACT_UNIT_RE.test(normKey(addr)) ||
+          CONDO_GROUP_NUMERIC_UNIT_RE.test(normKey(addr));
+        const exactPhysicalHintKey = plan.physicalKey
+          ? normalizeCondoGroupNameKey(plan.physicalKey)
+          : null;
+        const streetSignature = getCondoGroupStreetSignature(addr, city);
+        const hintNameKey = exactPhysicalHintKey
+          ? condoPhysicalHintByKey.get(exactPhysicalHintKey) || null
+          : streetSignature
+            ? condoStreetHintBySignature.get(streetSignature) || null
+            : null;
+
+        if (hintNameKey && hasVerticalLikeSignal && !planHasStrongName) {
+          const inferredPhysicalKey = plan.physicalKey ? normKey(plan.physicalKey) : null;
+          const inferredNameKey = normKey(`${hintNameKey} ${normKey(city)}`);
+          const inferredKeys: CondoMemoryKey[] = [];
+
+          if (inferredPhysicalKey) {
+            inferredKeys.push({ kind: "condo_physical", key: inferredPhysicalKey });
+          }
+          inferredKeys.push({
+            kind: "condo_name",
+            key: normalizeCondoGroupNameKey(inferredNameKey),
+          });
+
+          plan = {
+            ...plan,
+            nameKey: inferredNameKey,
+            keys: inferredKeys,
+          };
+          condoPlansByIdx.set(idx, plan);
+        }
+
+        if (!plan.keys.length) continue;
+
+        for (const key of plan.keys) {
+          const bucket = condoBucketsByKey.get(key.key) || [];
+          bucket.push(idx);
+          condoBucketsByKey.set(key.key, bucket);
+        }
+      }
+
+      const seenCondoBuckets = new Set<string>();
+      for (const [k, idxs] of condoBucketsByKey.entries()) {
+        const uniqueIdxs = Array.from(new Set(idxs)).sort((a, b) => a - b);
+        if (uniqueIdxs.length <= 1) continue;
+
+        const bucketId = `condo_${k}`;
+        if (seenCondoBuckets.has(bucketId)) continue;
+        seenCondoBuckets.add(bucketId);
+
+        for (let i = 1; i < uniqueIdxs.length; i += 1) {
+          unionRemaining(uniqueIdxs[0], uniqueIdxs[i]);
+        }
+      }
+    }
+
+    const remainingBuckets = new Map<number, number[]>();
+    for (const idx of notInManual) {
+      const root = findRemaining(idx);
+      const arr = remainingBuckets.get(root) || [];
+      arr.push(idx);
+      remainingBuckets.set(root, arr);
+    }
+
+    for (const [root, idxs] of remainingBuckets.entries()) {
+      const sorted = idxs.slice().sort((a, b) => a - b);
+      if (sorted.length <= 1) {
+        pushSingle(...sorted);
+        continue;
+      }
+
+      const autoParts = new Set<string>();
+      const condoParts = new Set<string>();
+
+      for (const idx of sorted) {
+        const autoKey = autoKeyByIdx.get(idx);
+        if (autoKey) autoParts.add(autoKey);
+
+        const condoPlan = condoPlansByIdx.get(idx);
+        if (condoPlan) {
+          for (const key of condoPlan.keys) {
+            condoParts.add(`${key.kind}:${key.key}`);
+          }
+        }
+      }
+
+      let id = `single_${root}`;
+      if (condoGrouped && condoParts.size) {
+        id = `condo_${Array.from(condoParts).sort().join("__")}`;
+      } else if (autoGrouped && autoParts.size) {
+        id = `auto_${Array.from(autoParts).sort().join("__")}`;
+      }
+
+      if ((condoGrouped && id.startsWith("condo_") && condoBreakIds.has(id)) || (autoGrouped && id.startsWith("auto_") && autoBreakIds.has(id))) {
+        pushSingle(...sorted);
+        continue;
+      }
+
+      groupItems.push({ id, idxs: sorted });
     }
 
     // manual groups entram
     for (const [gid, idxs] of manualGroupBuckets.entries()) {
       const s = idxs.slice().sort((a, b) => a - b);
       if (s.length >= 2) groupItems.push({ id: gid, idxs: s });
-      else singles.push(...s);
+      else pushSingle(...s);
     }
 
     // singles
     for (const idx of singles.sort((a, b) => a - b)) {
       groupItems.push({ id: `single_${idx}`, idxs: [idx] });
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      const seenIdxs = new Map<number, string>();
+      const duplicateIdxs: number[] = [];
+
+      for (const item of groupItems) {
+        for (const idx of item.idxs) {
+          if (seenIdxs.has(idx)) {
+            duplicateIdxs.push(idx);
+            continue;
+          }
+          seenIdxs.set(idx, item.id);
+        }
+      }
+
+      const missingIdxs = allIdxs.filter((idx) => !seenIdxs.has(idx));
+      if (duplicateIdxs.length || missingIdxs.length) {
+        console.warn("[groupedRows] invariant violation", {
+          duplicateIdxs: Array.from(new Set(duplicateIdxs)),
+          missingIdxs,
+          autoGrouped,
+          condoGrouped,
+          manualGroups: Object.keys(manualGroups || {}).length,
+        });
+      }
     }
 
     // ordenar por sequence num
@@ -1402,11 +1992,11 @@ useEffect(() => {
         cep,
         lat,
         lng,
-        notes: getManualObservation(baseIdx),
+        notes: getGroupObservation(baseIdx, idxs),
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds]);
+  }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds, condoGrouped, condoBreakIds]);
 
   const overviewMapPoints = useMemo(() => {
     return groupedRows
@@ -1547,6 +2137,8 @@ useEffect(() => {
     setManualGroups({});
     setAutoGrouped(false);
     setAutoBreakIds(new Set());
+    setCondoGrouped(false);
+    setCondoBreakIds(new Set());
     setGroupMode(false);
     setSelectedIdxs(new Set());
     setIsExportOpen(false);
@@ -1636,6 +2228,8 @@ if (jobId) {
       manualGroups,
       autoGrouped,
       autoBreakIds: Array.from(autoBreakIds),
+      condoGrouped,
+      condoBreakIds: Array.from(condoBreakIds),
       name: file?.name || "Planilha sem nome",
       updatedAtMs,
     }).catch(() => {});
@@ -1652,11 +2246,8 @@ if (jobId) {
       const baseIdx = g.idxs[0];
 
       const obsBase = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
-      const obsManual = getManualObservation(baseIdx);
-      const obsInicial =
-        obsManual && !obsBase.includes(obsManual)
-          ? `${obsBase} | ${obsManual}`.trim()
-          : obsBase;
+      const obsGroup = String(g.notes || "").trim();
+      const obsInicial = obsGroup ? `${obsBase} | ${obsGroup}`.trim() : obsBase;
 
       return {
         groupId: g.id,
@@ -1675,7 +2266,7 @@ if (jobId) {
         quadra: getRowQuadra(baseIdx),
         lote: getRowLote(baseIdx),
 
-        // ✅ mantém texto base e acrescenta observação manual no final
+        // ✅ mantém texto base e acrescenta observação automática/manual no final
         complemento: obsInicial,
       };
     });
@@ -1857,6 +2448,10 @@ function toggleSelectMany(idxs: number[]) {
   setAutoBreakIds((prev) => new Set(prev).add(groupId));
   return;
 }
+    if (groupId.startsWith("condo_") && !manualGroups[groupId]) {
+      setCondoBreakIds((prev) => new Set(prev).add(groupId));
+      return;
+    }
     if (manualGroups[groupId]) {
       const next = { ...manualGroups };
       delete next[groupId];
@@ -3254,7 +3849,7 @@ useEffect(() => {
     <button
       type="button"
       data-tour="auto-group-button"
-     onClick={() => {
+      onClick={() => {
   setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
   setAutoGrouped((v) => !v);
 }}
@@ -3265,6 +3860,22 @@ useEffect(() => {
       }`}
     >
       Agrupar Paradas
+    </button>
+
+    <button
+      type="button"
+      data-tour="condo-group-button"
+      onClick={() => {
+        setCondoBreakIds(new Set());
+        setCondoGrouped((v) => !v);
+      }}
+      className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
+        condoGrouped
+          ? "border border-[#17313b] bg-[#17313b] text-white shadow-[0_14px_28px_rgba(23,49,59,0.24)]"
+          : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      Agrupar condomínios/prédios
     </button>
 
     <button
@@ -3572,7 +4183,7 @@ useEffect(() => {
                                   </button>
                                 )}
 
-                                {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_")) && (
+                                {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_") || g.id.startsWith("condo_")) && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -3801,7 +4412,7 @@ onContextMenu={(e) => {
   </label>
 )}
 
-  {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_")) && (
+  {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_") || g.id.startsWith("condo_")) && (
   <button
     type="button"
     onClick={(e) => {
