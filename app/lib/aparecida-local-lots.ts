@@ -198,6 +198,9 @@ const APARECIDA_BAIRRO_DENYLIST = new Set([
   normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "INDUSTRIAL SANTO ANTONIO"),
   normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "CONJUNTO HABITACIONAL PROGRESSO"),
   normalizeAparecidaBairroPairKey("SETOR SANTO ANDRE", "CONJUNTO PROGRESSO"),
+  normalizeAparecidaBairroPairKey("RESIDENCIAL CARAIBAS", "CRUZEIRO DO SUL"),
+  normalizeAparecidaBairroPairKey("RESIDENCIAL CARAIBAS", "MONT SERRAT"),
+  normalizeAparecidaBairroPairKey("RESIDENCIAL CARAIBAS", "ANA ROSA"),
 ]);
 
 const APARECIDA_BAIRRO_ALLOWLIST = new Set([
