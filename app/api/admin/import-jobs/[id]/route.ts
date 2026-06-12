@@ -109,10 +109,24 @@ export async function DELETE(req: Request, ctx: any) {
   const id = await getIdFromCtx(ctx);
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
+  const actorId = String((ok as any)?.id || "").trim();
+  const actorEmail = String((ok as any)?.email || "").trim().toLowerCase();
+
   const job = await prisma.importJob.findUnique({
     where: { id },
-    select: { resultPath: true },
+    select: {
+      id: true,
+      userId: true,
+      originalName: true,
+      createdAt: true,
+      status: true,
+      resultPath: true,
+    },
   });
+
+  if (!job) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   if (job?.resultPath && isManagedJobResultPath(job.resultPath)) {
     await deleteJobResult(job.resultPath).catch((error) => {
@@ -120,8 +134,31 @@ export async function DELETE(req: Request, ctx: any) {
     });
   }
 
-  await prisma.importJob.delete({
-    where: { id },
+  await prisma.$transaction(async (tx) => {
+    await tx.adminAccessLog.create({
+      data: {
+        adminId: actorId,
+        targetUserId: job.userId,
+        action: "DELETE_IMPORT_JOB",
+        metadata: {
+          actorEmail,
+          action: "DELETE_IMPORT_JOB",
+          before: {
+            jobId: job.id,
+            userId: job.userId,
+            filename: job.originalName ?? null,
+            createdAt: job.createdAt.toISOString(),
+            status: job.status,
+          },
+          after: null,
+          createdAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    await tx.importJob.delete({
+      where: { id },
+    });
   });
 
   return NextResponse.json({ ok: true });

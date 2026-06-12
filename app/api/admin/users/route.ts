@@ -9,6 +9,25 @@ import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 
+async function logAdminAction(
+  tx: any,
+  params: {
+    adminId: string;
+    targetUserId: string;
+    action: string;
+    metadata?: any;
+  }
+) {
+  await tx.adminAccessLog.create({
+    data: {
+      adminId: params.adminId,
+      targetUserId: params.targetUserId,
+      action: params.action,
+      metadata: params.metadata ?? null,
+    },
+  });
+}
+
 // ✅ LISTAR USUÁRIOS
 export async function GET() {
   try {
@@ -16,6 +35,8 @@ export async function GET() {
     if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const canSeeAdmins = isSuperAdmin(session?.user as any);
 
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -32,8 +53,12 @@ export async function GET() {
       },
     });
 
+    const visibleUsers = canSeeAdmins
+      ? users
+      : users.filter((user) => user.role !== "ADMIN");
+
     const usersWithAccess = await Promise.all(
-      users.map(async (user) => ({
+      visibleUsers.map(async (user) => ({
         ...user,
         access: await getUserAccessSnapshot(user.id),
       }))
@@ -83,23 +108,50 @@ export async function POST(req: Request) {
     }
 
     const hash = await bcrypt.hash(password, 10);
+    const actorId = String((session?.user as any)?.id || "");
+    const actorEmail = String((session?.user as any)?.email || "").trim().toLowerCase();
+    const createdAt = new Date().toISOString();
 
-    const user = await prisma.user.create({
-      data: {
-        name: name || null,
-        email,
-        password: hash,
-        role: roleReq as any,
-        active: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        active: true,
-        createdAt: true,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name: name || null,
+          email,
+          password: hash,
+          role: roleReq as any,
+          active: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          active: true,
+          createdAt: true,
+        },
+      });
+
+      await logAdminAction(tx, {
+        adminId: actorId,
+        targetUserId: createdUser.id,
+        action: "CREATE_USER",
+        metadata: {
+          actorEmail,
+          targetEmail: createdUser.email,
+          action: "CREATE_USER",
+          before: null,
+          after: {
+            id: createdUser.id,
+            email: createdUser.email,
+            name: createdUser.name ?? null,
+            role: createdUser.role,
+            active: createdUser.active,
+          },
+          createdAt,
+        },
+      });
+
+      return createdUser;
     });
 
     return NextResponse.json({ ok: true, user });

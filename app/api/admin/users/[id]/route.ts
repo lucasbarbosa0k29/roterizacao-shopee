@@ -183,18 +183,40 @@ export async function PATCH(req: Request, ctx: any) {
         );
       }
 
-      const updated = await prisma.user.update({
-        where: { id },
-        data: { active },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          active: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        const next = await tx.user.update({
+          where: { id },
+          data: { active },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            active: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        await logAdminAction(tx, {
+          adminId,
+          targetUserId: id,
+          action: active ? "ENABLE_USER" : "DISABLE_USER",
+          metadata: {
+            actorEmail: String((session?.user as any)?.email || "").trim().toLowerCase(),
+            targetEmail: targetUser.email,
+            action: active ? "ENABLE_USER" : "DISABLE_USER",
+            before: {
+              active: targetUser.active,
+            },
+            after: {
+              active: next.active,
+            },
+            createdAt: new Date().toISOString(),
+          },
+        });
+
+        return next;
       });
 
       return NextResponse.json({ ok: true, user: updated });
@@ -726,12 +748,14 @@ export async function DELETE(req: Request, ctx: any) {
     const id = await getIdFromCtx(ctx);
     if (!id) return NextResponse.json({ error: "ID invÃƒÂ¡lido" }, { status: 400 });
 
-    const myId = String((session?.user as any)?.id || "");
+    const adminId = String((session?.user as any)?.id || "");
+    const actorEmail = String((session?.user as any)?.email || "").trim().toLowerCase();
     const actorIsSuperAdmin = isSuperAdmin(session?.user as any);
     const targetUser = await prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
+        name: true,
         email: true,
         role: true,
         active: true,
@@ -741,7 +765,7 @@ export async function DELETE(req: Request, ctx: any) {
     if (!targetUser) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     }
-    if (id === myId) {
+    if (id === adminId) {
       return NextResponse.json(
         { error: "VocÃƒÂª nÃƒÂ£o pode excluir sua prÃƒÂ³pria conta ADMIN." },
         { status: 400 }
@@ -762,7 +786,30 @@ export async function DELETE(req: Request, ctx: any) {
       );
     }
 
-    await prisma.user.delete({ where: { id } });
+    const deletedAt = new Date().toISOString();
+    await prisma.$transaction(async (tx) => {
+      await logAdminAction(tx, {
+        adminId,
+        targetUserId: id,
+        action: "DELETE_USER",
+        metadata: {
+          actorEmail,
+          targetEmail: targetUser.email,
+          action: "DELETE_USER",
+          before: {
+            id: targetUser.id,
+            email: targetUser.email,
+            name: targetUser.name,
+            role: targetUser.role,
+            active: targetUser.active,
+          },
+          after: null,
+          createdAt: deletedAt,
+        },
+      });
+
+      await tx.user.delete({ where: { id } });
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
