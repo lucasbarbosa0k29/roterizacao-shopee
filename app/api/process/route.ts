@@ -279,6 +279,43 @@ function normalizeKey(text: string) {
     .trim();
 }
 
+function extractConservativeHereHouseNumber(bestRankedAddress: any, bestItem: any) {
+  const structuredCandidates = [
+    bestRankedAddress?.houseNumber,
+    bestRankedAddress?.address?.houseNumber,
+    bestRankedAddress?.address?.house_number,
+    bestRankedAddress?.address?.number,
+  ]
+    .map((value) => normalizeKey(String(value || "")))
+    .filter((value) => /^[0-9]+[A-Z]?$/.test(value));
+
+  if (structuredCandidates[0]) {
+    return { number: structuredCandidates[0], confirmed: true, source: "structured" as const };
+  }
+
+  const label = normalizeKey(
+    String(bestRankedAddress?.label || bestItem?.title || bestItem?.address?.label || ""),
+  );
+  if (!label) return { number: "", confirmed: false, source: null };
+
+  if (/\b(APTO|APT|APARTAMENTO|APART|BLOCO|TORRE|SALA)\b/.test(label)) {
+    return { number: "", confirmed: false, source: null };
+  }
+
+  const simpleMatch = label.match(
+    /^(RUA|AVENIDA|AV|ALAMEDA)\s+[^,]+,\s*([0-9]+[A-Z]?)\b(?:\s*,.*)?$/,
+  );
+  if (simpleMatch?.[2]) {
+    return {
+      number: normalizeKey(simpleMatch[2]),
+      confirmed: true,
+      source: "label_simple" as const,
+    };
+  }
+
+  return { number: "", confirmed: false, source: null };
+}
+
 type MemoryKeyCandidate = {
   key: string;
   kind: "exact" | "base" | "condo_physical" | "condo_name";
@@ -625,8 +662,10 @@ function makeBaseAddress(address: string) {
 }
 
 function isApartmentLike(s: string) {
-  const up = String(s || "").toUpperCase();
-  return /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|EDIF|EDIFICIO|EDIFÍCIO|CONDOMINIO|CONDOMÍNIO|RESIDENCIAL|ANDAR|SALA)\b/.test(up);
+  const up = normalizeKey(String(s || ""));
+  return /\b(APT|APTO|APART|APARTAMENTO|AP|BLOCO|TORRE|ED|EDIF|PREDIO|CONDOMINIO|RESIDENCIAL|ANDAR|SALA)\b/.test(
+    up,
+  );
 }
 
 // Fallback regex (quando Gemini falha)
@@ -3458,9 +3497,52 @@ if (
     }
   }
 
-  // ✅ Se for apt/prédio e já tiver coordenada, considera OK
-  if (aptLike && lat != null && lng != null) {
-    status = "OK";
+  // ✅ apt/prédio sem QD/LT só vira OK se HERE confirmar rua + número + cidade
+  if (aptLike && !hasQL && lat != null && lng != null) {
+    const hereAddress = bestItem?.address || {};
+    const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, bestItem);
+    const hereStreet = normalizeKey(
+      String(hereAddress?.street || hereAddress?.address?.street || ""),
+    );
+    const hereCity = normalizeKey(
+      String(
+        hereAddress?.city ||
+          hereAddress?.county ||
+          hereAddress?.address?.city ||
+          hereAddress?.address?.county ||
+          "",
+      ),
+    );
+    const wantStreet = normalizeKey(String(normalized.rua || ""));
+    const wantCity = normalizeKey(String(cityForDecision || ""));
+    const wantNumber = normalizeKey(String(normalized.numero || ""));
+    const hereNumber = normalizeKey(String(hereHouseNumber.number || ""));
+
+    const streetOk =
+      !!wantStreet &&
+      !!hereStreet &&
+      (hereStreet === wantStreet || hereStreet.includes(wantStreet) || wantStreet.includes(hereStreet));
+    const cityOk =
+      !!wantCity &&
+      !!hereCity &&
+      (hereCity === wantCity || hereCity.includes(wantCity) || wantCity.includes(hereCity));
+    const numberOk = !!wantNumber && !!hereNumber && wantNumber === hereNumber;
+
+    if (streetOk && numberOk && cityOk && !hereUncertain) {
+      status = "OK";
+      decisionReason = "OK_BUILDING_STREET_NUMBER";
+    } else {
+      status = "PARCIAL";
+      decisionReason = !hereHouseNumber.confirmed || !hereNumber
+        ? "BUILDING_NUMBER_UNCONFIRMED"
+        : !numberOk
+          ? "BUILDING_NUMBER_MISMATCH"
+          : !streetOk
+            ? "BUILDING_STREET_MISMATCH"
+            : !cityOk
+              ? "BUILDING_CITY_MISMATCH"
+              : "BUILDING_STREET_ONLY";
+    }
   }
 
 // ✅ Para endereços normais: se faltar algo, rebaixa para PARCIAL
@@ -3496,11 +3578,12 @@ if (conflictQL) {
     }
   }
 // 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
-  if (status === "OK") {
-    const missingCore =
-      !normalized.rua ||
-      !quadraAuto ||
-    !loteAuto ||
+if (status === "OK") {
+  const buildingValidatedOk = aptLike && !hasQL && decisionReason === "OK_BUILDING_STREET_NUMBER";
+  const missingCore =
+    !normalized.rua ||
+    (!buildingValidatedOk && !quadraAuto) ||
+    (!buildingValidatedOk && !loteAuto) ||
     lat == null ||
     lng == null;
 
