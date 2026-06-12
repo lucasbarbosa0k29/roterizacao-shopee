@@ -51,6 +51,7 @@ const PARTITION_DIR = process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR
   : path.join(process.cwd(), "app", "data", "goiania_local_first_by_bairro_v4");
 const partitionCache = new Map<string, Partition | null>();
 const BAIRRO_PREFIXES = [
+  "CONJUNTO",
   "RESIDENCIAL",
   "RES",
   "CONDOMINIO",
