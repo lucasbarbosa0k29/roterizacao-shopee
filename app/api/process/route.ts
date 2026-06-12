@@ -782,9 +782,17 @@ const QUADRA_LOTE_TOKEN =
 
 function extractQuadraLoteSmart(raw: string) {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
+  const hasApartmentNoise = /\b(BLOCO|BL|APTO|APT|APARTAMENTO)\b/.test(up);
 
   let quadra = "";
   let lote = "";
+
+  const qiMatch = up.match(
+    new RegExp(
+      String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*QI\s*0*([0-9][A-Z0-9\-]*)\b`,
+    ),
+  );
+  if (qiMatch) quadra = `QI${normalizeQLValue(qiMatch[1])}`.trim();
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
@@ -793,7 +801,12 @@ function extractQuadraLoteSmart(raw: string) {
       String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
-  if (qMatch) quadra = normalizeQLValue(qMatch[1], qMatch[2]);
+  if (qMatch) {
+    const normalizedQuadra = normalizeQLValue(qMatch[1], qMatch[2]);
+    if (!(hasApartmentNoise && normalizedQuadra.length === 1) && (!quadra || normalizedQuadra.length > quadra.length)) {
+      quadra = normalizedQuadra;
+    }
+  }
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
@@ -802,7 +815,12 @@ function extractQuadraLoteSmart(raw: string) {
       String.raw`\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
-  if (lMatch) lote = normalizeQLValue(lMatch[1], lMatch[2]);
+  if (lMatch) {
+    const normalizedLote = normalizeQLValue(lMatch[1], lMatch[2]);
+    if (!(hasApartmentNoise && normalizedLote.length === 1) && (!lote || normalizedLote.length > lote.length)) {
+      lote = normalizedLote;
+    }
+  }
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
   if (!quadra || !lote) {
@@ -864,18 +882,48 @@ function chooseAparecidaBairro(primary: string, fallback: string) {
 }
 
 function mergeAparecidaLotValue(primary: string, fallback: string, tertiary: string) {
+  const normalizeGoianiaQLValue = (value: string) => {
+    let t = String(value || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[\s\-:]+/g, "");
+
+    if (!t) return "";
+    if (/^(BL|LT|L|Q|QD|QDR|QUADRA|QUAD|LOT|LOTE|SN|SN\/|S\/N)$/.test(t)) return "";
+
+    t = t.replace(/^(?:QDR|QUADRA|QUAD|QD)(?=[A-Z0-9])/, "");
+    if (/^Q\d/.test(t)) t = t.slice(1);
+
+    if (/^(BL|LT|L|Q|QD|QDR|QUADRA|QUAD|LOT|LOTE|SN|SN\/|S\/N)$/.test(t)) return "";
+
+    return t;
+  };
+
+  const scoreGoianiaQLValue = (value: string) => {
+    const compact = String(value || "").trim().toUpperCase();
+    const bareDigits = /^\d+$/.test(compact);
+    const hasLetters = /[A-Z]/.test(compact);
+    const startsWithLetters = /^[A-Z]/.test(compact);
+
+    return (
+      (hasLetters ? 2 : 0) +
+      (startsWithLetters ? 1 : 0) +
+      (!bareDigits ? 1 : 0) +
+      compact.length / 100
+    );
+  };
+
   const values = [primary, fallback, tertiary]
-    .map((v) => String(v || "").trim())
+    .map((v) => normalizeGoianiaQLValue(v))
     .filter(Boolean);
   if (!values.length) return "";
 
   const digitKey = (v: string) => v.replace(/[^0-9]/g, "");
-  const hasSuffix = (v: string) => /^[0-9]+[A-Z]/.test(v.toUpperCase());
   let best = values[0];
 
   for (const value of values.slice(1)) {
     if (digitKey(value) !== digitKey(best)) continue;
-    if (hasSuffix(value) && !hasSuffix(best)) {
+    if (scoreGoianiaQLValue(value) > scoreGoianiaQLValue(best)) {
       best = value;
     }
   }
