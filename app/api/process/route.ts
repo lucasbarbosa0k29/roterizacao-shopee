@@ -42,6 +42,7 @@ import {
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
 } from "@/app/lib/aparecida-local-lots";
+import { buildCondoMemoryKeyPlan } from "@/app/lib/condo-memory-keys";
 import {
   lookupGoianiaLocalFirstShadow,
   type GoianiaLocalFirstShadow,
@@ -122,7 +123,7 @@ type MemoryDebugRow = {
   memoryKey: string;
   memoryBaseKey: string | null;
   memoryHit: boolean;
-  memoryHitKind: "exact" | "base" | null;
+  memoryHitKind: "exact" | "base" | "condo_physical" | "condo_name" | null;
   matchedKey: string | null;
   hereSkippedBecauseMemory: boolean;
   decisionReason: string;
@@ -276,6 +277,48 @@ function normalizeKey(text: string) {
     .replace(/[^\w\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+type MemoryKeyCandidate = {
+  key: string;
+  kind: "exact" | "base" | "condo_physical" | "condo_name";
+};
+
+function buildMemoryKeyCandidates(args: {
+  addressRaw: string;
+  cityForKey: string;
+}) {
+  const exactKey = normalizeKey(`${args.addressRaw} ${args.cityForKey}`);
+  const baseAddressRaw = makeBaseAddress(args.addressRaw);
+  const memoryBaseKey =
+    baseAddressRaw && normalizeKey(baseAddressRaw) !== normalizeKey(args.addressRaw)
+      ? normalizeKey(`${baseAddressRaw} ${args.cityForKey}`)
+      : null;
+  const condoPlan = buildCondoMemoryKeyPlan(args.addressRaw, args.cityForKey);
+
+  const candidates: MemoryKeyCandidate[] = [];
+  const seen = new Set<string>();
+  const push = (candidate: MemoryKeyCandidate) => {
+    if (!candidate.key || seen.has(candidate.key)) return;
+    seen.add(candidate.key);
+    candidates.push(candidate);
+  };
+
+  push({ key: exactKey, kind: "exact" });
+  for (const alias of condoPlan.keys) {
+    push({ key: alias.key, kind: alias.kind });
+  }
+  if (memoryBaseKey) {
+    push({ key: memoryBaseKey, kind: "base" });
+  }
+
+  return {
+    exactKey,
+    baseAddressRaw,
+    memoryBaseKey,
+    condoPlan,
+    candidates,
+  };
 }
 // REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
 const APARECIDA_BLOCKED_LOCAL_FIRST_PAIRS = new Set([
@@ -1913,18 +1956,15 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
 
   // ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva (ANTES do CONDOMINIO)
   const cityForKey = (cityIn || "").trim();
-  const memoryKey = normalizeKey(`${addressRaw} ${cityForKey}`);
-  const baseAddressRaw = makeBaseAddress(addressRaw);
-  const memoryBaseKey =
-    baseAddressRaw &&
-    normalizeKey(baseAddressRaw) !== normalizeKey(addressRaw)
-      ? normalizeKey(`${baseAddressRaw} ${cityForKey}`)
-      : null;
+  const memoryKeyPlan = buildMemoryKeyCandidates({ addressRaw, cityForKey });
+  const memoryKey = memoryKeyPlan.exactKey;
+  const memoryBaseKey = memoryKeyPlan.memoryBaseKey;
+  const condoMemoryKeyCandidates = memoryKeyPlan.candidates;
 
   await incrementDailyMetric(METRIC_MEMORY_LOOKUP_TOTAL).catch(() => {});
 
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
-  let memoryHitKind: null | "exact" | "base" = null;
+  let memoryHitKind: null | "exact" | "base" | "condo_physical" | "condo_name" = null;
   let matchedMemoryKey: string | null = null;
   let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
@@ -1959,12 +1999,7 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
   let urbanPatternBecameBestGeocodeQuery = false;
 
   try {
-    const candidates = [
-      { key: memoryKey, kind: "exact" as const },
-      ...(memoryBaseKey ? [{ key: memoryBaseKey, kind: "base" as const }] : []),
-    ];
-
-    for (const candidate of candidates) {
+    for (const candidate of condoMemoryKeyCandidates) {
       const mem = await prisma.addressMemory.findUnique({
         where: { key: candidate.key },
         select: { lat: true, lng: true, label: true },
@@ -3705,13 +3740,14 @@ const autoSaveAudit = auditAutoSaveMemory({
 
 // Memória manual tem prioridade máxima: auto-save nunca pode sobrescrever um
 // registro já confirmado pelo usuário.
+const memoryProtectionKeys = memoryKeyPlan.candidates.map((candidate) => candidate.key);
 const existingMemoryForAutoSave = autoSaveCurrentBehaviorWouldSave
-  ? await prisma.addressMemory.findUnique({
-      where: { key: memoryKey },
-      select: { createdBy: true },
+  ? await prisma.addressMemory.findMany({
+      where: { key: { in: memoryProtectionKeys } },
+      select: { key: true, createdBy: true },
     })
-  : null;
-const manualMemoryProtected = !!existingMemoryForAutoSave?.createdBy;
+  : [];
+const manualMemoryProtected = existingMemoryForAutoSave.some((row) => !!row.createdBy);
 const autoSaveDisabled = true;
 const autoSaveDisabledReason = "MANUAL_MEMORY_ONLY_MODE";
 
@@ -3729,22 +3765,26 @@ if (shouldAutoSaveAddressMemory) {
   const saveLat = lat as number;
   const saveLng = lng as number;
   try {
-    await prisma.addressMemory.upsert({
-      where: { key: memoryKey },
-      update: {
-        lat: saveLat,
-        lng: saveLng,
-        label: normalizedLine || addressRaw,
-        updatedAt: new Date(),
-      },
-      create: {
-        key: memoryKey,
-        lat: saveLat,
-        lng: saveLng,
-        label: normalizedLine || addressRaw,
-        createdBy: null,
-      },
-    });
+    await prisma.$transaction(
+      memoryProtectionKeys.map((key) =>
+        prisma.addressMemory.upsert({
+          where: { key },
+          update: {
+            lat: saveLat,
+            lng: saveLng,
+            label: normalizedLine || addressRaw,
+            updatedAt: new Date(),
+          },
+          create: {
+            key,
+            lat: saveLat,
+            lng: saveLng,
+            label: normalizedLine || addressRaw,
+            createdBy: null,
+          },
+        }),
+      ),
+    );
     await incrementDailyMetric(METRIC_MEMORY_BATCH_SAVE_OK).catch(() => {});
   } catch (e) {
     await incrementDailyMetric(METRIC_MEMORY_BATCH_SAVE_ERROR).catch(() => {});

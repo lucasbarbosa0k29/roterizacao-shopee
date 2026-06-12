@@ -9,19 +9,13 @@ import {
   METRIC_MEMORY_HIT_ONLY,
   METRIC_MEMORY_SAVE_ERROR,
 } from "@/app/lib/admin-observability";
+import {
+  buildCondoMemoryKeyPlan,
+  normalizeMemoryKey,
+} from "@/app/lib/condo-memory-keys";
 
 const MAX_ADDRESS_MEMORY_ADDRESS_CHARS = 500;
 const MAX_ADDRESS_MEMORY_CITY_CHARS = 120;
-
-function normalizeKey(text: string) {
-  return String(text || "")
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
@@ -143,7 +137,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const key = normalizeKey(`${address} ${city || ""}`);
+    const key = normalizeMemoryKey(`${address} ${city || ""}`);
+    const condoMemoryPlan = buildCondoMemoryKeyPlan(address, city);
+    const memoryKeyCandidates = [{ key, kind: "exact" as const }, ...condoMemoryPlan.keys].filter(
+      (candidate, index, self) => self.findIndex((item) => item.key === candidate.key) === index,
+    );
     saveKey = key;
     saveContext = {
       address,
@@ -162,28 +160,38 @@ export async function POST(req: Request) {
       thresholdMeters: null,
     };
 
-    const existing = await prisma.addressMemory.findUnique({
-      where: { key },
-      select: { id: true, lat: true, lng: true, label: true },
-    });
+    const existingCandidates = memoryKeyCandidates.length
+      ? await prisma.addressMemory.findMany({
+          where: { key: { in: memoryKeyCandidates.map((candidate) => candidate.key) } },
+          select: { key: true, lat: true, lng: true, label: true },
+        })
+      : [];
+    const existing =
+      existingCandidates.find((candidate) => candidate.key === key) ||
+      existingCandidates[0] ||
+      null;
 
     const THRESHOLD_METERS = 3;
     saveContext.thresholdMeters = THRESHOLD_METERS;
 
     if (!existing) {
       saveMode = "created";
-      const saved = await prisma.addressMemory.create({
-        data: {
-          key,
-          label: address,
-          lat,
-          lng,
-          createdBy,
-          hitCount: 1,
-        },
-      });
+      const saved = await prisma.$transaction(
+        memoryKeyCandidates.map((candidate) =>
+          prisma.addressMemory.create({
+            data: {
+              key: candidate.key,
+              label: address,
+              lat,
+              lng,
+              createdBy,
+              hitCount: 1,
+            },
+          }),
+        ),
+      );
       await incrementDailyMetric(METRIC_MEMORY_CREATE_OK).catch(() => {});
-      return NextResponse.json({ ok: true, mode: "created", saved });
+      return NextResponse.json({ ok: true, mode: "created", saved: saved[0] });
     }
 
     const dist = haversineMeters(
@@ -197,31 +205,55 @@ export async function POST(req: Request) {
     // coordinates are very close to the previous point.
     if (dist < THRESHOLD_METERS) {
       saveMode = "hit_only";
-      const saved = await prisma.addressMemory.update({
-        where: { key },
-        data: {
-          hitCount: { increment: 1 },
-          createdBy,
-        },
-      });
+      const saved = await prisma.$transaction(
+        memoryKeyCandidates.map((candidate) =>
+          prisma.addressMemory.upsert({
+            where: { key: candidate.key },
+            update: {
+              hitCount: { increment: 1 },
+              createdBy,
+            },
+            create: {
+              key: candidate.key,
+              label: address,
+              lat,
+              lng,
+              createdBy,
+              hitCount: 1,
+            },
+          }),
+        ),
+      );
       await incrementDailyMetric(METRIC_MEMORY_HIT_ONLY).catch(() => {});
-      return NextResponse.json({ ok: true, mode: "hit_only", meters: dist, saved });
+      return NextResponse.json({ ok: true, mode: "hit_only", meters: dist, saved: saved[0] });
     }
 
     // âœ… Se mudou de verdade, atualiza coordenada + incrementa
     saveMode = "updated";
-    const saved = await prisma.addressMemory.update({
-      where: { key },
-      data: {
-        lat,
-        lng,
-        hitCount: { increment: 1 },
-        createdBy,
-      },
-    });
+    const saved = await prisma.$transaction(
+      memoryKeyCandidates.map((candidate) =>
+        prisma.addressMemory.upsert({
+          where: { key: candidate.key },
+          update: {
+            lat,
+            lng,
+            hitCount: { increment: 1 },
+            createdBy,
+          },
+          create: {
+            key: candidate.key,
+            label: address,
+            lat,
+            lng,
+            createdBy,
+            hitCount: 1,
+          },
+        }),
+      ),
+    );
     await incrementDailyMetric(METRIC_MEMORY_UPDATE_OK).catch(() => {});
 
-    return NextResponse.json({ ok: true, mode: "updated", meters: dist, saved });
+    return NextResponse.json({ ok: true, mode: "updated", meters: dist, saved: saved[0] });
   } catch (e) {
     await incrementDailyMetric(METRIC_MEMORY_SAVE_ERROR).catch(() => {});
     const errorMessage = e instanceof Error ? e.message : String(e);
