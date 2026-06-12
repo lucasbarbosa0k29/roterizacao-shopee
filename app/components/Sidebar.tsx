@@ -123,6 +123,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     [session]
   );
   const canSeeAdministrators = isSuperAdmin(session?.user as any);
+  const canSeeSubscriptions = canSeeAdministrators;
   const canStartNewRoute = isAdmin || (!accessLoading && access?.canStartRoute === true);
   const hasActivePlan = !!access?.activeSubscription;
   const hasHistoryJob = historyCount > 0;
@@ -410,6 +411,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     {chevron}
                   </Link>
 
+                  {canSeeSubscriptions && (
                   <Link
                     href="/admin/subscriptions"
                     onClick={onClose}
@@ -429,6 +431,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     </div>
                     {chevron}
                   </Link>
+                  )}
 
                   {canSeeAdministrators && (
                     <Link

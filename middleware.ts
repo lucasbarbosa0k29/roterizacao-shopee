@@ -64,6 +64,11 @@ url.searchParams.set("callbackUrl", callbackUrl);
       return NextResponse.redirect(url);
     }
 
+    if (pathname.startsWith("/admin/subscriptions") && !isSuperAdminToken(token)) {
+      const url = new URL("/admin", req.url);
+      return NextResponse.redirect(url);
+    }
+
     if (pathname.startsWith("/admin/administrators") && !isSuperAdminToken(token)) {
       const url = new URL("/admin", req.url);
       return NextResponse.redirect(url);
@@ -74,6 +79,10 @@ url.searchParams.set("callbackUrl", callbackUrl);
   if (isAdminApi(pathname)) {
     const role = (token as any)?.role;
     if (role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (pathname.startsWith("/api/admin/subscriptions") && !isSuperAdminToken(token)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

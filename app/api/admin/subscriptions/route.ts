@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getServerSession, type Session } from "next-auth";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
+import { requireSuperAdmin } from "@/app/lib/admin-roles";
 
 export const runtime = "nodejs";
 
@@ -99,11 +100,6 @@ type FinancialSummary = {
   extraRouteRevenueCents: number;
   ticketAverageCents: number;
 };
-
-function isAdmin(session: Session | null) {
-  const role = (session?.user as any)?.role;
-  return !!session?.user && role === "ADMIN";
-}
 
 function addDays(base: Date, days: number) {
   const next = new Date(base);
@@ -514,7 +510,7 @@ async function buildFinancialSummary(): Promise<FinancialSummary> {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireSuperAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -565,7 +561,7 @@ export async function GET() {
 export async function PATCH(req: Request, ctx: any) {
   try {
     const session = await getServerSession(authOptions);
-    if (!isAdmin(session)) {
+    if (!requireSuperAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
