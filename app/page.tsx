@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import bbox from "@turf/bbox";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -415,8 +414,6 @@ const CONDO_GROUP_COMPACT_UNIT_RE =
   /\b(?:APT|APTO|APART|APARTAMENTO|AP)\s*[-:]?\s*\d+[A-Z]?\b/i;
 const CONDO_GROUP_NUMERIC_UNIT_RE =
   /\b(?:\d{3,4}\s*[-:]?\s*[A-Z]|[A-Z]\s*[-:]?\s*\d{3,4}|\d{3,4}\s+[A-Z])\b/i;
-const CONDO_GROUP_TRAILING_NUMBER_RE =
-  /\b(?:N(?:[ÂºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*[A-Z0-9\/\-]+$/;
 const CONDO_GROUP_UNIT_CODE_RE = /\b[A-Z]\s*[-]?\s*\d{3,4}[A-Z]?\b/;
 const CONDO_GROUP_NAME_STOPWORDS_RE = /\b(DO|DA|DE|DAS|DOS|DEL|DI)\b/g;
 const CONDO_GROUP_BLOCKED_HINT_RE =
@@ -1247,8 +1244,6 @@ useEffect(() => {
       if (data?.found) {
         setPickedQuadra(data.quadra ?? "");
         setPickedLote(data.lote ?? "");
-        // opcional
-        // setPickedLabel(`Quadra ${data.quadra} Lote ${data.lote}`);
       } else {
         setPickedQuadra("");
         setPickedLote("");
@@ -1880,32 +1875,6 @@ useEffect(() => {
       groupItems.push({ id: `single_${idx}`, idxs: [idx] });
     }
 
-    if (process.env.NODE_ENV !== "production") {
-      const seenIdxs = new Map<number, string>();
-      const duplicateIdxs: number[] = [];
-
-      for (const item of groupItems) {
-        for (const idx of item.idxs) {
-          if (seenIdxs.has(idx)) {
-            duplicateIdxs.push(idx);
-            continue;
-          }
-          seenIdxs.set(idx, item.id);
-        }
-      }
-
-      const missingIdxs = allIdxs.filter((idx) => !seenIdxs.has(idx));
-      if (duplicateIdxs.length || missingIdxs.length) {
-        console.warn("[groupedRows] invariant violation", {
-          duplicateIdxs: Array.from(new Set(duplicateIdxs)),
-          missingIdxs,
-          autoGrouped,
-          condoGrouped,
-          manualGroups: Object.keys(manualGroups || {}).length,
-        });
-      }
-    }
-
     // ordenar por sequence num
     function seqNumOf(i: number) {
       const v = rows[i]?.sequence;
@@ -2188,11 +2157,6 @@ if (jobId) {
 if (jobId) {
   window.history.replaceState({}, "", `/?job=${encodeURIComponent(jobId)}`);
 }
-// (opcional) pra você ver no console do navegador se veio mesmo
-if (!jobId) {
-  console.warn("⚠️ jobId não veio do /api/import. Admin não vai mostrar progresso.");
-}
-
 const resProcess = await fetch("/api/process", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -2210,15 +2174,11 @@ if (!resProcess.ok) {
 }
 
 
-      // ✅ AGORA rows vem completos (status, lat, lng, quadra, lote…)
       setRows(dataProcess.rows || []);
       setView("results");
-      // ✅ salva no histórico (expira em 24h pelo history.ts)
 
-// ✅ salva no BANCO no job atual (usa jobId local)
 if (jobId) {
   if (!Array.isArray(dataProcess?.rows) || dataProcess.rows.length === 0) {
-    console.warn("⚠️ Não salvou no histórico porque veio rows vazio do /api/process");
   } else {
     const updatedAtMs = Date.now();
     lastWorkspaceUpdatedAtRef.current = updatedAtMs;
@@ -2902,10 +2862,7 @@ if (!hasPickedLabel && !sameCoordAsRow) {
       const w = Math.floor(rect?.width || 0);
       const h = Math.floor(rect?.height || 0);
 
-      if (!w || !h) {
-        console.log("[overlay] bbox: sem tamanho", { w, h, rect });
-        return null;
-      }
+      if (!w || !h) return null;
 
       const tl = map.screenToGeo(0, 0);
       const tr = map.screenToGeo(w, 0);
@@ -2920,14 +2877,10 @@ if (!hasPickedLabel && !sameCoordAsRow) {
       const minLng = Math.min(...lngs);
       const maxLng = Math.max(...lngs);
 
-      if (![minLat, maxLat, minLng, maxLng].every(Number.isFinite)) {
-        console.log("[overlay] bbox: coords invalidas", { tl, tr, bl, br });
-        return null;
-      }
+      if (![minLat, maxLat, minLng, maxLng].every(Number.isFinite)) return null;
 
       return { minLat, maxLat, minLng, maxLng };
-    } catch (e) {
-      console.log("[overlay] bbox: erro", e);
+    } catch {
       return null;
     }
   }
@@ -3175,7 +3128,7 @@ if (!H) return;
 
 const ui = H.ui.UI.createDefault(map, layers);
 ui.removeControl("mapsettings"); // <- remove o menu que costuma buggar
-ui.getControl("mapsettings")?.setDisabled(true); // opcional: desliga menu mapa
+ui.getControl("mapsettings")?.setDisabled(true);
 
       hereMap.current = map;
 map.getViewModel().addEventListener("sync", () => {
@@ -3224,10 +3177,9 @@ setTimeout(() => map.getViewPort().resize(), 800);
     pinFromTapRef.current = true;
 
     // ❌ não chama mais reverse/quadra-lote ao clicar no mapa
-  } catch (err) {
-    console.log("[HERE TAP] erro ignorado:", err);
-  }
-};
+    } catch {
+    }
+  };
 
       map.addEventListener("tap", onTap);
       setTimeout(() => map.getViewPort().resize(), 80);
