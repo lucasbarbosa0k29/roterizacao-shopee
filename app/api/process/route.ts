@@ -1,4 +1,4 @@
-// app/api/process/route.ts
+﻿// app/api/process/route.ts
 import { NextResponse } from "next/server";
 import {
   getDiscoverBudgetDecision,
@@ -2004,114 +2004,17 @@ async function processOne(row: InputRow, baseOrigin: string, debugMemory = false
     });
   }
 
-  // ✅ regra: apartamento/edifício => NÃO BUSCAR no HERE
-  // MAS: se já existir memória, usa memória e volta OK (porque já foi confirmado antes)
   const aptLike = isApartmentLike(addressRaw);
   const hasQL = hasQuadraLoteText(addressRaw);
 
   if (aptLike && !hasQL) {
-    if (memoryHit) {
-      return {
-        sequence: row?.sequence ?? "",
-        bairro: bairroIn,
-        city: cityIn,
-        cep: cepIn,
-        original: addressRaw,
-        normalized: null,
-        normalizedLine: addressRaw,
-        status: "OK",
-        lat: memoryHit.lat,
-        lng: memoryHit.lng,
-        model: "",
-        usedGemini: false,
-        notesAuto:
-          memoryHitKind === "base"
-            ? "Condomínio/APTO (usando memória base)"
-            : "Condomínio/APTO (usando memória salva)",
-        quadraAuto: "",
-        loteAuto: "",
-        raw: null,
-        hereBest: null,
-        arcgisLotUsed: null,
-        decisionReason:
-          memoryHitKind === "base"
-            ? "MEMORY_HIT_BASE_CONDOMINIO"
-            : "MEMORY_HIT_CONDOMINIO",
-      };
-    }
-
-    return {
+    console.info("[CONDOMINIO_NO_QD_LT_CONTINUE]", {
       sequence: row?.sequence ?? "",
       bairro: bairroIn,
       city: cityIn,
-      cep: cepIn,
       original: addressRaw,
-      normalized: null,
-      normalizedLine: addressRaw,
-      status: "CONDOMINIO",
-      lat: null,
-      lng: null,
-      model: "",
-      usedGemini: false,
-      notesAuto: "Apartamento/Edifício (não buscar automático)",
-      quadraAuto: "",
-      loteAuto: "",
-      raw: null,
-      hereBest: null,
-      arcgisLotUsed: null,
-      decisionReason: "CONDOMINIO_NO_SEARCH",
-    };
-  }
-
-  // ✅ Se for apt/prédio e NÃO tiver quadra/lote, não chama HERE.
-  //    - Se tiver memória, devolve OK com lat/lng
-  //    - Se NÃO tiver memória, devolve CONDOMINIO (sem lat/lng)
-  if (aptLike && !hasQL) {
-    if (memoryHit) {
-      return {
-        sequence: row?.sequence ?? "",
-        bairro: bairroIn,
-        city: cityIn,
-        cep: cepIn,
-        original: addressRaw,
-        normalized: null,
-        normalizedLine: addressRaw,
-        status: "OK",
-        lat: memoryHit.lat,
-        lng: memoryHit.lng,
-        model: "",
-        usedGemini: false,
-        notesAuto: "Apartamento/Edifício (memória global)",
-        quadraAuto: "",
-        loteAuto: "",
-        raw: null,
-        hereBest: null,
-        arcgisLotUsed: null,
-        decisionReason: "MEMORY_HIT",
-      };
-    }
-
-    return {
-      sequence: row?.sequence ?? "",
-      bairro: bairroIn,
-      city: cityIn,
-      cep: cepIn,
-      original: addressRaw,
-      normalized: null,
-      normalizedLine: addressRaw,
-      status: "CONDOMINIO",
-      lat: null,
-      lng: null,
-      model: "",
-      usedGemini: false,
-      notesAuto: "Apartamento/Edifício (não buscar automático)",
-      quadraAuto: "",
-      loteAuto: "",
-      raw: null,
-      hereBest: null,
-      arcgisLotUsed: null,
-      decisionReason: "CONDOMINIO_NO_LOOKUP",
-    };
+      memoryHit: !!memoryHit,
+    });
   }
 
   // 1) Gemini
