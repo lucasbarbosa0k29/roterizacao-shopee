@@ -52,7 +52,7 @@ type RowItem = {
   cep?: any;
   original?: string;
   normalizedLine?: string;
-  status?: "OK" | "PARCIAL" | "NAO_ENCONTRADO";
+  status?: Status;
   lat?: number | null;
   lng?: number | null;
 
@@ -625,6 +625,13 @@ function normalizeCondoGroupNameKey(value: string) {
     .trim();
 }
 
+function getStrongCondoGroupNameKey(nameKey: string | null) {
+  if (!nameKey) return null;
+  const stripped = stripCondoGroupNoise(nameKey, { preserveStopwords: true });
+  if (!stripped) return null;
+  return normalizeCondoGroupNameKey(stripped);
+}
+
 function isStrongCondoBuildingName(name: string | null) {
   if (!name) return false;
   const normalized = stripCondoGroupNoise(name, { preserveStopwords: true });
@@ -632,6 +639,97 @@ function isStrongCondoBuildingName(name: string | null) {
 
   const tokenCount = normalized.split(" ").filter(Boolean).length;
   return tokenCount >= 1;
+}
+
+const PORTO_SONHO_CONTEXT_RE = /\b(?:PORTO\s+DOURADO|SONHO\s+DOURADO)\b/;
+const PORTO_DOURADO_EXPLICIT_RE = /\bPORTO\s+DOURADO\s*(?:1|2|3)\b/;
+const SONHO_DOURADO_EXPLICIT_RE = /\bSONHO\s+DOURADO\s*(?:1|2)\b/;
+const PORTO_DOURADO_NAME_RE = /\bPORTO\s+DOURADO\b/;
+const SONHO_DOURADO_NAME_RE = /\bSONHO\s+DOURADO\b/;
+
+function getPortoSonhoFamilyFromStreet(address: string) {
+  const segments = splitCondoGroupSegments(address);
+  const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
+  const streetName =
+    streetIndex >= 0 ? extractCondoGroupStreetName(segments[streetIndex]) : null;
+  if (!streetName) return null;
+
+  const normalizedStreet = normKey(streetName);
+  if (/\bRUA\s+72\b/.test(normalizedStreet)) return "PORTO DOURADO 3";
+  if (/\bRUA\s+76\b/.test(normalizedStreet)) return "PORTO DOURADO 2";
+  if (/\bRUA\s+82\b/.test(normalizedStreet)) return "PORTO DOURADO 1";
+  if (/\bAVENIDA\s+PORTO\s+DOURADO\b/.test(normalizedStreet)) return "PORTO DOURADO 1";
+
+  return null;
+}
+
+function buildPortoSonhoSpecialPlan(address: string, bairro: string, city: string) {
+  const normalizedCity = normKey(city);
+  if (!normalizedCity) return null;
+
+  const normalizedAddress = normKey(address);
+  const normalizedBairro = normKey(bairro);
+  const segments = splitCondoGroupSegments(address);
+  const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
+  const streetName =
+    streetIndex >= 0 ? extractCondoGroupStreetName(segments[streetIndex]) : null;
+  const normalizedStreetName = streetName ? normKey(streetName) : "";
+  const addressBody = normalizedStreetName
+    ? normalizedAddress.replace(new RegExp(`\\b${escapeRegExp(normalizedStreetName)}\\b`, "i"), " ")
+    : normalizedAddress;
+  const combined = `${addressBody} ${normalizedBairro}`.replace(/\s{2,}/g, " ").trim();
+  const hasPortoSonhoContext = PORTO_SONHO_CONTEXT_RE.test(combined);
+  if (!hasPortoSonhoContext) return null;
+
+  const explicitPorto = combined.match(PORTO_DOURADO_EXPLICIT_RE);
+  if (explicitPorto) {
+    const family = `PORTO DOURADO ${explicitPorto[0].match(/[123]$/)?.[0] || ""}`.trim();
+    if (family) {
+      const familyKey = normalizeCondoGroupNameKey(`${family} ${normalizedCity}`);
+      return {
+        shouldAttempt: true,
+        hasVerticalSignal: true,
+        hasBlockedCadastralSignal: false,
+        physicalKey: null,
+        nameKey: familyKey,
+        keys: [{ kind: "condo_name" as const, key: familyKey }],
+      };
+    }
+  }
+
+  const explicitSonho = combined.match(SONHO_DOURADO_EXPLICIT_RE);
+  if (explicitSonho) {
+    const family = `SONHO DOURADO ${explicitSonho[0].match(/[12]$/)?.[0] || ""}`.trim();
+    if (family) {
+      const familyKey = normalizeCondoGroupNameKey(`${family} ${normalizedCity}`);
+      return {
+        shouldAttempt: true,
+        hasVerticalSignal: true,
+        hasBlockedCadastralSignal: false,
+        physicalKey: null,
+        nameKey: familyKey,
+        keys: [{ kind: "condo_name" as const, key: familyKey }],
+      };
+    }
+  }
+
+  // Porto Dourado pode usar rua apenas quando há contexto textual explícito do condomínio.
+  if (PORTO_DOURADO_NAME_RE.test(combined) && !SONHO_DOURADO_NAME_RE.test(combined)) {
+    const streetFamily = getPortoSonhoFamilyFromStreet(address);
+    if (streetFamily) {
+      const familyKey = normalizeCondoGroupNameKey(`${streetFamily} ${normalizedCity}`);
+      return {
+        shouldAttempt: true,
+        hasVerticalSignal: true,
+        hasBlockedCadastralSignal: false,
+        physicalKey: null,
+        nameKey: familyKey,
+        keys: [{ kind: "condo_name" as const, key: familyKey }],
+      };
+    }
+  }
+
+  return null;
 }
 
 function buildCondoGroupPlan(address: string, city: string) {
@@ -1508,6 +1606,13 @@ useEffect(() => {
     return status;
   }
 
+  function getGroupBaseIdx(idxs: number[]) {
+    for (const idx of idxs) {
+      if (manualEdits[idx]?.confirmed || rows[idx]?.status === "CONFIRMADO") return idx;
+    }
+    return idxs[0];
+  }
+
   function getStatusBadgeClass(status: Status) {
     if (status === "CONFIRMADO" || status === "OK") {
       return "border border-emerald-300 bg-emerald-100 text-emerald-950";
@@ -1695,20 +1800,25 @@ useEffect(() => {
 
     // ✅ AGRUPAMENTO CONDOMÍNIOS / PRÉDIOS
     if (condoGrouped) {
-      const condoPhysicalHintCounts = new Map<string, Map<string, number>>();
-      const condoStreetHintCounts = new Map<string, Map<string, number>>();
-      const condoBucketsByKey = new Map<string, number[]>();
+    const condoPhysicalHintCounts = new Map<string, Map<string, number>>();
+    const condoStreetHintCounts = new Map<string, Map<string, number>>();
+    const condoBucketsByKey = new Map<string, number[]>();
 
       for (const idx of notInManual) {
         const addr = getShownAddress(idx);
         const city = String(rows[idx]?.city || "");
-        const plan = buildCondoGroupPlan(addr, city);
+        const bairro = String(rows[idx]?.bairro || "");
+        const specialPlan = buildPortoSonhoSpecialPlan(addr, bairro, city);
+        const hasPortoSonhoContext = PORTO_SONHO_CONTEXT_RE.test(
+          `${normKey(addr)} ${normKey(bairro)}`.replace(/\s{2,}/g, " ").trim(),
+        );
+        const plan = specialPlan || (!hasPortoSonhoContext ? buildCondoGroupPlan(addr, city) : null);
         if (!plan?.shouldAttempt) continue;
 
         condoPlansByIdx.set(idx, plan);
 
-        const normalizedNameKey = plan.nameKey ? normalizeCondoGroupNameKey(plan.nameKey) : null;
-        if (normalizedNameKey && isStrongCondoBuildingName(plan.nameKey)) {
+        const normalizedNameKey = getStrongCondoGroupNameKey(plan.nameKey || null);
+        if (normalizedNameKey) {
           const physicalHintKey = plan.physicalKey ? normalizeCondoGroupNameKey(plan.physicalKey) : null;
           if (physicalHintKey) {
             const bucket = condoPhysicalHintCounts.get(physicalHintKey) || new Map<string, number>();
@@ -1754,7 +1864,11 @@ useEffect(() => {
       for (const idx of notInManual) {
         const addr = getShownAddress(idx);
         const city = String(rows[idx]?.city || "");
-        let plan = condoPlansByIdx.get(idx) || buildCondoGroupPlan(addr, city);
+        const bairro = String(rows[idx]?.bairro || "");
+        let plan =
+          condoPlansByIdx.get(idx) ||
+          buildPortoSonhoSpecialPlan(addr, bairro, city) ||
+          buildCondoGroupPlan(addr, city);
         if (!plan?.shouldAttempt || !plan.keys.length) continue;
 
         const planHasStrongName = !!plan.nameKey && isStrongCondoBuildingName(plan.nameKey);
@@ -1850,7 +1964,7 @@ useEffect(() => {
 
       let id = `single_${root}`;
       if (condoGrouped && condoParts.size) {
-        id = `condo_${Array.from(condoParts).sort().join("__")}`;
+        id = `condo_component:${sorted[0]}:${sorted.join("_")}`;
       } else if (autoGrouped && autoParts.size) {
         id = `auto_${Array.from(autoParts).sort().join("__")}`;
       }
@@ -1895,7 +2009,7 @@ useEffect(() => {
         .filter(Boolean);
       const sequenceText = seqs.join(", ");
 
-      const baseIdx = idxs[0];
+      const baseIdx = getGroupBaseIdx(idxs);
 
       // ✅ lista de endereços no grupo (se diferirem)
       const addrList = idxs
@@ -1978,7 +2092,7 @@ useEffect(() => {
       )
       .map((g) => ({
         id: g.id,
-        baseIdx: g.idxs[0],
+        baseIdx: getGroupBaseIdx(g.idxs),
         sequenceText: g.sequenceText,
         address: g.addressForExport,
         status: g.status,
@@ -2203,7 +2317,7 @@ if (jobId) {
   // ===== Export review =====
   function openExportReview() {
     const draft: ExportDraftRow[] = groupedRows.map((g) => {
-      const baseIdx = g.idxs[0];
+      const baseIdx = getGroupBaseIdx(g.idxs);
 
       const obsBase = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
       const obsGroup = String(g.notes || "").trim();
@@ -2521,7 +2635,7 @@ function clearReview(groupId: string) {
       for (const idx of args.idxsToApply) {
         const r = next[idx];
         if (!r) continue;
-        next[idx] = { ...r, lat: args.coord.lat, lng: args.coord.lng, status: "OK" };
+        next[idx] = { ...r, lat: args.coord.lat, lng: args.coord.lng, status: "CONFIRMADO" };
       }
       return next;
     });
@@ -4028,7 +4142,7 @@ useEffect(() => {
              <div className="md:hidden mt-3 space-y-3">
 {groupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
-                        const baseIdx = g.idxs[0];
+                        const baseIdx = getGroupBaseIdx(g.idxs);
                         const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
                         const hasReview = g.idxs.some((i) => !!manualEdits[i]?.review);
 
@@ -4272,7 +4386,7 @@ useEffect(() => {
                     <tbody>
 {groupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
-                        const baseIdx = g.idxs[0];
+                        const baseIdx = getGroupBaseIdx(g.idxs);
                         const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
 
                         // ✅ se qualquer item do grupo estiver em revisão, destaca a linha inteira
