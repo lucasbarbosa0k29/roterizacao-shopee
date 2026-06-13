@@ -1117,6 +1117,8 @@ setHistoryId(job.id);
   const [autoBreakIds, setAutoBreakIds] = useState<Set<string>>(new Set());
   const [condoGrouped, setCondoGrouped] = useState(false);
   const [condoBreakIds, setCondoBreakIds] = useState<Set<string>>(new Set());
+  const [groupItemExclusions, setGroupItemExclusions] = useState<Record<string, number[]>>({});
+  const [groupConferenceGroupId, setGroupConferenceGroupId] = useState<string | null>(null);
 
   // modo agrupar manual (selecionar)
   const [groupMode, setGroupMode] = useState(false);
@@ -1137,11 +1139,13 @@ setHistoryId(job.id);
     setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
     setCondoGrouped(!!p?.condoGrouped);
     setCondoBreakIds(new Set(p?.condoBreakIds ?? []));
+    setGroupItemExclusions(p?.groupItemExclusions ?? {});
 
     if (!options?.preserveEphemeral) {
       setGroupMode(false);
       setSelectedIdxs(new Set());
       setView("results");
+      setGroupConferenceGroupId(null);
     }
 
     setHistoryName(
@@ -1275,9 +1279,10 @@ if (!rows || rows.length === 0) return;
    autoBreakIds: Array.from(autoBreakIds),
    condoGrouped,
    condoBreakIds: Array.from(condoBreakIds),
+   groupItemExclusions,
    name: historyName || file?.name || "Planilha",
    updatedAtMs,
- }).catch(() => {});
+  }).catch(() => {});
 }, 1500);
 
   return () => clearTimeout(t);
@@ -1290,6 +1295,7 @@ if (!rows || rows.length === 0) return;
   autoBreakIds,
   condoGrouped,
   condoBreakIds,
+  groupItemExclusions,
   file,
   historyName,
 ]);
@@ -1679,6 +1685,56 @@ useEffect(() => {
     if (manual) return manual;
     if (idxs.length >= 4) return `${idxs.length} PACOTES`;
     return "";
+  }
+
+  function getGroupItemExclusionSet(groupId: string) {
+    return new Set((groupItemExclusions[groupId] || []).map((idx) => Number(idx)));
+  }
+
+  function excludeItemFromGroup(groupId: string, idx: number) {
+    setGroupItemExclusions((prev) => {
+      const current = new Set((prev[groupId] || []).map((item) => Number(item)));
+      if (current.has(idx)) return prev;
+      current.add(idx);
+      return {
+        ...prev,
+        [groupId]: Array.from(current).sort((a, b) => a - b),
+      };
+    });
+  }
+
+  function restoreItemToGroup(groupId: string, idx: number) {
+    setGroupItemExclusions((prev) => {
+      const current = (prev[groupId] || []).map((item) => Number(item)).filter((item) => Number.isFinite(item));
+      if (!current.includes(idx)) return prev;
+
+      const next = current.filter((item) => item !== idx);
+      if (next.length === 0) {
+        const { [groupId]: _removed, ...rest } = prev;
+        return rest;
+      }
+
+      return {
+        ...prev,
+        [groupId]: next.sort((a, b) => a - b),
+      };
+    });
+  }
+
+  function clearGroupItemExclusionsByPrefix(prefix: "auto_" | "condo_") {
+    setGroupItemExclusions((prev) => {
+      const nextEntries = Object.entries(prev).filter(([groupId]) => !groupId.startsWith(prefix));
+      if (nextEntries.length === Object.keys(prev).length) return prev;
+      return Object.fromEntries(nextEntries);
+    });
+  }
+
+  function openGroupConference(groupId: string) {
+    setGroupConferenceGroupId(groupId);
+  }
+
+  function closeGroupConference() {
+    setGroupConferenceGroupId(null);
   }
 
   function openNotesEditor(idx: number) {
@@ -2118,8 +2174,169 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds, condoGrouped, condoBreakIds]);
 
+  const visibleGroupedRows: GroupedRow[] = useMemo(() => {
+    function seqNumOf(i: number) {
+      const v = rows[i]?.sequence;
+      const n = Number(String(v ?? "").replace(/[^\d]/g, ""));
+      return Number.isFinite(n) ? n : i + 1;
+    }
+
+    const excludedByGroup = new Map<string, Set<number>>();
+    for (const [groupId, idxs] of Object.entries(groupItemExclusions)) {
+      excludedByGroup.set(
+        groupId,
+        new Set((idxs || []).map((idx) => Number(idx)).filter((idx) => Number.isFinite(idx)))
+      );
+    }
+
+    const items: Array<GroupedRow & { sortOrder: number; displayKey: string }> = [];
+
+    function buildSingleRow(
+      idx: number,
+      displayKey: string
+    ): GroupedRow & { sortOrder: number; displayKey: string } {
+      const sequenceText = String(rows[idx]?.sequence ?? "").trim();
+      const status = getRowStatus(idx);
+      const address = String(getShownAddress(idx) || "").trim();
+      const city = String(rows[idx]?.city || "");
+      const bairro = String(rows[idx]?.bairro || "");
+      const cep =
+        String(rows[idx]?.cep || "") ||
+        extractCepFromText(address) ||
+        extractCepFromText(String(rows[idx]?.original || ""));
+      const manual = manualEdits[idx];
+      const lat = typeof manual?.lat === "number" ? manual.lat : rows[idx]?.lat ?? null;
+      const lng = typeof manual?.lng === "number" ? manual.lng : rows[idx]?.lng ?? null;
+
+      return {
+        id: displayKey,
+        idxs: [idx],
+        sequenceText,
+        status,
+        statusLabel: getVisualStatusLabel(status, [idx]),
+        addressDisplay: <div className="font-medium">{address}</div>,
+        addressForExport: getExportAddress(idx),
+        bairro,
+        city,
+        cep,
+        lat,
+        lng,
+        notes: getGroupObservation(idx, [idx]),
+        sortOrder: seqNumOf(idx),
+        displayKey,
+      };
+    }
+
+    function buildGroupRow(
+      source: GroupedRow,
+      idxs: number[],
+      displayKey: string
+    ): GroupedRow & { sortOrder: number; displayKey: string } {
+      const seqs = idxs
+        .map((i) => String(rows[i]?.sequence ?? "").trim())
+        .filter(Boolean);
+      const sequenceText = seqs.join(", ");
+      const baseIdx = getGroupBaseIdx(idxs);
+
+      const addrList = idxs
+        .map((i) => String(getShownAddress(i) || "").trim())
+        .filter(Boolean);
+      const distinct = Array.from(new Set(addrList));
+
+      const addressDisplay =
+        distinct.length <= 1 ? (
+          <div className="font-medium">{distinct[0] || ""}</div>
+        ) : (
+          <div className="space-y-1">
+            {distinct.slice(0, 3).map((a, k) => (
+              <div key={k} className="text-sm">
+                • {a}
+              </div>
+            ))}
+            {distinct.length > 3 && (
+              <div className="text-xs text-slate-600">
+                + {distinct.length - 3} variações…
+              </div>
+            )}
+          </div>
+        );
+
+      const addressForExport = getExportAddress(baseIdx);
+      const bairro = String(rows[baseIdx]?.bairro || "");
+      const city = String(rows[baseIdx]?.city || "");
+      const cep =
+        String(rows[baseIdx]?.cep || "") ||
+        extractCepFromText(addressForExport) ||
+        extractCepFromText(String(rows[baseIdx]?.original || ""));
+
+      const m = manualEdits[baseIdx];
+      const lat = typeof m?.lat === "number" ? m.lat : rows[baseIdx]?.lat ?? null;
+      const lng = typeof m?.lng === "number" ? m.lng : rows[baseIdx]?.lng ?? null;
+      const statuses = idxs.map(getRowStatus);
+      const status: Status = statuses.includes("CONFIRMADO")
+        ? "CONFIRMADO"
+        : statuses.includes("MANUAL")
+          ? "MANUAL"
+          : statuses.includes("OK")
+            ? "OK"
+            : statuses.includes("PARCIAL")
+              ? "PARCIAL"
+              : "NAO_ENCONTRADO";
+
+      return {
+        ...source,
+        id: displayKey,
+        idxs,
+        sequenceText,
+        status,
+        statusLabel: getVisualStatusLabel(status, idxs),
+        addressDisplay,
+        addressForExport,
+        bairro,
+        city,
+        cep,
+        lat,
+        lng,
+        notes: getGroupObservation(baseIdx, idxs),
+        sortOrder: Math.min(...idxs.map(seqNumOf)),
+        displayKey,
+      };
+    }
+
+    for (const g of groupedRows) {
+      const exclusionSet = excludedByGroup.get(g.id);
+      if (!exclusionSet || exclusionSet.size === 0) {
+        items.push({
+          ...g,
+          sortOrder: Math.min(...g.idxs.map(seqNumOf)),
+          displayKey: g.id,
+        });
+        continue;
+      }
+
+      const kept = g.idxs.filter((idx) => !exclusionSet.has(idx));
+      const removed = g.idxs.filter((idx) => exclusionSet.has(idx));
+
+      if (kept.length > 1) {
+        items.push(buildGroupRow(g, kept, g.id));
+      } else if (kept.length === 1) {
+        items.push(buildSingleRow(kept[0], `single_${kept[0]}`));
+      }
+
+      for (const idx of removed) {
+        items.push(buildSingleRow(idx, `removed_${g.id}_${idx}`));
+      }
+    }
+
+    items.sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.displayKey.localeCompare(b.displayKey)
+    );
+
+    return items.map(({ sortOrder, displayKey, ...row }) => row);
+  }, [rows, manualEdits, groupedRows, groupItemExclusions]);
+
   const overviewMapPoints = useMemo(() => {
-    return groupedRows
+    return visibleGroupedRows
       .filter(
         (g) =>
           typeof g.lat === "number" &&
@@ -2137,11 +2354,11 @@ useEffect(() => {
         lat: g.lat as number,
         lng: g.lng as number,
       }));
-  }, [groupedRows]);
+  }, [visibleGroupedRows]);
 
   const exportSummary = useMemo(() => {
     const summary = {
-      total: groupedRows.length,
+      total: visibleGroupedRows.length,
       ok: 0,
       partial: 0,
       manual: 0,
@@ -2149,7 +2366,7 @@ useEffect(() => {
       grouped: 0,
     };
 
-    for (const group of groupedRows) {
+    for (const group of visibleGroupedRows) {
       if (group.idxs.length > 1) summary.grouped += 1;
 
       if (group.status === "CONFIRMADO" || group.status === "OK") summary.ok += 1;
@@ -2159,7 +2376,7 @@ useEffect(() => {
     }
 
     return summary;
-  }, [groupedRows]);
+  }, [visibleGroupedRows]);
 
   const summaryPercent = (value: number) =>
     exportSummary.total ? (value / exportSummary.total) * 100 : 0;
@@ -2180,12 +2397,20 @@ useEffect(() => {
 
   const overviewSelectedGroup = useMemo(() => {
     if (!overviewSelectedGroupId) return null;
-    return groupedRows.find((group) => group.id === overviewSelectedGroupId) || null;
-  }, [groupedRows, overviewSelectedGroupId]);
+    return visibleGroupedRows.find((group) => group.id === overviewSelectedGroupId) || null;
+  }, [visibleGroupedRows, overviewSelectedGroupId]);
   const contextTargetGroup = useMemo(() => {
     if (!ctx.groupId) return null;
-    return groupedRows.find((group) => group.id === ctx.groupId) || null;
-  }, [ctx.groupId, groupedRows]);
+    return visibleGroupedRows.find((group) => group.id === ctx.groupId) || null;
+  }, [ctx.groupId, visibleGroupedRows]);
+  const conferenceGroup = useMemo(() => {
+    if (!groupConferenceGroupId) return null;
+    return groupedRows.find((group) => group.id === groupConferenceGroupId) || null;
+  }, [groupedRows, groupConferenceGroupId]);
+  const conferenceExcludedIdxs = useMemo(() => {
+    if (!groupConferenceGroupId) return new Set<number>();
+    return getGroupItemExclusionSet(groupConferenceGroupId);
+  }, [groupConferenceGroupId, groupItemExclusions]);
 
   useEffect(() => {
     overviewSelectedPointRef.current = overviewSelectedPoint
@@ -2259,10 +2484,12 @@ useEffect(() => {
     setAutoBreakIds(new Set());
     setCondoGrouped(false);
     setCondoBreakIds(new Set());
+    setGroupItemExclusions({});
     setGroupMode(false);
     setSelectedIdxs(new Set());
     setIsExportOpen(false);
     setExportDraft([]);
+    setGroupConferenceGroupId(null);
     setJobProgress(null);
     setHistoryName(file.name);
 
@@ -2341,6 +2568,7 @@ if (jobId) {
       autoBreakIds: Array.from(autoBreakIds),
       condoGrouped,
       condoBreakIds: Array.from(condoBreakIds),
+      groupItemExclusions,
       name: file?.name || "Planilha sem nome",
       updatedAtMs,
     }).catch(() => {});
@@ -2353,7 +2581,7 @@ if (jobId) {
 
   // ===== Export review =====
   function openExportReview() {
-    const draft: ExportDraftRow[] = groupedRows.map((g) => {
+    const draft: ExportDraftRow[] = visibleGroupedRows.map((g) => {
       const baseIdx = getGroupBaseIdx(g.idxs);
 
       const obsBase = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
@@ -3954,7 +4182,10 @@ useEffect(() => {
       type="button"
       data-tour="auto-group-button"
       onClick={() => {
-  setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
+  if (autoGrouped) {
+    setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
+    clearGroupItemExclusionsByPrefix("auto_");
+  }
   setAutoGrouped((v) => !v);
 }}
       className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
@@ -3970,7 +4201,10 @@ useEffect(() => {
       type="button"
       data-tour="condo-group-button"
       onClick={() => {
-        setCondoBreakIds(new Set());
+        if (condoGrouped) {
+          setCondoBreakIds(new Set());
+          clearGroupItemExclusionsByPrefix("condo_");
+        }
         setCondoGrouped((v) => !v);
       }}
       className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
@@ -4177,8 +4411,8 @@ useEffect(() => {
     </div>
   </div>
             </div>
-             <div className="md:hidden mt-3 space-y-3">
-{groupedRows.map((g) => {
+              <div className="md:hidden mt-3 space-y-3">
+{visibleGroupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
                         const baseIdx = getGroupBaseIdx(g.idxs);
                         const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
@@ -4301,6 +4535,22 @@ useEffect(() => {
                                     <span className="text-xl leading-none font-medium">+</span>
                                   </button>
                                 )}
+
+                                {!groupMode && isGrouped && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openGroupConference(g.id);
+                                    }}
+                                    data-tour="group-review-button"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                                    title="Conferir grupo"
+                                    >
+                                    Ver itens
+                                  </button>
+                                )}
+
                               </div>
                             </div>
 
@@ -4383,8 +4633,8 @@ useEffect(() => {
         Tabela consolidada para revisão operacional
       </div>
     </div>
-    <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-      {groupedRows.length} linhas
+      <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+      {visibleGroupedRows.length} linhas
     </div>
   </div>
   <div className="w-full overflow-x-auto">
@@ -4421,7 +4671,7 @@ useEffect(() => {
      
 
                     <tbody>
-{groupedRows.map((g) => {
+{visibleGroupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
                         const baseIdx = getGroupBaseIdx(g.idxs);
                         const idxsToToggle = isGrouped ? g.idxs : [baseIdx];
@@ -4514,10 +4764,10 @@ onContextMenu={(e) => {
   </label>
 )}
 
-  {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_") || g.id.startsWith("condo_")) && (
-  <button
-    type="button"
-    onClick={(e) => {
+                                {!groupMode && isGrouped && (g.id.startsWith("manual_") || g.id.startsWith("auto_") || g.id.startsWith("condo_")) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
   e.stopPropagation();
   if (!groupMode) setGroupMode(true);
 
@@ -4529,11 +4779,27 @@ onContextMenu={(e) => {
   setSelectedIdxs(new Set(g.idxs));
 }}
     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
-    title="Adicionar mais linhas neste grupo"
-  >
+                                    title="Adicionar mais linhas neste grupo"
+                                  >
  <span className="text-xl leading-none font-medium">+</span>
-  </button>
-)}
+                                  </button>
+                                )}
+
+                                {!groupMode && isGrouped && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openGroupConference(g.id);
+                                    }}
+                                    data-tour="group-review-button"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                                    title="Conferir grupo"
+                                  >
+                                    Ver itens
+                                  </button>
+                                )}
+
                               </div>
                             </td>
                             <td className="px-3 md:px-4 py-4 align-top">
@@ -4693,6 +4959,144 @@ onContextMenu={(e) => {
     </button>
   </div>
 )}
+              {/* Conferência de grupo */}
+              {groupConferenceGroupId && conferenceGroup && (
+                <div className="fixed inset-0 z-[9998] flex items-stretch justify-center bg-[#0f172a]/55 p-2 backdrop-blur-sm md:items-center md:p-4">
+                  <div className="flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:h-auto md:max-h-[90vh] md:rounded-[34px]">
+                    <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#17313b_0%,#1f5a6b_100%)] px-5 py-5 text-white">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                            Conferir grupo
+                          </div>
+                          <div className="mt-1 text-xl font-bold tracking-tight text-white">
+                            {conferenceGroup.sequenceText}
+                          </div>
+                          <div className="mt-1 text-sm text-white/75">
+                            {conferenceGroup.idxs.length} itens originais
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={closeGroupConference}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-lg text-white/75 transition hover:bg-white/14 hover:text-white"
+                          title="Fechar"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
+                      <div className="grid gap-3">
+                        <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                          <div className="text-xs text-slate-600">
+                            Itens excluídos ficam fora desta visualização e podem ser restaurados.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!groupConferenceGroupId) return;
+                              setGroupItemExclusions((prev) => {
+                                if (!prev[groupConferenceGroupId]) return prev;
+                                const next = { ...prev };
+                                delete next[groupConferenceGroupId];
+                                return next;
+                              });
+                            }}
+                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
+                          >
+                            Limpar removidos deste grupo
+                          </button>
+                        </div>
+                        {conferenceGroup.idxs.map((idx) => {
+                          const isExcluded = conferenceExcludedIdxs.has(idx);
+                          const addressShown = getShownAddress(idx);
+                          const addressOriginal = String(rows[idx]?.original || "");
+                          const status = getRowStatus(idx);
+                          const notes = getManualObservation(idx);
+
+                          return (
+                            <div
+                              key={`${conferenceGroup.id}_${idx}`}
+                              className={`rounded-[22px] border p-4 shadow-sm ${
+                                isExcluded
+                                  ? "border-slate-200 bg-slate-50/80 opacity-80"
+                                  : "border-slate-200 bg-white"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                                      Seq {String(rows[idx]?.sequence ?? "")}
+                                    </span>
+                                    <span
+                                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(status)}`}
+                                    >
+                                      {getVisualStatusLabel(status, [idx])}
+                                    </span>
+                                    {isExcluded && (
+                                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                                        Removido
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-3 space-y-1 text-sm text-slate-900">
+                                    <div className="break-words">
+                                      <span className="font-semibold text-slate-600">Mostrado:</span>{" "}
+                                      {addressShown || "--"}
+                                    </div>
+                                    <div className="break-words">
+                                      <span className="font-semibold text-slate-600">Original:</span>{" "}
+                                      {addressOriginal || "--"}
+                                    </div>
+                                    <div className="break-words text-xs text-slate-600">
+                                      <span className="font-semibold">Bairro:</span>{" "}
+                                      {String(rows[idx]?.bairro || "--")}
+                                    </div>
+                                    <div className="break-words text-xs text-slate-600">
+                                      <span className="font-semibold">Cidade:</span>{" "}
+                                      {String(rows[idx]?.city || "--")}
+                                    </div>
+                                    {notes && (
+                                      <div className="break-words text-xs text-slate-600">
+                                        <span className="font-semibold">Observação:</span> {notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isExcluded) {
+                                      restoreItemToGroup(conferenceGroup.id, idx);
+                                    } else {
+                                      excludeItemFromGroup(conferenceGroup.id, idx);
+                                    }
+                                  }}
+                                  className={`inline-flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
+                                    isExcluded
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:-translate-y-0.5 hover:bg-emerald-100"
+                                      : "border-rose-200 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100"
+                                  }`}
+                                  title={isExcluded ? "Voltar ao grupo" : "Remover do grupo"}
+                                >
+                                  {isExcluded ? "Voltar ao grupo" : "Remover"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Export review modal */}
               {isExportOpen && (
                 <div className="fixed inset-0 z-[9998] flex items-stretch justify-center bg-[#0f172a]/55 p-2 backdrop-blur-sm md:items-center md:p-4">
