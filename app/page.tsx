@@ -647,6 +647,19 @@ const SONHO_DOURADO_EXPLICIT_RE = /\bSONHO\s+DOURADO\s*(?:1|2)\b/;
 const PORTO_DOURADO_NAME_RE = /\bPORTO\s+DOURADO\b/;
 const SONHO_DOURADO_NAME_RE = /\bSONHO\s+DOURADO\b/;
 
+function extractPortoSonhoFamilyLabel(value: string | null | undefined) {
+  const normalized = normKey(String(value || ""));
+  if (!normalized) return null;
+
+  const porto = normalized.match(/\bPORTO\s+DOURADO\s*(1|2|3)\b/);
+  if (porto?.[1]) return `PORTO DOURADO ${porto[1]}`;
+
+  const sonho = normalized.match(/\bSONHO\s+DOURADO\s*(1|2)\b/);
+  if (sonho?.[1]) return `SONHO DOURADO ${sonho[1]}`;
+
+  return null;
+}
+
 function getPortoSonhoFamilyFromStreet(address: string) {
   const segments = splitCondoGroupSegments(address);
   const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
@@ -663,10 +676,15 @@ function getPortoSonhoFamilyFromStreet(address: string) {
   return null;
 }
 
-function buildPortoSonhoSpecialPlan(address: string, bairro: string, city: string) {
+function buildPortoSonhoSpecialPlan(
+  address: string,
+  bairro: string,
+  city: string,
+) {
   const normalizedCity = normKey(city);
   if (!normalizedCity) return null;
 
+  const memoryPlan = buildCondoMemoryKeyPlan(address, city);
   const normalizedAddress = normKey(address);
   const normalizedBairro = normKey(bairro);
   const segments = splitCondoGroupSegments(address);
@@ -679,7 +697,23 @@ function buildPortoSonhoSpecialPlan(address: string, bairro: string, city: strin
     : normalizedAddress;
   const combined = `${addressBody} ${normalizedBairro}`.replace(/\s{2,}/g, " ").trim();
   const hasPortoSonhoContext = PORTO_SONHO_CONTEXT_RE.test(combined);
-  if (!hasPortoSonhoContext) return null;
+  const memoryFamily = extractPortoSonhoFamilyLabel(memoryPlan.nameKey);
+  const bairroFamily = extractPortoSonhoFamilyLabel(bairro);
+  const explicitFamily = extractPortoSonhoFamilyLabel(combined);
+  const identifiedFamily = memoryFamily || bairroFamily || explicitFamily;
+  if (!hasPortoSonhoContext && !identifiedFamily) return null;
+
+  if (identifiedFamily) {
+    const familyKey = normalizeCondoGroupNameKey(`${identifiedFamily} ${normalizedCity}`);
+    return {
+      shouldAttempt: true,
+      hasVerticalSignal: true,
+      hasBlockedCadastralSignal: false,
+      physicalKey: null,
+      nameKey: familyKey,
+      keys: [{ kind: "condo_name" as const, key: familyKey }],
+    };
+  }
 
   const explicitPorto = combined.match(PORTO_DOURADO_EXPLICIT_RE);
   if (explicitPorto) {
@@ -728,7 +762,6 @@ function buildPortoSonhoSpecialPlan(address: string, bairro: string, city: strin
       };
     }
   }
-
   return null;
 }
 
@@ -1865,10 +1898,14 @@ useEffect(() => {
         const addr = getShownAddress(idx);
         const city = String(rows[idx]?.city || "");
         const bairro = String(rows[idx]?.bairro || "");
+        const specialPlan = buildPortoSonhoSpecialPlan(addr, bairro, city);
+        const hasPortoSonhoContext = PORTO_SONHO_CONTEXT_RE.test(
+          `${normKey(addr)} ${normKey(bairro)}`.replace(/\s{2,}/g, " ").trim(),
+        );
         let plan =
           condoPlansByIdx.get(idx) ||
-          buildPortoSonhoSpecialPlan(addr, bairro, city) ||
-          buildCondoGroupPlan(addr, city);
+          specialPlan ||
+          (!hasPortoSonhoContext ? buildCondoGroupPlan(addr, city) : null);
         if (!plan?.shouldAttempt || !plan.keys.length) continue;
 
         const planHasStrongName = !!plan.nameKey && isStrongCondoBuildingName(plan.nameKey);
@@ -2532,7 +2569,8 @@ function toggleSelectMany(idxs: number[]) {
       setManualGroups(next);
     }
   }
-function signalReview(groupId: string) {
+
+  function signalReview(groupId: string) {
   const g = groupedRows.find((x) => x.id === groupId)
   if (!g) return
 
@@ -4232,11 +4270,10 @@ useEffect(() => {
                                   </button>
                                 )}
 
-
                                 {!groupMode && !isGrouped && (
-                                  <button
-                                    type="button"
-                                    onClick={() => enterGroupModeWithFirst(baseIdx)}
+                                    <button
+                                      type="button"
+                                      onClick={() => enterGroupModeWithFirst(baseIdx)}
                                     data-tour="mobile-stop-group-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Agrupar paradas"
@@ -4448,11 +4485,10 @@ onContextMenu={(e) => {
   </button>
 )}
 
-
-                               {!groupMode && !isGrouped && (
-                                   <button
-                                     type="button"
-                                     onClick={() => enterGroupModeWithFirst(baseIdx)}
+                                {!groupMode && !isGrouped && (
+                                     <button
+                                       type="button"
+                                       onClick={() => enterGroupModeWithFirst(baseIdx)}
                                    data-tour="manual-group-button"
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Agrupar paradas"
@@ -4600,9 +4636,9 @@ onContextMenu={(e) => {
         >
           Unificar
         </button>
-      </div>
-    </div>
-  </div>
+                   </div>
+                 </div>
+               </div>
           )} 
 
               {/* Context menu */}
