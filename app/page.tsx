@@ -34,6 +34,11 @@ const GoianiaArcgisMap = dynamic(
   { ssr: false }
 );
 
+const TrindadeArcgisMap = dynamic(
+  () => import("./components/TrindadeArcgisMap"),
+  { ssr: false }
+);
+
 const GoogleValidationMap = dynamic(
   () => import("./components/GoogleValidationMap"),
   { ssr: false }
@@ -41,7 +46,18 @@ const GoogleValidationMap = dynamic(
 
 type ManualMapProvider = "here" | "arcgis" | "google";
 type PrimaryManualMapProvider = "here" | "arcgis";
-type ArcgisCityKey = "aparecida" | "goiania";
+type ArcgisCityKey = "aparecida" | "goiania" | "trindade";
+type TrindadeManualPick = {
+  lat: number;
+  lng: number;
+  label: string;
+  quadra: string;
+  lote: string;
+  bairro: string;
+  logradouro: string;
+  loteamento: string;
+  address: string;
+};
 
 type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "REVISAO";
 
@@ -1356,6 +1372,7 @@ if (rows.length > 0 && jobProgress?.status === "DONE") return;
   const [pickedCep, setPickedCep] = useState("");
   const [pickedQuadra, setPickedQuadra] = useState("");
   const [pickedLote, setPickedLote] = useState("");
+  const [trindadeManualPick, setTrindadeManualPick] = useState<TrindadeManualPick | null>(null);
   const [googleSearchQuery, setGoogleSearchQuery] = useState("");
   const [googleSearchRequestId, setGoogleSearchRequestId] = useState(0);
   const [googleSearchLoading, setGoogleSearchLoading] = useState(false);
@@ -1435,6 +1452,7 @@ useEffect(() => {
 
   function getArcgisCityKey(v: any): ArcgisCityKey | null {
     const s = normalizeCityName(v);
+    if (s.includes("TRINDADE")) return "trindade";
     if (s.includes("APARECIDA")) return "aparecida";
     if (s.includes("GOIANIA")) return "goiania";
     return null;
@@ -1442,6 +1460,7 @@ useEffect(() => {
 
   function getInitialManualMapProvider(city: any): ManualMapProvider {
     const cityKey = getArcgisCityKey(city);
+    if (cityKey === "trindade") return "arcgis";
     if (isAparecidaCity(city)) return "arcgis";
     if (lastPrimaryManualMapProvider === "arcgis" && cityKey) return "arcgis";
     return "here";
@@ -1500,7 +1519,7 @@ useEffect(() => {
   const arcgisAvailable =
     isModalOpen &&
     !!arcgisCityKey &&
-    (arcgisCityKey === "aparecida" || arcgisCityKey === "goiania");
+    (arcgisCityKey === "aparecida" || arcgisCityKey === "goiania" || arcgisCityKey === "trindade");
 
   const activeMapProvider: ManualMapProvider =
     manualMapProvider === "google"
@@ -2844,6 +2863,7 @@ function clearReview(groupId: string) {
     setPickedCep("");
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
+    setTrindadeManualPick(null);
     setManualMapProvider(getInitialManualMapProvider(rows[idx]?.city));
     const manual = manualEdits[idx];
     const baseLat = manual?.lat ?? rows[idx]?.lat ?? null;
@@ -2868,6 +2888,7 @@ function clearReview(groupId: string) {
   function closeManualModal() {
     setIsModalOpen(false);
     setModalIdx(null);
+    setTrindadeManualPick(null);
     setSuggestOpen(false);
     setSuggestItems([]);
     setSuggestActive(-1);
@@ -2881,6 +2902,7 @@ function clearReview(groupId: string) {
     idxsToApply: number[];
     coord: { lat: number; lng: number };
     afterConfirm?: () => void;
+    manualEditPatch?: Partial<ManualEdit>;
   }) {
     setManualEdits((prev) => {
       const next = { ...prev };
@@ -2888,6 +2910,7 @@ function clearReview(groupId: string) {
         const current = prev[idx] || {};
         next[idx] = {
           ...current,
+          ...(args.manualEditPatch || {}),
           lat: args.coord.lat,
           lng: args.coord.lng,
           confirmed: true,
@@ -3004,6 +3027,7 @@ function clearReview(groupId: string) {
     coord: { lat: number; lng: number };
     groupId?: string | null;
     afterConfirm?: () => void;
+    manualEditPatch?: Partial<ManualEdit>;
   }) {
     const targetGroup =
       (args.groupId ? groupedRows.find((g) => g.id === args.groupId) : null) ||
@@ -3016,14 +3040,17 @@ function clearReview(groupId: string) {
       idxsToApply,
       coord: args.coord,
       afterConfirm: args.afterConfirm,
+      manualEditPatch: args.manualEditPatch,
     });
   }
 
-async function confirmManualModal() {
+  async function confirmManualModal() {
     if (modalIdx == null) return;
 
     // ✅ coord final: se não mexeu no pino, usa a coord atual da linha
     const row = rows[modalIdx];
+    const rowCity = String(row?.city || "").trim();
+    const isTrindadeManual = getArcgisCityKey(rowCity) === "trindade";
     const coord =
       pinLatLng && typeof pinLatLng.lat === "number" && typeof pinLatLng.lng === "number"
         ? pinLatLng
@@ -3032,36 +3059,56 @@ async function confirmManualModal() {
           : null;
 
     if (!coord) {
-  alert("Selecione uma coordenada válida no mapa.");
-  return;
-}
-
-const rowCity = String(row?.city || "").trim();
-const sameCoordAsRow =
-  typeof row?.lat === "number" &&
-  typeof row?.lng === "number" &&
-  Number(row.lat).toFixed(6) === Number(coord.lat).toFixed(6) &&
-  Number(row.lng).toFixed(6) === Number(coord.lng).toFixed(6);
-const hasPickedLabel = !!String(pickedLabel || "").trim();
-
-// ✅ dispara em segundo plano, sem travar o confirmar
-if (isAparecidaCity(rowCity)) {
-  fetchQuadraLote(coord.lat, coord.lng).catch(() => {});
-}
-
-if (!hasPickedLabel && !sameCoordAsRow) {
-  reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
-}
+      alert("Selecione uma coordenada válida no mapa.");
+      return;
+    }
 
     if (typeof window !== "undefined" && tutorialMapStartedRef.current) {
       window.localStorage.setItem(TUTORIAL_MAP_CONFIRMED_KEY, "true");
       setTutorialExportFinalRequestedAt(Date.now());
     }
 
+    if (isTrindadeManual) {
+      const draft = trindadeManualPick;
+      const address = String(draft?.address || draft?.label || pickedLabel || modalValue || modalOriginal || "")
+        .trim();
+      const quadra = String(draft?.quadra || pickedQuadra || "").trim();
+      const lote = String(draft?.lote || pickedLote || "").trim();
+
+      await applyConfirmedCoordToGroup({
+        baseIdx: modalIdx,
+        coord,
+        afterConfirm: closeManualModal,
+        manualEditPatch: {
+          address: address || undefined,
+          quadra: quadra || undefined,
+          lote: lote || undefined,
+        },
+      });
+
+      return;
+    }
+
+    const sameCoordAsRow =
+      typeof row?.lat === "number" &&
+      typeof row?.lng === "number" &&
+      Number(row.lat).toFixed(6) === Number(coord.lat).toFixed(6) &&
+      Number(row.lng).toFixed(6) === Number(coord.lng).toFixed(6);
+    const hasPickedLabel = !!String(pickedLabel || "").trim();
+
+    // ✅ dispara em segundo plano, sem travar o confirmar
+    if (isAparecidaCity(rowCity)) {
+      fetchQuadraLote(coord.lat, coord.lng).catch(() => {});
+    }
+
+    if (!hasPickedLabel && !sameCoordAsRow) {
+      reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
+    }
+
      await applyConfirmedCoordToGroup({
-       baseIdx: modalIdx,
-       coord,
-       afterConfirm: closeManualModal,
+        baseIdx: modalIdx,
+        coord,
+        afterConfirm: closeManualModal,
     });
   }
 
@@ -5525,6 +5572,37 @@ onContextMenu={(e) => {
             onPick={({ lat, lng }) => {
               setPinLatLng({ lat, lng });
               setPickedLabel("");
+            }}
+          />
+        ) : activeMapProvider === "arcgis" && arcgisCityKey === "trindade" ? (
+          <TrindadeArcgisMap
+            mode="manual"
+            showChrome={false}
+            center={pinLatLng}
+            focusRequest={{
+              lat: pinLatLng?.lat ?? null,
+              lng: pinLatLng?.lng ?? null,
+              address: modalValue || modalOriginal || "",
+              bairro: String(rows?.[modalIdx ?? 0]?.bairro || ""),
+              quadra: String(getRowQuadra(modalIdx ?? 0) || ""),
+              lote: String(getRowLote(modalIdx ?? 0) || ""),
+              loteamento: String((rows?.[modalIdx ?? 0] as any)?.loteamento || ""),
+              logradouro: String(
+                (rows?.[modalIdx ?? 0] as any)?.logradouro ||
+                  (rows?.[modalIdx ?? 0] as any)?.rua ||
+                  "",
+              ),
+              city: String(modalCity || ""),
+            }}
+            onPick={({ lat, lng }) => {
+              setPinLatLng({ lat, lng });
+            }}
+            onPickDetails={(details) => {
+              setTrindadeManualPick(details);
+              setPickedLabel(details.address || details.label || "");
+              setPickedCep("");
+              setPickedQuadra(details.quadraDisplay || details.quadra || "");
+              setPickedLote(details.loteDisplay || details.lote || "");
             }}
           />
         ) : activeMapProvider === "arcgis" && arcgisCityKey === "goiania" ? (
