@@ -82,6 +82,18 @@ function isMemoryHitRow(row: any) {
   return reason.startsWith("MEMORY");
 }
 
+function getTrindadeOriginLabel(row: any) {
+  if (
+    row?.source === "LOCALFIRST_TRINDADE" ||
+    row?.matchType === "LOCALFIRST_TRINDADE" ||
+    row?.localFirstTrindadeUsedAsFinal === true
+  ) {
+    return "LocalFirst Trindade";
+  }
+
+  return String(row?.decisionReason || "");
+}
+
 export default function AdminJobPage() {
   const params = useParams();
   const router = useRouter();
@@ -556,7 +568,7 @@ export default function AdminJobPage() {
                     <td className="py-2 pr-3 whitespace-nowrap">{r.lat ?? ""}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{r.lng ?? ""}</td>
                     <td className="py-2 pr-3 min-w-[240px]">{r.notesAuto ?? ""}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">{r.decisionReason ?? ""}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">{getTrindadeOriginLabel(r)}</td>
                   </tr>
                 ))}
               </tbody>

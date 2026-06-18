@@ -1699,6 +1699,11 @@ useEffect(() => {
     return String(manualEdits[i]?.notes || "").trim();
   }
 
+  function isCoordinateLikeText(value: string) {
+    const text = String(value || "").trim();
+    return /^-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/.test(text);
+  }
+
   function getGroupObservation(baseIdx: number, idxs: number[]) {
     const manual = getManualObservation(baseIdx);
     if (manual) return manual;
@@ -3070,8 +3075,11 @@ function clearReview(groupId: string) {
 
     if (isTrindadeManual) {
       const draft = trindadeManualPick;
-      const address = String(draft?.address || draft?.label || pickedLabel || modalValue || modalOriginal || "")
-        .trim();
+      const draftAddress = String(draft?.address || "").trim();
+      const textualAddress = String(modalValue || modalOriginal || pickedLabel || "").trim();
+      const address = String(
+        draftAddress && !isCoordinateLikeText(draftAddress) ? draftAddress : textualAddress,
+      ).trim();
       const quadra = String(draft?.quadra || pickedQuadra || "").trim();
       const lote = String(draft?.lote || pickedLote || "").trim();
 
