@@ -17,14 +17,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+const metadataBase =
+  appUrl && /^https?:\/\//i.test(appUrl) ? new URL(appUrl) : null;
+
 export const metadata: Metadata = {
+  ...(metadataBase ? { metadataBase } : {}),
   title: "Rotta",
   description: "Rotta — sistema de roteirização",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#17313b",
 };
 
 export default function RootLayout({
