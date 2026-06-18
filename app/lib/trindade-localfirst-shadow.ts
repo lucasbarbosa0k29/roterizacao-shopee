@@ -1160,12 +1160,25 @@ function buildStreetBairroResolution(
 }
 
 function buildPromotionSimulation(
-  matchType: TrindadeShadowMatchType,
-  streetBairroResolution: TrindadeStreetBairroResolution | null | undefined,
+  input: {
+    matchType: TrindadeShadowMatchType;
+    matchedLayer: TrindadeShadowResult["matchedLayer"];
+    streetBairroResolution: TrindadeStreetBairroResolution | null | undefined;
+    comparisonResult?: TrindadeShadowComparison | null;
+  },
 ): TrindadePromotionSimulation {
-  const fromMatchType = matchType;
+  const fromMatchType = input.matchType;
+  const isStrongStreetBairro = input.streetBairroResolution?.level === "STRONG_STREET_BAIRRO";
+  const hasUniqueCandidate = !!input.streetBairroResolution?.uniqueCandidate;
+  const isOperationalLotLayer = input.matchedLayer === "lotes";
+  const hasSafeComparison = input.comparisonResult !== "DIFF_CONFLICT";
   const eligible =
-    matchType === "MATCH_FALLBACK" && streetBairroResolution?.level === "STRONG_STREET_BAIRRO";
+    (input.matchType === "MATCH_FALLBACK" && isStrongStreetBairro) ||
+    (input.matchType === "MATCH_MEDIO" &&
+      isOperationalLotLayer &&
+      isStrongStreetBairro &&
+      hasUniqueCandidate &&
+      hasSafeComparison);
 
   return {
     eligible,
@@ -1173,12 +1186,24 @@ function buildPromotionSimulation(
     promotedTo: eligible ? "MATCH_RUA_BAIRRO" : null,
     fromMatchType,
     reason: eligible
-      ? "strong_street_bairro_shadow_promotion"
-      : matchType === "MATCH_FALLBACK"
-        ? streetBairroResolution?.level === "NONE"
+      ? input.matchType === "MATCH_MEDIO"
+        ? "strong_lote_match_medio_promotion"
+        : "strong_street_bairro_shadow_promotion"
+      : input.matchType === "MATCH_FALLBACK"
+        ? input.streetBairroResolution?.level === "NONE"
           ? "no_street_bairro_resolution"
           : "street_bairro_resolution_not_strong"
-      : "current_match_type_not_eligible",
+        : input.matchType === "MATCH_MEDIO"
+          ? !isOperationalLotLayer
+            ? "unsafe_match_layer"
+            : !isStrongStreetBairro
+              ? "street_bairro_resolution_not_strong"
+              : !hasUniqueCandidate
+                ? "multiple_candidates"
+                : !hasSafeComparison
+                  ? "diff_conflict"
+                  : "current_match_type_not_eligible"
+          : "current_match_type_not_eligible",
   };
 }
 
@@ -1373,7 +1398,10 @@ function buildSafetyGate(
     (input.streetBairroResolution?.candidatesCount || 0) === 1 &&
     input.comparisonResult !== "DIFF_CONFLICT" &&
     (input.matchedLayer === "logradouros" || input.matchedLayer === "lotes") &&
-    input.promotionSimulation?.reason === "strong_street_bairro_shadow_promotion";
+    [
+      "strong_street_bairro_shadow_promotion",
+      "strong_lote_match_medio_promotion",
+    ].includes(String(input.promotionSimulation?.reason || ""));
 
   return {
     pass,
@@ -1512,7 +1540,12 @@ export async function runTrindadeLocalFirstShadow(
     notes.push("resolved street without reliable bairro");
     candidate = buildCandidateFromRecord(logradouro.record, "logradouros", logradouro.reason);
   } else {
-    const promotionSimulation = buildPromotionSimulation("SKIPPED", streetBairroResolution);
+    const promotionSimulation = buildPromotionSimulation({
+      matchType: "SKIPPED",
+      matchedLayer: null,
+      streetBairroResolution,
+      comparisonResult: "NO_LOCAL_CANDIDATE",
+    });
     const shadowConfidence = buildShadowConfidence("SKIPPED", flags, streetBairroResolution, normalized);
     const decisionSimulation = buildDecisionSimulation({
       cityDetected: true,
@@ -1567,9 +1600,7 @@ export async function runTrindadeLocalFirstShadow(
   }
 
   const confidence = makeConfidence(matchType, flags);
-  const promotionSimulation = buildPromotionSimulation(matchType, streetBairroResolution);
-  const shadowConfidence = buildShadowConfidence(matchType, flags, streetBairroResolution, normalized);
-  const shadow: TrindadeShadowResult = {
+  const shadowForComparison: TrindadeShadowResult = {
     enabled: true,
     cityDetected: true,
     skipped: false,
@@ -1587,11 +1618,11 @@ export async function runTrindadeLocalFirstShadow(
     notes,
     candidate,
     streetBairroResolution,
-    promotionSimulation,
-    shadowConfidence,
+    promotionSimulation: null,
+    shadowConfidence: null,
   };
 
-  const comparison = compareTrindadeShadowWithCurrent(shadow, input.currentResult || null);
+  const comparison = compareTrindadeShadowWithCurrent(shadowForComparison, input.currentResult || null);
   const comparisonDetails: TrindadeShadowComparisonDetails = {
     currentStatus: input.currentResult?.status ?? null,
     currentSource: input.currentResult?.source ?? null,
@@ -1599,6 +1630,18 @@ export async function runTrindadeLocalFirstShadow(
     currentLng: Number.isFinite(Number(input.currentResult?.lng)) ? Number(input.currentResult?.lng) : null,
     currentMatchedKey: input.currentResult?.matchedKey ?? null,
     comparisonResult: comparison.comparisonResult,
+  };
+  const promotionSimulation = buildPromotionSimulation({
+    matchType,
+    matchedLayer,
+    streetBairroResolution,
+    comparisonResult: comparison.comparisonResult,
+  });
+  const shadowConfidence = buildShadowConfidence(matchType, flags, streetBairroResolution, normalized);
+  const shadow: TrindadeShadowResult = {
+    ...shadowForComparison,
+    promotionSimulation,
+    shadowConfidence,
   };
   shadow.conflictWithHere = comparison.conflictWithHere;
   shadow.comparisonResult = comparison.comparisonResult;
