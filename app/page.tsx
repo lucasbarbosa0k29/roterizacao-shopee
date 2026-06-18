@@ -1514,7 +1514,7 @@ useEffect(() => {
 
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
   const arcgisCityKey = getArcgisCityKey(modalCity);
-  const forceArcgisOnly = isModalOpen && (isAparecidaCity(modalCity) || arcgisCityKey === "trindade");
+  const forceArcgisOnly = isModalOpen && isAparecidaCity(modalCity);
   const showProviderToggle = isModalOpen;
   const arcgisAvailable =
     isModalOpen &&
