@@ -1727,24 +1727,6 @@ useEffect(() => {
     });
   }
 
-  function restoreItemToGroup(groupId: string, idx: number) {
-    setGroupItemExclusions((prev) => {
-      const current = (prev[groupId] || []).map((item) => Number(item)).filter((item) => Number.isFinite(item));
-      if (!current.includes(idx)) return prev;
-
-      const next = current.filter((item) => item !== idx);
-      if (next.length === 0) {
-        const { [groupId]: _removed, ...rest } = prev;
-        return rest;
-      }
-
-      return {
-        ...prev,
-        [groupId]: next.sort((a, b) => a - b),
-      };
-    });
-  }
-
   function clearGroupItemExclusionsByPrefix(prefix: "auto_" | "condo_") {
     setGroupItemExclusions((prev) => {
       const nextEntries = Object.entries(prev).filter(([groupId]) => !groupId.startsWith(prefix));
@@ -2429,12 +2411,12 @@ useEffect(() => {
   }, [ctx.groupId, visibleGroupedRows]);
   const conferenceGroup = useMemo(() => {
     if (!groupConferenceGroupId) return null;
-    return groupedRows.find((group) => group.id === groupConferenceGroupId) || null;
-  }, [groupedRows, groupConferenceGroupId]);
-  const conferenceExcludedIdxs = useMemo(() => {
-    if (!groupConferenceGroupId) return new Set<number>();
-    return getGroupItemExclusionSet(groupConferenceGroupId);
-  }, [groupConferenceGroupId, groupItemExclusions]);
+    return visibleGroupedRows.find((group) => group.id === groupConferenceGroupId) || null;
+  }, [groupConferenceGroupId, visibleGroupedRows]);
+
+  function getVisibleGroupById(groupId: string) {
+    return visibleGroupedRows.find((group) => group.id === groupId) || null;
+  }
 
   useEffect(() => {
     overviewSelectedPointRef.current = overviewSelectedPoint
@@ -2485,7 +2467,7 @@ useEffect(() => {
   }
 
   function openNotesEditorForGroup(groupId: string) {
-    const group = groupedRows.find((g) => g.id === groupId);
+    const group = getVisibleGroupById(groupId);
     if (!group) return;
 
     openNotesEditor(group.idxs[0]);
@@ -2765,14 +2747,14 @@ function toggleSelectMany(idxs: number[]) {
   };
 
   // ✅ Se você clicou em "Adicionar mais linhas neste grupo"
-  if (mergeTargetGroupId) {
-    const target = mergeTargetGroupId;
+    if (mergeTargetGroupId) {
+      const target = mergeTargetGroupId;
 
-    // se o grupo alvo veio do auto_ e ainda não existe nos manuais, materializa ele
-    if (!nextGroups[target]) {
-      const autoGroup = groupedRows.find((g) => g.id === target);
-      nextGroups[target] = autoGroup ? autoGroup.idxs.slice() : [];
-    }
+      // se o grupo alvo veio do auto_ e ainda não existe nos manuais, materializa ele
+      if (!nextGroups[target]) {
+        const autoGroup = visibleGroupedRows.find((g) => g.id === target);
+        nextGroups[target] = autoGroup ? autoGroup.idxs.slice() : [];
+      }
 
     for (const idxx of idxs) {
       removeFromAllGroups(idxx);
@@ -2823,7 +2805,7 @@ function toggleSelectMany(idxs: number[]) {
   }
 
   function signalReview(groupId: string) {
-  const g = groupedRows.find((x) => x.id === groupId)
+  const g = getVisibleGroupById(groupId)
   if (!g) return
 
   setManualEdits((prev) => {
@@ -2837,7 +2819,7 @@ function toggleSelectMany(idxs: number[]) {
 }
 
 function clearReview(groupId: string) {
-  const g = groupedRows.find((x) => x.id === groupId)
+  const g = getVisibleGroupById(groupId)
   if (!g) return
 
   setManualEdits((prev) => {
@@ -3035,8 +3017,8 @@ function clearReview(groupId: string) {
     manualEditPatch?: Partial<ManualEdit>;
   }) {
     const targetGroup =
-      (args.groupId ? groupedRows.find((g) => g.id === args.groupId) : null) ||
-      groupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
+      (args.groupId ? getVisibleGroupById(args.groupId) : null) ||
+      visibleGroupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
       null;
 
     const idxsToApply = targetGroup?.idxs?.length ? targetGroup.idxs : [args.baseIdx];
@@ -5044,28 +5026,7 @@ onContextMenu={(e) => {
 
                     <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 md:px-6 md:py-5">
                       <div className="grid gap-3">
-                        <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                          <div className="text-xs text-slate-600">
-                            Itens excluídos ficam fora desta visualização e podem ser restaurados.
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!groupConferenceGroupId) return;
-                              setGroupItemExclusions((prev) => {
-                                if (!prev[groupConferenceGroupId]) return prev;
-                                const next = { ...prev };
-                                delete next[groupConferenceGroupId];
-                                return next;
-                              });
-                            }}
-                            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
-                          >
-                            Limpar removidos deste grupo
-                          </button>
-                        </div>
                         {conferenceGroup.idxs.map((idx) => {
-                          const isExcluded = conferenceExcludedIdxs.has(idx);
                           const addressShown = getShownAddress(idx);
                           const addressOriginal = String(rows[idx]?.original || "");
                           const status = getRowStatus(idx);
@@ -5074,11 +5035,7 @@ onContextMenu={(e) => {
                           return (
                             <div
                               key={`${conferenceGroup.id}_${idx}`}
-                              className={`rounded-[22px] border p-4 shadow-sm ${
-                                isExcluded
-                                  ? "border-slate-200 bg-slate-50/80 opacity-80"
-                                  : "border-slate-200 bg-white"
-                              }`}
+                              className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -5091,11 +5048,6 @@ onContextMenu={(e) => {
                                     >
                                       {getVisualStatusLabel(status, [idx])}
                                     </span>
-                                    {isExcluded && (
-                                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                                        Removido
-                                      </span>
-                                    )}
                                   </div>
 
                                   <div className="mt-3 space-y-1 text-sm text-slate-900">
@@ -5121,27 +5073,19 @@ onContextMenu={(e) => {
                                       </div>
                                     )}
                                   </div>
-                                </div>
 
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isExcluded) {
-                                      restoreItemToGroup(conferenceGroup.id, idx);
-                                    } else {
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       excludeItemFromGroup(conferenceGroup.id, idx);
-                                    }
-                                  }}
-                                  className={`inline-flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-semibold shadow-sm transition ${
-                                    isExcluded
-                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:-translate-y-0.5 hover:bg-emerald-100"
-                                      : "border-rose-200 bg-rose-50 text-rose-700 hover:-translate-y-0.5 hover:bg-rose-100"
-                                  }`}
-                                  title={isExcluded ? "Voltar ao grupo" : "Remover do grupo"}
-                                >
-                                  {isExcluded ? "Voltar ao grupo" : "Remover"}
-                                </button>
+                                    }}
+                                    className="mt-3 inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-100"
+                                    title="Remover do grupo"
+                                  >
+                                    Remover
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );
