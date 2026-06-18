@@ -1460,7 +1460,7 @@ useEffect(() => {
 
   function getInitialManualMapProvider(city: any): ManualMapProvider {
     const cityKey = getArcgisCityKey(city);
-    if (cityKey === "trindade") return "arcgis";
+    if (cityKey === "trindade" || cityKey === "goiania") return "arcgis";
     if (isAparecidaCity(city)) return "arcgis";
     if (lastPrimaryManualMapProvider === "arcgis" && cityKey) return "arcgis";
     return "here";
