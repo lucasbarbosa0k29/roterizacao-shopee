@@ -136,6 +136,8 @@ export type TrindadeShadowResult = {
     key: string;
     layer: string;
     reason: string;
+    lat?: number | null;
+    lng?: number | null;
   } | null;
   streetBairroResolution?: TrindadeStreetBairroResolution | null;
   promotionSimulation?: TrindadePromotionSimulation | null;

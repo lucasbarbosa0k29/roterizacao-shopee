@@ -1,13 +1,14 @@
 # Trindade QD/LT Final Safety
 
 ## Scope
-- The change is limited to `app/lib/trindade-localfirst-shadow.ts`.
+- The change is limited to `app/lib/trindade-localfirst-shadow.ts`, `app/lib/trindade-shadow-types.ts`, and the controlled Trindade hook in `app/api/process/route.ts`.
 - The QD/LT lookup uses the unique `bairro + quadra + lote` bucket before the logradouro fallback.
 - The fallback to logradouro remains intact for residual cases.
+- The production switch is gated by `ROTTA_TRINDADE_LOCALFIRST_DECISION=1`, so the default behavior stays unchanged.
 
 ## Safety Checks
 1. Trindade-only scope
-- The code touched is inside the Trindade LocalFirst helper only.
+- The code touched is inside the Trindade LocalFirst helper plus the Trindade-only decision hook in the API route.
 - No other city helper or manual map file was changed by this adjustment.
 
 2. Unique bucket rule
@@ -38,6 +39,7 @@
 - `node scripts/test-trindade-shadow-on-xlsx.mjs` passed.
 - `npm.cmd run build` passed.
 - `npx.cmd eslint app/lib/trindade-localfirst-shadow.ts` passed.
+- `npx.cmd eslint app/api/process/route.ts` still reports the repo baseline warnings/errors unrelated to this change.
 - `npx.cmd tsc --noEmit` passed.
 
 ## Final Numbers
@@ -50,6 +52,7 @@
 - SKIPPED: 10
 - exact QD/LT resolved by bairro+quadra+lote: 367
 - exact QD/LT still on logradouro: 0
+- controlled production route change remains gated off by default unless `ROTTA_TRINDADE_LOCALFIRST_DECISION=1`
 
 ## Remaining Risk
 - The only remaining risk is the usual fallback risk for non-QD/LT rows.

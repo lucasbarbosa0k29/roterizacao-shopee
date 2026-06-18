@@ -4092,6 +4092,218 @@ if (shouldAutoSaveAddressMemory) {
       }
     : {};
 
+  const trindadeShadowEnabled = process.env.ROTTA_TRINDADE_LOCALFIRST_SHADOW === "1";
+  const trindadeLocalFirstDecisionEnabled = process.env.ROTTA_TRINDADE_LOCALFIRST_DECISION === "1";
+  let trindadeShadowAudit: Record<string, unknown> | null = null;
+  let trindadeLocalFirstUsedAsFinal = false;
+  let trindadeLocalFirstAppliedReason: string | null = null;
+  if (trindadeShadowEnabled && normalizeKey(cityForDecision || "").includes("TRINDADE")) {
+    const trindadeCurrentResultForShadow = {
+      source: memoryHit
+        ? "MEMORY"
+        : localFirstGoianiaUsedAsFinal
+          ? "LOCALFIRST_GOIANIA"
+          : finalRankedKind === "discover"
+            ? "HERE_DISCOVER"
+            : "HERE_GEOCODE",
+      lat,
+      lng,
+      matchedKey: matchedMemoryKey || null,
+      matchType: memoryHit
+        ? "MEMORY"
+        : localFirstGoianiaUsedAsFinal
+          ? "LOCALFIRST_GOIANIA"
+          : finalRankedKind === "discover"
+            ? "HERE_DISCOVER"
+            : "HERE_GEOCODE",
+      confidence: geocodeConfidenceDiag.confidence,
+      status,
+    };
+
+    try {
+        const trindadeShadow = await import("@/app/lib/trindade-localfirst-shadow");
+        const trindadeShadowInput = trindadeShadow.normalizeTrindadeInput({
+        city: cityForDecision || cityIn || "",
+        bairro: String(bairroIn || "").trim() || bairroAuto || "",
+        rua: normalized.rua || "",
+        cdbairro: normalized.bairro || bairroIn || "",
+        cdlogradouro: normalized.rua || "",
+        nmlogradouro: normalized.rua || "",
+        tipologradouro: "",
+        quadra: normalized.quadra || quadraAuto || "",
+        lote: normalized.lote || loteAuto || "",
+        loteamento: "",
+        cdloteamento: "",
+        cdquadra: normalized.quadra || quadraAuto || "",
+        cdlote: normalized.lote || loteAuto || "",
+        rawAddress: addressRaw,
+        cep: normalized.cep || cepIn || "",
+        currentResult: trindadeCurrentResultForShadow,
+      });
+
+      if (trindadeShadow.isTrindadeCandidate(trindadeShadowInput)) {
+        const shadow = await trindadeShadow.runTrindadeLocalFirstShadow(trindadeShadowInput);
+        const comparison = trindadeShadow.compareTrindadeShadowWithCurrent(
+          shadow,
+          trindadeCurrentResultForShadow,
+        );
+        const trindadeLocalFirstCandidate = shadow.candidate;
+        const trindadeLocalFirstCanApply =
+          trindadeLocalFirstDecisionEnabled &&
+          shadow.cityDetected &&
+          shadow.localFirstFound &&
+          shadow.safetyGate?.pass === true &&
+          shadow.decisionSimulation?.riskLevel === "LOW" &&
+          shadow.promotionSimulation?.eligible === true &&
+          shadow.streetBairroResolution?.level === "STRONG_STREET_BAIRRO" &&
+          (shadow.streetBairroResolution?.candidatesCount || 0) === 1 &&
+          shadow.matchedLayer === "lotes" &&
+          shadow.comparisonResult !== "DIFF_CONFLICT" &&
+          Number.isFinite(Number(trindadeLocalFirstCandidate?.lat)) &&
+          Number.isFinite(Number(trindadeLocalFirstCandidate?.lng));
+        if (trindadeLocalFirstCanApply && trindadeLocalFirstCandidate) {
+          lat = Number(trindadeLocalFirstCandidate.lat);
+          lng = Number(trindadeLocalFirstCandidate.lng);
+          trindadeLocalFirstUsedAsFinal = true;
+          trindadeLocalFirstAppliedReason = "safety_gate_pass_v1";
+        }
+        const comparisonPayload = {
+          currentStatus: trindadeCurrentResultForShadow.status ?? null,
+          currentSource: trindadeCurrentResultForShadow.source ?? null,
+          currentLat: Number.isFinite(Number(trindadeCurrentResultForShadow.lat))
+            ? Number(trindadeCurrentResultForShadow.lat)
+            : null,
+          currentLng: Number.isFinite(Number(trindadeCurrentResultForShadow.lng))
+            ? Number(trindadeCurrentResultForShadow.lng)
+            : null,
+          currentMatchedKey: trindadeCurrentResultForShadow.matchedKey ?? null,
+          comparisonResult: comparison.comparisonResult,
+        };
+
+        trindadeShadowAudit = {
+          enabled: true,
+          cityDetected: shadow.cityDetected,
+          skipped: shadow.skipped,
+          localFirstFound: shadow.localFirstFound,
+          candidate: shadow.candidate || null,
+          matchType: shadow.matchType,
+          confidence: shadow.confidence,
+          matchedKey: shadow.matchedKey,
+          matchedLayer: shadow.matchedLayer,
+          fallbackUsed: shadow.fallbackUsed,
+          conflictWithHere: shadow.conflictWithHere || comparison.conflictWithHere,
+          comparisonResult: comparison.comparisonResult,
+          comparison: shadow.comparison || comparisonPayload,
+          reason: shadow.reason || shadow.notes[0] || comparison.comparisonResult,
+          flags: shadow.flags,
+          notes: [...shadow.notes, ...comparison.notes],
+          streetBairroResolution: shadow.streetBairroResolution || null,
+          promotionSimulation: shadow.promotionSimulation || null,
+          shadowConfidence: shadow.shadowConfidence || null,
+          decisionSimulation: shadow.decisionSimulation || null,
+          safetyGate: shadow.safetyGate || null,
+          localFirstAppliedAsFinal: trindadeLocalFirstUsedAsFinal,
+          localFirstAppliedReason: trindadeLocalFirstAppliedReason,
+        };
+      } else {
+        trindadeShadowAudit = {
+          enabled: true,
+          cityDetected: false,
+          skipped: true,
+          localFirstFound: false,
+          candidate: null,
+          matchType: "SKIPPED",
+          confidence: 0,
+          matchedKey: null,
+          matchedLayer: null,
+          fallbackUsed: false,
+          conflictWithHere: false,
+          comparisonResult: "SKIPPED_NOT_TRINDADE",
+          comparison: {
+            currentStatus: trindadeCurrentResultForShadow.status ?? null,
+            currentSource: trindadeCurrentResultForShadow.source ?? null,
+            currentLat: Number.isFinite(Number(trindadeCurrentResultForShadow.lat))
+              ? Number(trindadeCurrentResultForShadow.lat)
+              : null,
+            currentLng: Number.isFinite(Number(trindadeCurrentResultForShadow.lng))
+              ? Number(trindadeCurrentResultForShadow.lng)
+              : null,
+            currentMatchedKey: trindadeCurrentResultForShadow.matchedKey ?? null,
+            comparisonResult: "SKIPPED_NOT_TRINDADE",
+          },
+          reason: "shadow_skipped_not_trindade",
+          flags: {
+            exactKeyMatch: false,
+            fallbackUsed: false,
+            aliasUsed: false,
+            relationshipUsed: false,
+            weakRelation: false,
+            conflictWithHere: false,
+            manualMemorySovereign: true,
+            currentResultPreserved: true,
+          },
+          notes: ["shadow_skipped_not_trindade"],
+          streetBairroResolution: null,
+          promotionSimulation: null,
+          shadowConfidence: null,
+          decisionSimulation: null,
+          safetyGate: null,
+          localFirstAppliedAsFinal: false,
+          localFirstAppliedReason: null,
+        };
+      }
+    } catch (error) {
+      trindadeShadowAudit = {
+        enabled: true,
+        cityDetected: true,
+        skipped: true,
+        localFirstFound: false,
+        candidate: null,
+        matchType: "SKIPPED",
+        confidence: 0,
+        matchedKey: null,
+        matchedLayer: null,
+        fallbackUsed: false,
+        conflictWithHere: false,
+        comparisonResult: "NO_LOCAL_CANDIDATE",
+        comparison: {
+          currentStatus: trindadeCurrentResultForShadow.status ?? null,
+          currentSource: trindadeCurrentResultForShadow.source ?? null,
+          currentLat: Number.isFinite(Number(trindadeCurrentResultForShadow.lat))
+            ? Number(trindadeCurrentResultForShadow.lat)
+            : null,
+          currentLng: Number.isFinite(Number(trindadeCurrentResultForShadow.lng))
+            ? Number(trindadeCurrentResultForShadow.lng)
+            : null,
+          currentMatchedKey: trindadeCurrentResultForShadow.matchedKey ?? null,
+          comparisonResult: "NO_LOCAL_CANDIDATE",
+        },
+        reason: error instanceof Error ? error.message : String(error),
+        flags: {
+          exactKeyMatch: false,
+          fallbackUsed: false,
+          aliasUsed: false,
+          relationshipUsed: false,
+          weakRelation: false,
+          conflictWithHere: false,
+          manualMemorySovereign: true,
+          currentResultPreserved: true,
+        },
+        notes: [
+          `shadow_error:${error instanceof Error ? error.message : String(error)}`,
+        ],
+        streetBairroResolution: null,
+        promotionSimulation: null,
+        shadowConfidence: null,
+        decisionSimulation: null,
+        safetyGate: null,
+        localFirstAppliedAsFinal: false,
+        localFirstAppliedReason: null,
+      };
+      console.warn("[TRINDADE_SHADOW_ERROR]", error);
+    }
+  }
+
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
@@ -4105,6 +4317,26 @@ if (shouldAutoSaveAddressMemory) {
     normalized,
     normalizedLine,
 
+    source: trindadeLocalFirstUsedAsFinal
+      ? "LOCALFIRST_TRINDADE"
+      : memoryHit
+        ? "MEMORY"
+        : localFirstGoianiaUsedAsFinal
+          ? "LOCALFIRST_GOIANIA"
+          : finalRankedKind === "discover"
+            ? "HERE_DISCOVER"
+            : "HERE_GEOCODE",
+    matchType: trindadeLocalFirstUsedAsFinal
+      ? "LOCALFIRST_TRINDADE"
+      : memoryHit
+        ? "MEMORY"
+        : localFirstGoianiaUsedAsFinal
+          ? "LOCALFIRST_GOIANIA"
+          : finalRankedKind === "discover"
+            ? "HERE_DISCOVER"
+            : "HERE_GEOCODE",
+    localFirstTrindadeUsedAsFinal: trindadeLocalFirstUsedAsFinal,
+    localFirstTrindadeAppliedReason: trindadeLocalFirstAppliedReason,
     status,
     lat,
     lng,
@@ -4178,6 +4410,7 @@ if (shouldAutoSaveAddressMemory) {
     urbanPatternRealQueryIndex,
     urbanPatternBecameBestGeocodeQuery,
     ...(discoverGateDebug ? { discoverGateDebug } : {}),
+    ...(trindadeShadowAudit ? { trindadeShadow: trindadeShadowAudit } : {}),
 
     model: g.model,
     usedGemini: g.usedGemini,

@@ -131,6 +131,31 @@ function normalizeQuadraCode(value: unknown) {
   return text.toUpperCase();
 }
 
+function getRecordCentroid(record: LocalFirstRecord) {
+  const coordinates = record.geometry?.centroid?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+
+  const [lng, lat] = coordinates;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return { lat, lng };
+}
+
+function buildCandidateFromRecord(
+  record: LocalFirstRecord,
+  layer: TrindadeShadowResult["matchedLayer"],
+  reason: string,
+) {
+  const centroid = getRecordCentroid(record);
+  return {
+    key: record.key,
+    layer: layer || "lotes",
+    reason,
+    lat: centroid?.lat ?? null,
+    lng: centroid?.lng ?? null,
+  };
+}
+
 function normalizeGenericCode(value: unknown) {
   const text = preserveCode(value);
   if (!text) return "";
@@ -1357,11 +1382,7 @@ export async function runTrindadeLocalFirstShadow(
       aliasUsed: false,
     };
     notes.push("matched direct bairro+quadra+lote");
-    candidate = {
-      key: operationalLote.record.key,
-      layer: "lotes",
-      reason: operationalLote.reason,
-    };
+    candidate = buildCandidateFromRecord(operationalLote.record, "lotes", operationalLote.reason);
   } else if (lotamento && quadra && lote && lote.matchType === "MATCH_FORTE" && !lote.fallbackUsed) {
     localFirstFound = true;
     matchedKey = lote.record.key;
@@ -1377,11 +1398,7 @@ export async function runTrindadeLocalFirstShadow(
       aliasUsed: false,
     };
     notes.push("matched composite lot chain");
-    candidate = {
-      key: lote.record.key,
-      layer: "lotes",
-      reason: lote.reason,
-    };
+    candidate = buildCandidateFromRecord(lote.record, "lotes", lote.reason);
   } else if (quadra && lote) {
     localFirstFound = true;
     matchedKey = lote.record.key;
@@ -1397,11 +1414,7 @@ export async function runTrindadeLocalFirstShadow(
       relationshipUsed: true,
     };
     notes.push("matched quadra+lote");
-    candidate = {
-      key: lote.record.key,
-      layer: "lotes",
-      reason: lote.reason,
-    };
+    candidate = buildCandidateFromRecord(lote.record, "lotes", lote.reason);
   } else if (logradouro && bairro) {
     localFirstFound = true;
     matchedKey = logradouro.record.key;
@@ -1417,11 +1430,7 @@ export async function runTrindadeLocalFirstShadow(
       weakRelation: !!logradouro.weakRelation || !!bairro.fallbackUsed,
     };
     notes.push("matched rua+bairro");
-    candidate = {
-      key: logradouro.record.key,
-      layer: "logradouros",
-      reason: logradouro.reason,
-    };
+    candidate = buildCandidateFromRecord(logradouro.record, "logradouros", logradouro.reason);
   } else if (lote) {
     localFirstFound = true;
     matchedKey = lote.record.key;
@@ -1437,11 +1446,7 @@ export async function runTrindadeLocalFirstShadow(
       weakRelation: !!lote.record.relation?.weak || !!lote.record.relation?.fallbackRequired,
     };
     notes.push("resolved by code fallback");
-    candidate = {
-      key: lote.record.key,
-      layer: "lotes",
-      reason: lote.reason,
-    };
+    candidate = buildCandidateFromRecord(lote.record, "lotes", lote.reason);
   } else if (logradouro) {
     localFirstFound = true;
     matchedKey = logradouro.record.key;
@@ -1457,11 +1462,7 @@ export async function runTrindadeLocalFirstShadow(
       weakRelation: true,
     };
     notes.push("resolved street without reliable bairro");
-    candidate = {
-      key: logradouro.record.key,
-      layer: "logradouros",
-      reason: logradouro.reason,
-    };
+    candidate = buildCandidateFromRecord(logradouro.record, "logradouros", logradouro.reason);
   } else {
     const promotionSimulation = buildPromotionSimulation("SKIPPED", streetBairroResolution);
     const shadowConfidence = buildShadowConfidence("SKIPPED", flags, streetBairroResolution, normalized);
