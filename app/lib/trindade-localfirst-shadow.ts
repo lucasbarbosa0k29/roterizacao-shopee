@@ -211,9 +211,50 @@ function normalizeStreetSearchKey(type: string, value: string) {
   return normalizeStreetName(hasPrefix ? preparedStreet : [typed, preparedStreet].filter(Boolean).join(" "));
 }
 
-function buildStreetSearchKeys(type: string, value: string) {
+function buildStreetSearchKeys(type: string, value: string, rawValue?: string) {
   const keys = new Set<string>();
-  const baseStreet = normalizeText(value)
+  const seeds = new Set<string>();
+
+  const normalizedValueSeed = extractStreetSeedFromRawAddress(value);
+  if (normalizedValueSeed) seeds.add(normalizedValueSeed);
+
+  if (rawValue) {
+    const normalizedRawSeed = extractStreetSeedFromRawAddress(rawValue);
+    if (normalizedRawSeed) seeds.add(normalizedRawSeed);
+  }
+
+  for (const seed of seeds) {
+    addStreetSearchVariant(keys, type, seed);
+  }
+
+  return [...keys];
+}
+
+function normalizeStreetType(value: string) {
+  const text = normalizeText(value);
+  if (!text) return "";
+  if (text === "R" || text === "R.") return "RUA";
+  if (text === "AV" || text === "AV.") return "AV";
+  if (text === "AVENIDA") return "AV";
+  return text;
+}
+
+function extractStreetSeedFromRawAddress(value: string) {
+  const text = normalizeText(value)
+    .replace(/[.,;:/\\|\-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+
+  const cutPattern =
+    /\b(?:ESQUINA\s+COM|ESQ\s*C|CONDOMINIO|PADARIA|ACIMA\s+DO|EM\s+FRENTE|PROXIMO|PR[OÓ]XIMO|QUADRA|QUDRA|QDRA|QR|QD|LOTE|LT|N\s*\d+|S\s*\/\s*N|SN|SEM\s+NUMERO|NUMERO|Nº)\b/i;
+  const cutIndex = text.search(cutPattern);
+  const seed = cutIndex >= 0 ? text.slice(0, cutIndex).trim() : text;
+  return seed.replace(/\s+/g, " ").trim();
+}
+
+function addStreetSearchVariant(keys: Set<string>, type: string, seed: string) {
+  const baseStreet = normalizeText(seed)
     .replace(/\bAVENIDA\b/g, "AV")
     .replace(/\bRUA\b/g, "R")
     .replace(/\bALAMEDA\b/g, "AL")
@@ -221,14 +262,14 @@ function buildStreetSearchKeys(type: string, value: string) {
     .replace(/\bVILA\b/g, "VL")
     .replace(/\s+/g, " ")
     .trim();
-  if (!baseStreet) return [];
+  if (!baseStreet) return;
 
   const preparedStreet = baseStreet
     .replace(/([A-Z])(?=\d)/g, "$1 ")
     .replace(/(\d)(?=[A-Z])/g, "$1 ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!preparedStreet) return [];
+  if (!preparedStreet) return;
 
   const typed = normalizeStreetType(type);
   const hasPrefix = /^(RUA|R|AV|AL|TV|VL|ROD)\b/.test(preparedStreet);
@@ -255,17 +296,6 @@ function buildStreetSearchKeys(type: string, value: string) {
     const justName = normalizeStreetName(preparedStreet.replace(/^R S\s+/, "RUA "));
     if (justName) keys.add(justName);
   }
-
-  return [...keys];
-}
-
-function normalizeStreetType(value: string) {
-  const text = normalizeText(value);
-  if (!text) return "";
-  if (text === "R" || text === "R.") return "RUA";
-  if (text === "AV" || text === "AV.") return "AV";
-  if (text === "AVENIDA") return "AV";
-  return text;
 }
 
 function isFlagEnabled() {
@@ -417,6 +447,13 @@ function buildLogradouroNameIndex() {
       const bucket = index.get(typed) || [];
       bucket.push(record);
       index.set(typed, bucket);
+    }
+    for (const alias of record.aliases || []) {
+      for (const aliasKey of buildStreetSearchKeys(type, alias)) {
+        const bucket = index.get(aliasKey) || [];
+        bucket.push(record);
+        index.set(aliasKey, bucket);
+      }
     }
   }
   applyLogradouroAliases(index);
@@ -893,7 +930,11 @@ function findLogradouroCandidate(input: ReturnType<typeof normalizeTrindadeInput
   }
 
   const nameIndex = buildLogradouroNameIndex();
-  for (const logradouroInput of buildStreetSearchKeys(input.tipologradouro, input.nmlogradouro || input.rua)) {
+  for (const logradouroInput of buildStreetSearchKeys(
+    input.tipologradouro,
+    input.nmlogradouro || input.rua,
+    input.rawRua || input.rawAddress,
+  )) {
     const byName = nameIndex.get(logradouroInput)?.[0] || null;
     if (byName) {
       return {
@@ -915,8 +956,11 @@ function buildStreetBairroResolution(
 ): TrindadeStreetBairroResolution {
   ensureLoaded();
 
+  const streetSeed = extractStreetSeedFromRawAddress(
+    input.rawRua || input.rawAddress || input.nmlogradouro || input.rua || "",
+  );
   const normalizedStreet = normalizeStreetName(
-    normalizeStreetSearchKey(input.tipologradouro, input.nmlogradouro || input.rua),
+    normalizeStreetSearchKey(input.tipologradouro, streetSeed || input.nmlogradouro || input.rua),
   );
   const normalizedBairro = normalizeBairroAliasKey(input.bairro);
   const streetTypeAliasUsed =
@@ -944,7 +988,11 @@ function buildStreetBairroResolution(
 
   const streetIndex = buildLogradouroNameIndex();
   const uniqueStreetCandidates = new Map<string, LocalFirstRecord>();
-  for (const streetKey of buildStreetSearchKeys(input.tipologradouro, input.nmlogradouro || input.rua)) {
+  for (const streetKey of buildStreetSearchKeys(
+    input.tipologradouro,
+    input.nmlogradouro || input.rua,
+    input.rawRua || input.rawAddress,
+  )) {
     for (const record of streetIndex.get(streetKey) || []) {
       if (record?.key) uniqueStreetCandidates.set(record.key, record);
     }

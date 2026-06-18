@@ -1,0 +1,7083 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-16T01:16:04.149Z",
+  "scope": "Trindade-GO",
+  "crs": "EPSG:4326",
+  "primaryKey": "cdbairro",
+  "byKey": {
+    "1": {
+      "key": "1",
+      "normalizedKey": "CENTRO",
+      "id": 1840,
+      "code": {
+        "idbairro": 1840,
+        "cdbairro": "1"
+      },
+      "name": {
+        "nmbairro": "CENTRO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4947294,
+            -16.6561466
+          ]
+        },
+        "bbox": [
+          -49.502767,
+          -16.6627963,
+          -49.4866917,
+          -16.6494968
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1840,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CENTRO"
+      ]
+    },
+    "2": {
+      "key": "2",
+      "normalizedKey": "VILA AUGUSTUS",
+      "id": 1860,
+      "code": {
+        "idbairro": 1860,
+        "cdbairro": "2"
+      },
+      "name": {
+        "nmbairro": "VILA AUGUSTUS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5059049,
+            -16.648784
+          ]
+        },
+        "bbox": [
+          -49.5104869,
+          -16.6512371,
+          -49.5013229,
+          -16.6463308
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1860,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA AUGUSTUS"
+      ]
+    },
+    "3": {
+      "key": "3",
+      "normalizedKey": "VILA CARVELO",
+      "id": 1936,
+      "code": {
+        "idbairro": 1936,
+        "cdbairro": "3"
+      },
+      "name": {
+        "nmbairro": "VILA CARVELO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4978436,
+            -16.6492441
+          ]
+        },
+        "bbox": [
+          -49.4992385,
+          -16.6501447,
+          -49.4964487,
+          -16.6483434
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1936,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA CARVELO"
+      ]
+    },
+    "4": {
+      "key": "4",
+      "normalizedKey": "VILA WILIAM",
+      "id": 1955,
+      "code": {
+        "idbairro": 1955,
+        "cdbairro": "4"
+      },
+      "name": {
+        "nmbairro": "VILA WILIAM"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4862744,
+            -16.6613852
+          ]
+        },
+        "bbox": [
+          -49.4870691,
+          -16.6628801,
+          -49.4854796,
+          -16.6598903
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1955,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA WILIAM"
+      ]
+    },
+    "5": {
+      "key": "5",
+      "normalizedKey": "VILA SANTA INES",
+      "id": 1831,
+      "code": {
+        "idbairro": 1831,
+        "cdbairro": "5"
+      },
+      "name": {
+        "nmbairro": "VILA SANTA INES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.49486,
+            -16.6563181
+          ]
+        },
+        "bbox": [
+          -49.4963317,
+          -16.6577671,
+          -49.4933884,
+          -16.6548691
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1831,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA SANTA INES"
+      ]
+    },
+    "6": {
+      "key": "6",
+      "normalizedKey": "VILA REDENCAO VILA BARRO PRETO",
+      "id": 1870,
+      "code": {
+        "idbairro": 1870,
+        "cdbairro": "6"
+      },
+      "name": {
+        "nmbairro": "VILA REDENÇÃO (VILA BARRO PRETO)"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5037679,
+            -16.6570561
+          ]
+        },
+        "bbox": [
+          -49.5049465,
+          -16.6583232,
+          -49.5025894,
+          -16.6557889
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1870,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA REDENCAO VILA BARRO PRETO"
+      ]
+    },
+    "7": {
+      "key": "7",
+      "normalizedKey": "SETOR PAI ETERNO VILA PADRE ETERNO",
+      "id": 1807,
+      "code": {
+        "idbairro": 1807,
+        "cdbairro": "7"
+      },
+      "name": {
+        "nmbairro": "SETOR PAI ETERNO ( VILA PADRE ETERNO)"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4880752,
+            -16.6463248
+          ]
+        },
+        "bbox": [
+          -49.4966859,
+          -16.6542921,
+          -49.4794644,
+          -16.6383576
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1807,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR PAI ETERNO VILA PADRE ETERNO"
+      ]
+    },
+    "8": {
+      "key": "8",
+      "normalizedKey": "VILA JARDIM SALVADOR",
+      "id": 1873,
+      "code": {
+        "idbairro": 1873,
+        "cdbairro": "8"
+      },
+      "name": {
+        "nmbairro": "VILA JARDIM SALVADOR"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4828612,
+            -16.6571343
+          ]
+        },
+        "bbox": [
+          -49.488285,
+          -16.6601382,
+          -49.4774375,
+          -16.6541305
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1873,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA JARDIM SALVADOR"
+      ]
+    },
+    "9": {
+      "key": "9",
+      "normalizedKey": "VILA JOAO BRAZ",
+      "id": 1836,
+      "code": {
+        "idbairro": 1836,
+        "cdbairro": "9"
+      },
+      "name": {
+        "nmbairro": "VILA JOAO BRAZ"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4834946,
+            -16.6535625
+          ]
+        },
+        "bbox": [
+          -49.4880525,
+          -16.6560033,
+          -49.4789368,
+          -16.6511217
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1836,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA JOAO BRAZ"
+      ]
+    },
+    "10": {
+      "key": "10",
+      "normalizedKey": "SETOR OESTE",
+      "id": 1806,
+      "code": {
+        "idbairro": 1806,
+        "cdbairro": "10"
+      },
+      "name": {
+        "nmbairro": "SETOR OESTE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5012742,
+            -16.6480051
+          ]
+        },
+        "bbox": [
+          -49.5054005,
+          -16.6505744,
+          -49.4971479,
+          -16.6454358
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1806,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR OESTE"
+      ]
+    },
+    "11": {
+      "key": "11",
+      "normalizedKey": "VILA GUILHERME",
+      "id": 1953,
+      "code": {
+        "idbairro": 1953,
+        "cdbairro": "11"
+      },
+      "name": {
+        "nmbairro": "VILA GUILHERME"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4951481,
+            -16.6551167
+          ]
+        },
+        "bbox": [
+          -49.495773,
+          -16.6556298,
+          -49.4945232,
+          -16.6546037
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1953,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA GUILHERME"
+      ]
+    },
+    "12": {
+      "key": "12",
+      "normalizedKey": "VILA MARIA",
+      "id": 1819,
+      "code": {
+        "idbairro": 1819,
+        "cdbairro": "12"
+      },
+      "name": {
+        "nmbairro": "VILA MARIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4968628,
+            -16.6449382
+          ]
+        },
+        "bbox": [
+          -49.5006586,
+          -16.6492941,
+          -49.4930669,
+          -16.6405824
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1819,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA MARIA"
+      ]
+    },
+    "14": {
+      "key": "14",
+      "normalizedKey": "VILA EMANUEL",
+      "id": 1865,
+      "code": {
+        "idbairro": 1865,
+        "cdbairro": "14"
+      },
+      "name": {
+        "nmbairro": "VILA EMANUEL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.501013,
+            -16.6436085
+          ]
+        },
+        "bbox": [
+          -49.5037821,
+          -16.6475207,
+          -49.4982439,
+          -16.6396963
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1865,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA EMANUEL"
+      ]
+    },
+    "15": {
+      "key": "15",
+      "normalizedKey": "SETOR SANTO ONOFRE",
+      "id": 1847,
+      "code": {
+        "idbairro": 1847,
+        "cdbairro": "15"
+      },
+      "name": {
+        "nmbairro": "SETOR SANTO ONOFRE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4887444,
+            -16.6607923
+          ]
+        },
+        "bbox": [
+          -49.4905032,
+          -16.6626818,
+          -49.4869856,
+          -16.6589027
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1847,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SANTO ONOFRE"
+      ]
+    },
+    "16": {
+      "key": "16",
+      "normalizedKey": "VILA AMADOR",
+      "id": 1894,
+      "code": {
+        "idbairro": 1894,
+        "cdbairro": "16"
+      },
+      "name": {
+        "nmbairro": "VILA AMADOR"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4995611,
+            -16.6570099
+          ]
+        },
+        "bbox": [
+          -49.5004989,
+          -16.6585279,
+          -49.4986233,
+          -16.6554918
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1894,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA AMADOR"
+      ]
+    },
+    "17": {
+      "key": "17",
+      "normalizedKey": "SANTUARIO",
+      "id": 1904,
+      "code": {
+        "idbairro": 1904,
+        "cdbairro": "17"
+      },
+      "name": {
+        "nmbairro": "SANTUARIO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4810525,
+            -16.6646583
+          ]
+        },
+        "bbox": [
+          -49.4856638,
+          -16.6698633,
+          -49.4764412,
+          -16.6594532
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1904,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SANTUARIO"
+      ]
+    },
+    "18": {
+      "key": "18",
+      "normalizedKey": "SETOR ABRAAO MANOEL",
+      "id": 1916,
+      "code": {
+        "idbairro": 1916,
+        "cdbairro": "18"
+      },
+      "name": {
+        "nmbairro": "SETOR ABRAAO MANOEL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4917468,
+            -16.6590937
+          ]
+        },
+        "bbox": [
+          -49.4925339,
+          -16.6603855,
+          -49.4909597,
+          -16.6578018
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1916,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR ABRAAO MANOEL"
+      ]
+    },
+    "19": {
+      "key": "19",
+      "normalizedKey": "SETOR SUL",
+      "id": 1804,
+      "code": {
+        "idbairro": 1804,
+        "cdbairro": "19"
+      },
+      "name": {
+        "nmbairro": "SETOR SUL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5035314,
+            -16.6617117
+          ]
+        },
+        "bbox": [
+          -49.5082863,
+          -16.6697662,
+          -49.4987765,
+          -16.6536571
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1804,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SUL"
+      ]
+    },
+    "20": {
+      "key": "20",
+      "normalizedKey": "SETOR ANA ROSA",
+      "id": 1796,
+      "code": {
+        "idbairro": 1796,
+        "cdbairro": "20"
+      },
+      "name": {
+        "nmbairro": "SETOR ANA ROSA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.480763,
+            -16.6692185
+          ]
+        },
+        "bbox": [
+          -49.4864083,
+          -16.675834,
+          -49.4751177,
+          -16.6626031
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1796,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR ANA ROSA"
+      ]
+    },
+    "21": {
+      "key": "21",
+      "normalizedKey": "VILA PADRE RENATO",
+      "id": 1931,
+      "code": {
+        "idbairro": 1931,
+        "cdbairro": "21"
+      },
+      "name": {
+        "nmbairro": "VILA PADRE RENATO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4891942,
+            -16.6622969
+          ]
+        },
+        "bbox": [
+          -49.490984,
+          -16.6637194,
+          -49.4874043,
+          -16.6608745
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1931,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA PADRE RENATO"
+      ]
+    },
+    "22": {
+      "key": "22",
+      "normalizedKey": "VILA SANTO AFONSO",
+      "id": 1862,
+      "code": {
+        "idbairro": 1862,
+        "cdbairro": "22"
+      },
+      "name": {
+        "nmbairro": "VILA SANTO AFONSO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4992641,
+            -16.6541733
+          ]
+        },
+        "bbox": [
+          -49.5009207,
+          -16.6554698,
+          -49.4976074,
+          -16.6528768
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1862,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA SANTO AFONSO"
+      ]
+    },
+    "23": {
+      "key": "23",
+      "normalizedKey": "SETOR JUSSARA",
+      "id": 1959,
+      "code": {
+        "idbairro": 1959,
+        "cdbairro": "23"
+      },
+      "name": {
+        "nmbairro": "SETOR JUSSARA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4995536,
+            -16.6558827
+          ]
+        },
+        "bbox": [
+          -49.50036,
+          -16.6566211,
+          -49.4987473,
+          -16.6551444
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1959,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR JUSSARA"
+      ]
+    },
+    "24": {
+      "key": "24",
+      "normalizedKey": "SETOR PONTA KAYANA",
+      "id": 1794,
+      "code": {
+        "idbairro": 1794,
+        "cdbairro": "24"
+      },
+      "name": {
+        "nmbairro": "SETOR PONTA KAYANA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4378179,
+            -16.63905
+          ]
+        },
+        "bbox": [
+          -49.4460362,
+          -16.6460764,
+          -49.4295995,
+          -16.6320235
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1794,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR PONTA KAYANA"
+      ]
+    },
+    "25": {
+      "key": "25",
+      "normalizedKey": "SETOR BELA VISTA",
+      "id": 1808,
+      "code": {
+        "idbairro": 1808,
+        "cdbairro": "25"
+      },
+      "name": {
+        "nmbairro": "SETOR BELA VISTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4670009,
+            -16.6330551
+          ]
+        },
+        "bbox": [
+          -49.4701523,
+          -16.6361229,
+          -49.4638494,
+          -16.6299873
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1808,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR BELA VISTA"
+      ]
+    },
+    "26": {
+      "key": "26",
+      "normalizedKey": "SETOR PALMARES",
+      "id": 1803,
+      "code": {
+        "idbairro": 1803,
+        "cdbairro": "26"
+      },
+      "name": {
+        "nmbairro": "SETOR PALMARES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3997634,
+            -16.5903404
+          ]
+        },
+        "bbox": [
+          -49.4066296,
+          -16.5943039,
+          -49.3928972,
+          -16.5863769
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1803,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR PALMARES"
+      ]
+    },
+    "27": {
+      "key": "27",
+      "normalizedKey": "SETOR MAYSA",
+      "id": 1802,
+      "code": {
+        "idbairro": 1802,
+        "cdbairro": "27"
+      },
+      "name": {
+        "nmbairro": "SETOR MAYSA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3913835,
+            -16.6303107
+          ]
+        },
+        "bbox": [
+          -49.4027352,
+          -16.6476653,
+          -49.3800317,
+          -16.6129562
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1802,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR MAYSA"
+      ]
+    },
+    "28": {
+      "key": "28",
+      "normalizedKey": "SETOR SAMARAH",
+      "id": 1814,
+      "code": {
+        "idbairro": 1814,
+        "cdbairro": "28"
+      },
+      "name": {
+        "nmbairro": "SETOR SAMARAH"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4884541,
+            -16.6350801
+          ]
+        },
+        "bbox": [
+          -49.4924116,
+          -16.6405171,
+          -49.4844965,
+          -16.6296431
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1814,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SAMARAH"
+      ]
+    },
+    "29": {
+      "key": "29",
+      "normalizedKey": "SETOR LAGUNA PARK",
+      "id": 1813,
+      "code": {
+        "idbairro": 1813,
+        "cdbairro": "29"
+      },
+      "name": {
+        "nmbairro": "SETOR LAGUNA PARK"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5172273,
+            -16.6399002
+          ]
+        },
+        "bbox": [
+          -49.5253307,
+          -16.6458702,
+          -49.5091239,
+          -16.6339302
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1813,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR LAGUNA PARK"
+      ]
+    },
+    "30": {
+      "key": "30",
+      "normalizedKey": "SETOR MARIAPOLIS",
+      "id": 1827,
+      "code": {
+        "idbairro": 1827,
+        "cdbairro": "30"
+      },
+      "name": {
+        "nmbairro": "SETOR MARIAPOLIS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4507274,
+            -16.6190236
+          ]
+        },
+        "bbox": [
+          -49.4541236,
+          -16.6214792,
+          -49.4473312,
+          -16.6165679
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1827,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR MARIAPOLIS"
+      ]
+    },
+    "31": {
+      "key": "31",
+      "normalizedKey": "SETOR SOL DOURADO",
+      "id": 1798,
+      "code": {
+        "idbairro": 1798,
+        "cdbairro": "31"
+      },
+      "name": {
+        "nmbairro": "SETOR SOL DOURADO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4978054,
+            -16.671718
+          ]
+        },
+        "bbox": [
+          -49.5004192,
+          -16.6778417,
+          -49.4951915,
+          -16.6655943
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1798,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SOL DOURADO"
+      ]
+    },
+    "32": {
+      "key": "32",
+      "normalizedKey": "SETOR SOARES",
+      "id": 1922,
+      "code": {
+        "idbairro": 1922,
+        "cdbairro": "32"
+      },
+      "name": {
+        "nmbairro": "SETOR SOARES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4120826,
+            -16.6342379
+          ]
+        },
+        "bbox": [
+          -49.4156288,
+          -16.6378565,
+          -49.4085364,
+          -16.6306193
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1922,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SOARES"
+      ]
+    },
+    "33": {
+      "key": "33",
+      "normalizedKey": "SETOR CRISTINA",
+      "id": 1825,
+      "code": {
+        "idbairro": 1825,
+        "cdbairro": "33"
+      },
+      "name": {
+        "nmbairro": "SETOR CRISTINA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4177344,
+            -16.6329145
+          ]
+        },
+        "bbox": [
+          -49.4232337,
+          -16.6379148,
+          -49.4122351,
+          -16.6279142
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1825,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR CRISTINA"
+      ]
+    },
+    "34": {
+      "key": "34",
+      "normalizedKey": "VILA ARCO IRIS",
+      "id": 1926,
+      "code": {
+        "idbairro": 1926,
+        "cdbairro": "34"
+      },
+      "name": {
+        "nmbairro": "VILA ARCO IRIS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4958096,
+            -16.6672542
+          ]
+        },
+        "bbox": [
+          -49.496828,
+          -16.6688941,
+          -49.4947912,
+          -16.6656143
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1926,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA ARCO IRIS"
+      ]
+    },
+    "35": {
+      "key": "35",
+      "normalizedKey": "SETOR BARCELOS",
+      "id": 1795,
+      "code": {
+        "idbairro": 1795,
+        "cdbairro": "35"
+      },
+      "name": {
+        "nmbairro": "SETOR BARCELOS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4192504,
+            -16.645696
+          ]
+        },
+        "bbox": [
+          -49.4262721,
+          -16.6487589,
+          -49.4122287,
+          -16.6426332
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1795,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR BARCELOS"
+      ]
+    },
+    "36": {
+      "key": "36",
+      "normalizedKey": "JARDIM DAS OLIVEIRAS",
+      "id": 1859,
+      "code": {
+        "idbairro": 1859,
+        "cdbairro": "36"
+      },
+      "name": {
+        "nmbairro": "JARDIM DAS OLIVEIRAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3979934,
+            -16.6416112
+          ]
+        },
+        "bbox": [
+          -49.4041614,
+          -16.6443891,
+          -49.3918253,
+          -16.6388332
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1859,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM DAS OLIVEIRAS"
+      ]
+    },
+    "37": {
+      "key": "37",
+      "normalizedKey": "JARDIM CALIFORNIA",
+      "id": 1887,
+      "code": {
+        "idbairro": 1887,
+        "cdbairro": "37"
+      },
+      "name": {
+        "nmbairro": "JARDIM CALIFORNIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4262463,
+            -16.6188396
+          ]
+        },
+        "bbox": [
+          -49.430081,
+          -16.6209183,
+          -49.4224115,
+          -16.6167608
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1887,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM CALIFORNIA"
+      ]
+    },
+    "38": {
+      "key": "38",
+      "normalizedKey": "JARDIM IMPERIAL",
+      "id": 1832,
+      "code": {
+        "idbairro": 1832,
+        "cdbairro": "38"
+      },
+      "name": {
+        "nmbairro": "JARDIM IMPERIAL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5114417,
+            -16.652393
+          ]
+        },
+        "bbox": [
+          -49.5209764,
+          -16.6617536,
+          -49.501907,
+          -16.6430324
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1832,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM IMPERIAL"
+      ]
+    },
+    "39": {
+      "key": "39",
+      "normalizedKey": "JARDIM MARISTA",
+      "id": 1805,
+      "code": {
+        "idbairro": 1805,
+        "cdbairro": "39"
+      },
+      "name": {
+        "nmbairro": "JARDIM MARISTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4182232,
+            -16.6407653
+          ]
+        },
+        "bbox": [
+          -49.4272583,
+          -16.6436306,
+          -49.4091881,
+          -16.6378999
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1805,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM MARISTA"
+      ]
+    },
+    "40": {
+      "key": "40",
+      "normalizedKey": "JARDIM VALE DOS SONHOS",
+      "id": 1958,
+      "code": {
+        "idbairro": 1958,
+        "cdbairro": "40"
+      },
+      "name": {
+        "nmbairro": "JARDIM VALE DOS SONHOS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4757923,
+            -16.6193553
+          ]
+        },
+        "bbox": [
+          -49.4788655,
+          -16.6245975,
+          -49.4727191,
+          -16.6141132
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1958,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM VALE DOS SONHOS"
+      ]
+    },
+    "41": {
+      "key": "41",
+      "normalizedKey": "JARDIM DECOLORES",
+      "id": 1821,
+      "code": {
+        "idbairro": 1821,
+        "cdbairro": "41"
+      },
+      "name": {
+        "nmbairro": "JARDIM DECOLORES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4654427,
+            -16.6399199
+          ]
+        },
+        "bbox": [
+          -49.4722167,
+          -16.6442055,
+          -49.4586687,
+          -16.6356344
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1821,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM DECOLORES"
+      ]
+    },
+    "42": {
+      "key": "42",
+      "normalizedKey": "CHACARA SANTA LUZIA",
+      "id": 1858,
+      "code": {
+        "idbairro": 1858,
+        "cdbairro": "42"
+      },
+      "name": {
+        "nmbairro": "CHACARA SANTA LUZIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4959772,
+            -16.6306138
+          ]
+        },
+        "bbox": [
+          -49.5016017,
+          -16.6388333,
+          -49.4903527,
+          -16.6223943
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1858,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SANTA LUZIA"
+      ]
+    },
+    "43": {
+      "key": "43",
+      "normalizedKey": "PARQUE CRISTO REDENTOR",
+      "id": 1791,
+      "code": {
+        "idbairro": 1791,
+        "cdbairro": "43"
+      },
+      "name": {
+        "nmbairro": "PARQUE CRISTO REDENTOR"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4807449,
+            -16.6369925
+          ]
+        },
+        "bbox": [
+          -49.4870456,
+          -16.6432372,
+          -49.4744442,
+          -16.6307477
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1791,
+        "generatedAt": "2026-06-16T01:16:04.145Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "PARQUE CRISTO REDENTOR"
+      ]
+    },
+    "44": {
+      "key": "44",
+      "normalizedKey": "CHACARA SAO SEBASTIAO",
+      "id": 1924,
+      "code": {
+        "idbairro": 1924,
+        "cdbairro": "44"
+      },
+      "name": {
+        "nmbairro": "CHACARA SÃO SEBASTIAO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4744401,
+            -16.6851394
+          ]
+        },
+        "bbox": [
+          -49.4758966,
+          -16.6882309,
+          -49.4729836,
+          -16.6820479
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1924,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SAO SEBASTIAO"
+      ]
+    },
+    "46": {
+      "key": "46",
+      "normalizedKey": "ALTO DO CERRADO I",
+      "id": 1846,
+      "code": {
+        "idbairro": 1846,
+        "cdbairro": "46"
+      },
+      "name": {
+        "nmbairro": "ALTO DO CERRADO I"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4415731,
+            -16.6699653
+          ]
+        },
+        "bbox": [
+          -49.4434409,
+          -16.6719174,
+          -49.4397052,
+          -16.6680132
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1846,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "ALTO DO CERRADO I"
+      ]
+    },
+    "47": {
+      "key": "47",
+      "normalizedKey": "SAO FRANCISCO II",
+      "id": 1793,
+      "code": {
+        "idbairro": 1793,
+        "cdbairro": "47"
+      },
+      "name": {
+        "nmbairro": "SAO FRANCISCO II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4171911,
+            -16.5733411
+          ]
+        },
+        "bbox": [
+          -49.4225716,
+          -16.5799281,
+          -49.4118107,
+          -16.5667542
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1793,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SAO FRANCISCO II"
+      ]
+    },
+    "48": {
+      "key": "48",
+      "normalizedKey": "RESIDENCIAL MONTE CRISTO",
+      "id": 1823,
+      "code": {
+        "idbairro": 1823,
+        "cdbairro": "48"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL MONTE CRISTO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4814741,
+            -16.6812885
+          ]
+        },
+        "bbox": [
+          -49.4870964,
+          -16.6872093,
+          -49.4758517,
+          -16.6753677
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1823,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL MONTE CRISTO"
+      ]
+    },
+    "49": {
+      "key": "49",
+      "normalizedKey": "NUCLEO ANHANGUERA",
+      "id": 1898,
+      "code": {
+        "idbairro": 1898,
+        "cdbairro": "49"
+      },
+      "name": {
+        "nmbairro": "NUCLEO ANHANGUERA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4387516,
+            -16.6449369
+          ]
+        },
+        "bbox": [
+          -49.4438723,
+          -16.6460405,
+          -49.4336308,
+          -16.6438333
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1898,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "NUCLEO ANHANGUERA"
+      ]
+    },
+    "50": {
+      "key": "50",
+      "normalizedKey": "ALTO DO CERRADO II",
+      "id": 1848,
+      "code": {
+        "idbairro": 1848,
+        "cdbairro": "50"
+      },
+      "name": {
+        "nmbairro": "ALTO DO CERRADO II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4400861,
+            -16.669196
+          ]
+        },
+        "bbox": [
+          -49.4414486,
+          -16.6707983,
+          -49.4387237,
+          -16.6675936
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1848,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "ALTO DO CERRADO II"
+      ]
+    },
+    "51": {
+      "key": "51",
+      "normalizedKey": "ESTRELA DO ORIENTE",
+      "id": 1834,
+      "code": {
+        "idbairro": 1834,
+        "cdbairro": "51"
+      },
+      "name": {
+        "nmbairro": "ESTRELA DO ORIENTE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.505458,
+            -16.6601091
+          ]
+        },
+        "bbox": [
+          -49.507687,
+          -16.6630086,
+          -49.503229,
+          -16.6572096
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1834,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "ESTRELA DO ORIENTE"
+      ]
+    },
+    "52": {
+      "key": "52",
+      "normalizedKey": "MORADA DO BOSQUE",
+      "id": 1878,
+      "code": {
+        "idbairro": 1878,
+        "cdbairro": "52"
+      },
+      "name": {
+        "nmbairro": "MORADA DO BOSQUE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4306092,
+            -16.6451274
+          ]
+        },
+        "bbox": [
+          -49.4335492,
+          -16.6470172,
+          -49.4276692,
+          -16.6432375
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1878,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "MORADA DO BOSQUE"
+      ]
+    },
+    "53": {
+      "key": "53",
+      "normalizedKey": "SAO FRANCISCO I",
+      "id": 1907,
+      "code": {
+        "idbairro": 1907,
+        "cdbairro": "53"
+      },
+      "name": {
+        "nmbairro": "SÃO FRANCISCO I"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4203152,
+            -16.5654029
+          ]
+        },
+        "bbox": [
+          -49.4260712,
+          -16.571509,
+          -49.4145592,
+          -16.5592969
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1907,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SAO FRANCISCO I"
+      ]
+    },
+    "54": {
+      "key": "54",
+      "normalizedKey": "JARDIM DAS TAMAREIRAS",
+      "id": 1792,
+      "code": {
+        "idbairro": 1792,
+        "cdbairro": "54"
+      },
+      "name": {
+        "nmbairro": "JARDIM DAS TAMAREIRAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.494498,
+            -16.6689724
+          ]
+        },
+        "bbox": [
+          -49.4960682,
+          -16.6722638,
+          -49.4929278,
+          -16.665681
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1792,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM DAS TAMAREIRAS"
+      ]
+    },
+    "56": {
+      "key": "56",
+      "normalizedKey": "VILA JD NOSSA SENHORA PERPETUO SOCORRO",
+      "id": 1844,
+      "code": {
+        "idbairro": 1844,
+        "cdbairro": "56"
+      },
+      "name": {
+        "nmbairro": "VILA JD NOSSA SENHORA PERPETUO SOCORRO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4958197,
+            -16.6617075
+          ]
+        },
+        "bbox": [
+          -49.5002148,
+          -16.667168,
+          -49.4914245,
+          -16.656247
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1844,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA JD NOSSA SENHORA PERPETUO SOCORRO"
+      ]
+    },
+    "57": {
+      "key": "57",
+      "normalizedKey": "RESIDENCIAL SANTA FE",
+      "id": 1906,
+      "code": {
+        "idbairro": 1906,
+        "cdbairro": "57"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL SANTA FE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5293323,
+            -16.6340335
+          ]
+        },
+        "bbox": [
+          -49.5360792,
+          -16.6382893,
+          -49.5225854,
+          -16.6297778
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1906,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL SANTA FE"
+      ]
+    },
+    "60": {
+      "key": "60",
+      "normalizedKey": "CHACARA VILA SANTO AFONSO",
+      "id": 1962,
+      "code": {
+        "idbairro": 1962,
+        "cdbairro": "60"
+      },
+      "name": {
+        "nmbairro": "CHACARA VILA SANTO AFONSO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5091706,
+            -16.6559293
+          ]
+        },
+        "bbox": [
+          -49.510204,
+          -16.656211,
+          -49.5081371,
+          -16.6556476
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1962,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA VILA SANTO AFONSO"
+      ]
+    },
+    "62": {
+      "key": "62",
+      "normalizedKey": "CHACARA VILA PAI ETERNO",
+      "id": 1951,
+      "code": {
+        "idbairro": 1951,
+        "cdbairro": "62"
+      },
+      "name": {
+        "nmbairro": "CHACARA VILA PAI ETERNO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4939086,
+            -16.645644
+          ]
+        },
+        "bbox": [
+          -49.495568,
+          -16.6471354,
+          -49.4922493,
+          -16.6441525
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1951,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA VILA PAI ETERNO"
+      ]
+    },
+    "63": {
+      "key": "63",
+      "normalizedKey": "RESIDENCIAL ROSA MORENA",
+      "id": 1835,
+      "code": {
+        "idbairro": 1835,
+        "cdbairro": "63"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL ROSA MORENA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5193644,
+            -16.6311829
+          ]
+        },
+        "bbox": [
+          -49.5226279,
+          -16.6349989,
+          -49.516101,
+          -16.6273668
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1835,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL ROSA MORENA"
+      ]
+    },
+    "66": {
+      "key": "66",
+      "normalizedKey": "CHACARA SETOR BELA VISTA",
+      "id": 1854,
+      "code": {
+        "idbairro": 1854,
+        "cdbairro": "66"
+      },
+      "name": {
+        "nmbairro": "CHACARA SETOR BELA VISTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4639535,
+            -16.6376033
+          ]
+        },
+        "bbox": [
+          -49.4688696,
+          -16.6412723,
+          -49.4590375,
+          -16.6339343
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1854,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SETOR BELA VISTA"
+      ]
+    },
+    "67": {
+      "key": "67",
+      "normalizedKey": "CHACARA JARDIM DECOLORES",
+      "id": 1939,
+      "code": {
+        "idbairro": 1939,
+        "cdbairro": "67"
+      },
+      "name": {
+        "nmbairro": "CHACARA JARDIM DECOLORES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4698837,
+            -16.6379162
+          ]
+        },
+        "bbox": [
+          -49.4750474,
+          -16.6413414,
+          -49.46472,
+          -16.634491
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1939,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM DECOLORES"
+      ]
+    },
+    "69": {
+      "key": "69",
+      "normalizedKey": "RESIDENCIAL SAO BERNARDO II",
+      "id": 1866,
+      "code": {
+        "idbairro": 1866,
+        "cdbairro": "69"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL SÃO BERNARDO II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3983202,
+            -16.5819586
+          ]
+        },
+        "bbox": [
+          -49.4042617,
+          -16.5871692,
+          -49.3923788,
+          -16.576748
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1866,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL SAO BERNARDO II"
+      ]
+    },
+    "70": {
+      "key": "70",
+      "normalizedKey": "LOTES MANSOES PONTA KAYANA",
+      "id": 1879,
+      "code": {
+        "idbairro": 1879,
+        "cdbairro": "70"
+      },
+      "name": {
+        "nmbairro": "LOTES MANSOES (PONTA KAYANA)"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4370668,
+            -16.6371054
+          ]
+        },
+        "bbox": [
+          -49.4463389,
+          -16.6437774,
+          -49.4277947,
+          -16.6304335
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1879,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTES MANSOES PONTA KAYANA"
+      ]
+    },
+    "71": {
+      "key": "71",
+      "normalizedKey": "CONDOMINIO RESIDENCIAL IMPERIAL",
+      "id": 1799,
+      "code": {
+        "idbairro": 1799,
+        "cdbairro": "71"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO RESIDENCIAL IMPERIAL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4568879,
+            -16.6391293
+          ]
+        },
+        "bbox": [
+          -49.4595486,
+          -16.6441149,
+          -49.4542272,
+          -16.6341436
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1799,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO RESIDENCIAL IMPERIAL"
+      ]
+    },
+    "72": {
+      "key": "72",
+      "normalizedKey": "CHACARA JARDIM DAS OLIVEIRAS",
+      "id": 1961,
+      "code": {
+        "idbairro": 1961,
+        "cdbairro": "72"
+      },
+      "name": {
+        "nmbairro": "CHACARA JARDIM DAS OLIVEIRAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.400036,
+            -16.6404287
+          ]
+        },
+        "bbox": [
+          -49.402521,
+          -16.6430796,
+          -49.397551,
+          -16.6377779
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1961,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM DAS OLIVEIRAS"
+      ]
+    },
+    "73": {
+      "key": "73",
+      "normalizedKey": "VILA SOL DOURADO",
+      "id": 1869,
+      "code": {
+        "idbairro": 1869,
+        "cdbairro": "73"
+      },
+      "name": {
+        "nmbairro": "VILA SOL DOURADO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4991863,
+            -16.6742421
+          ]
+        },
+        "bbox": [
+          -49.5010029,
+          -16.6768811,
+          -49.4973697,
+          -16.6716031
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1869,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA SOL DOURADO"
+      ]
+    },
+    "76": {
+      "key": "76",
+      "normalizedKey": "RESIDENCIAL RENATA PARK",
+      "id": 1817,
+      "code": {
+        "idbairro": 1817,
+        "cdbairro": "76"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL RENATA PARK"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4058972,
+            -16.6446701
+          ]
+        },
+        "bbox": [
+          -49.4103803,
+          -16.6475474,
+          -49.401414,
+          -16.6417927
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1817,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL RENATA PARK"
+      ]
+    },
+    "78": {
+      "key": "78",
+      "normalizedKey": "SETOR GUARUJA PARK",
+      "id": 1828,
+      "code": {
+        "idbairro": 1828,
+        "cdbairro": "78"
+      },
+      "name": {
+        "nmbairro": "SETOR GUARUJA PARK"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5058061,
+            -16.6405335
+          ]
+        },
+        "bbox": [
+          -49.5100251,
+          -16.6470909,
+          -49.5015871,
+          -16.6339761
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1828,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR GUARUJA PARK"
+      ]
+    },
+    "79": {
+      "key": "79",
+      "normalizedKey": "RESIDENCIAL MARIA MONTEIRO",
+      "id": 1885,
+      "code": {
+        "idbairro": 1885,
+        "cdbairro": "79"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL MARIA MONTEIRO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4480692,
+            -16.6372293
+          ]
+        },
+        "bbox": [
+          -49.4528576,
+          -16.6447512,
+          -49.4432807,
+          -16.6297073
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1885,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL MARIA MONTEIRO"
+      ]
+    },
+    "80": {
+      "key": "80",
+      "normalizedKey": "RESIDENCIAL MELK",
+      "id": 1909,
+      "code": {
+        "idbairro": 1909,
+        "cdbairro": "80"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL MELK"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4998606,
+            -16.6369603
+          ]
+        },
+        "bbox": [
+          -49.5019912,
+          -16.6397366,
+          -49.4977299,
+          -16.6341841
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1909,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL MELK"
+      ]
+    },
+    "81": {
+      "key": "81",
+      "normalizedKey": "CONJUNTO DONA IRIS I",
+      "id": 1857,
+      "code": {
+        "idbairro": 1857,
+        "cdbairro": "81"
+      },
+      "name": {
+        "nmbairro": "CONJUNTO DONA IRIS I"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.400189,
+            -16.6216782
+          ]
+        },
+        "bbox": [
+          -49.404163,
+          -16.6246511,
+          -49.3962149,
+          -16.6187052
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1857,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONJUNTO DONA IRIS I"
+      ]
+    },
+    "82": {
+      "key": "82",
+      "normalizedKey": "CONJUNTO DONA IRIS II",
+      "id": 1864,
+      "code": {
+        "idbairro": 1864,
+        "cdbairro": "82"
+      },
+      "name": {
+        "nmbairro": "CONJUNTO DONA IRIS II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4050405,
+            -16.6298088
+          ]
+        },
+        "bbox": [
+          -49.4094611,
+          -16.6337273,
+          -49.4006199,
+          -16.6258902
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1864,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONJUNTO DONA IRIS II"
+      ]
+    },
+    "83": {
+      "key": "83",
+      "normalizedKey": "JARDIM FLORESTA",
+      "id": 1815,
+      "code": {
+        "idbairro": 1815,
+        "cdbairro": "83"
+      },
+      "name": {
+        "nmbairro": "JARDIM FLORESTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3969802,
+            -16.6361658
+          ]
+        },
+        "bbox": [
+          -49.401797,
+          -16.6406784,
+          -49.3921633,
+          -16.6316532
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1815,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM FLORESTA"
+      ]
+    },
+    "84": {
+      "key": "84",
+      "normalizedKey": "JARDIM IPANEMA",
+      "id": 1810,
+      "code": {
+        "idbairro": 1810,
+        "cdbairro": "84"
+      },
+      "name": {
+        "nmbairro": "JARDIM IPANEMA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3970989,
+            -16.6245496
+          ]
+        },
+        "bbox": [
+          -49.4012115,
+          -16.6345385,
+          -49.3929862,
+          -16.6145608
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1810,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM IPANEMA"
+      ]
+    },
+    "85": {
+      "key": "85",
+      "normalizedKey": "JARDIM PRIMAVERA",
+      "id": 1826,
+      "code": {
+        "idbairro": 1826,
+        "cdbairro": "85"
+      },
+      "name": {
+        "nmbairro": "JARDIM PRIMAVERA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4954391,
+            -16.6627326
+          ]
+        },
+        "bbox": [
+          -49.4983022,
+          -16.6648638,
+          -49.4925759,
+          -16.6606013
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1826,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM PRIMAVERA"
+      ]
+    },
+    "86": {
+      "key": "86",
+      "normalizedKey": "RESIDENCIAL ARAGUAIA",
+      "id": 1811,
+      "code": {
+        "idbairro": 1811,
+        "cdbairro": "86"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL ARAGUAIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.414618,
+            -16.6459035
+          ]
+        },
+        "bbox": [
+          -49.4172583,
+          -16.6491933,
+          -49.4119777,
+          -16.6426138
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1811,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL ARAGUAIA"
+      ]
+    },
+    "87": {
+      "key": "87",
+      "normalizedKey": "JARDIM IMPERIAL CONJUNTO MARISE",
+      "id": 1872,
+      "code": {
+        "idbairro": 1872,
+        "cdbairro": "87"
+      },
+      "name": {
+        "nmbairro": "JARDIM IMPERIAL (CONJUNTO MARISE)"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.515649,
+            -16.6502595
+          ]
+        },
+        "bbox": [
+          -49.5185102,
+          -16.6522002,
+          -49.5127878,
+          -16.6483187
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1872,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM IMPERIAL CONJUNTO MARISE"
+      ]
+    },
+    "88": {
+      "key": "88",
+      "normalizedKey": "NOVA CANAA",
+      "id": 1856,
+      "code": {
+        "idbairro": 1856,
+        "cdbairro": "88"
+      },
+      "name": {
+        "nmbairro": "NOVA CANAA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5378199,
+            -16.6399518
+          ]
+        },
+        "bbox": [
+          -49.5442843,
+          -16.6453757,
+          -49.5313556,
+          -16.6345278
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1856,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "NOVA CANAA"
+      ]
+    },
+    "89": {
+      "key": "89",
+      "normalizedKey": "SETOR SAO SEBASTIAO",
+      "id": 1852,
+      "code": {
+        "idbairro": 1852,
+        "cdbairro": "89"
+      },
+      "name": {
+        "nmbairro": "SETOR SAO SEBASTIAO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4723685,
+            -16.6837801
+          ]
+        },
+        "bbox": [
+          -49.4747956,
+          -16.6880319,
+          -49.4699413,
+          -16.6795284
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1852,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SAO SEBASTIAO"
+      ]
+    },
+    "90": {
+      "key": "90",
+      "normalizedKey": "RESIDENCIAL PAINEIRAS",
+      "id": 1816,
+      "code": {
+        "idbairro": 1816,
+        "cdbairro": "90"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL PAINEIRAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4069933,
+            -16.6150222
+          ]
+        },
+        "bbox": [
+          -49.4132703,
+          -16.6194842,
+          -49.4007163,
+          -16.6105603
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1816,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL PAINEIRAS"
+      ]
+    },
+    "91": {
+      "key": "91",
+      "normalizedKey": "RESIDENCIAL GARAVELO I",
+      "id": 1886,
+      "code": {
+        "idbairro": 1886,
+        "cdbairro": "91"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL GARAVELO I"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4520022,
+            -16.6458768
+          ]
+        },
+        "bbox": [
+          -49.4557512,
+          -16.6476819,
+          -49.4482533,
+          -16.6440717
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1886,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL GARAVELO I"
+      ]
+    },
+    "92": {
+      "key": "92",
+      "normalizedKey": "RESIDENCIAL GARAVELO II",
+      "id": 1867,
+      "code": {
+        "idbairro": 1867,
+        "cdbairro": "92"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL GARAVELO II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4584361,
+            -16.645919
+          ]
+        },
+        "bbox": [
+          -49.4614755,
+          -16.6475179,
+          -49.4553968,
+          -16.64432
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1867,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL GARAVELO II"
+      ]
+    },
+    "93": {
+      "key": "93",
+      "normalizedKey": "RESIDENCIAL MORAES",
+      "id": 1971,
+      "code": {
+        "idbairro": 1971,
+        "cdbairro": "93"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL MORAES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5122584,
+            -16.6306416
+          ]
+        },
+        "bbox": [
+          -49.5132546,
+          -16.6323707,
+          -49.5112622,
+          -16.6289125
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1971,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL MORAES"
+      ]
+    },
+    "94": {
+      "key": "94",
+      "normalizedKey": "JARDIM SCALA",
+      "id": 1851,
+      "code": {
+        "idbairro": 1851,
+        "cdbairro": "94"
+      },
+      "name": {
+        "nmbairro": "JARDIM SCALA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.410661,
+            -16.6239705
+          ]
+        },
+        "bbox": [
+          -49.4204948,
+          -16.6324412,
+          -49.4008272,
+          -16.6154999
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1851,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM SCALA"
+      ]
+    },
+    "97": {
+      "key": "97",
+      "normalizedKey": "MORADA DO BOSQUE CONJUNTO PRIVE ELIAS",
+      "id": 1963,
+      "code": {
+        "idbairro": 1963,
+        "cdbairro": "97"
+      },
+      "name": {
+        "nmbairro": "MORADA DO BOSQUE (CONJUNTO PRIVE ELIAS)"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.426851,
+            -16.6459793
+          ]
+        },
+        "bbox": [
+          -49.4282341,
+          -16.6473385,
+          -49.425468,
+          -16.6446202
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1963,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "MORADA DO BOSQUE CONJUNTO PRIVE ELIAS"
+      ]
+    },
+    "98": {
+      "key": "98",
+      "normalizedKey": "SETOR CRISTINA II",
+      "id": 1839,
+      "code": {
+        "idbairro": 1839,
+        "cdbairro": "98"
+      },
+      "name": {
+        "nmbairro": "SETOR CRISTINA II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4869217,
+            -16.6680746
+          ]
+        },
+        "bbox": [
+          -49.4900985,
+          -16.673568,
+          -49.4837449,
+          -16.6625812
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1839,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR CRISTINA II"
+      ]
+    },
+    "100": {
+      "key": "100",
+      "normalizedKey": "VILA ROBERTO MONTEIRO",
+      "id": 1946,
+      "code": {
+        "idbairro": 1946,
+        "cdbairro": "100"
+      },
+      "name": {
+        "nmbairro": "VILA ROBERTO MONTEIRO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4930731,
+            -16.6665629
+          ]
+        },
+        "bbox": [
+          -49.4938086,
+          -16.6692102,
+          -49.4923376,
+          -16.6639156
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1946,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA ROBERTO MONTEIRO"
+      ]
+    },
+    "104": {
+      "key": "104",
+      "normalizedKey": "SETOR SERRA DOURADA",
+      "id": 1820,
+      "code": {
+        "idbairro": 1820,
+        "cdbairro": "104"
+      },
+      "name": {
+        "nmbairro": "SETOR SERRA DOURADA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4974097,
+            -16.6367562
+          ]
+        },
+        "bbox": [
+          -49.5013289,
+          -16.6412393,
+          -49.4934905,
+          -16.6322731
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1820,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SERRA DOURADA"
+      ]
+    },
+    "105": {
+      "key": "105",
+      "normalizedKey": "SETOR MONTE SINAI",
+      "id": 1797,
+      "code": {
+        "idbairro": 1797,
+        "cdbairro": "105"
+      },
+      "name": {
+        "nmbairro": "SETOR MONTE SINAI"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5033665,
+            -16.6370217
+          ]
+        },
+        "bbox": [
+          -49.508182,
+          -16.6433388,
+          -49.498551,
+          -16.6307045
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1797,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR MONTE SINAI"
+      ]
+    },
+    "106": {
+      "key": "106",
+      "normalizedKey": "SETOR DOS BANDEIRANTES",
+      "id": 1838,
+      "code": {
+        "idbairro": 1838,
+        "cdbairro": "106"
+      },
+      "name": {
+        "nmbairro": "SETOR DOS BANDEIRANTES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3942021,
+            -16.6082856
+          ]
+        },
+        "bbox": [
+          -49.3991116,
+          -16.6135344,
+          -49.3892926,
+          -16.6030368
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1838,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR DOS BANDEIRANTES"
+      ]
+    },
+    "107": {
+      "key": "107",
+      "normalizedKey": "DISTRITO DE SANTA MARIA",
+      "id": 1849,
+      "code": {
+        "idbairro": 1849,
+        "cdbairro": "107"
+      },
+      "name": {
+        "nmbairro": "DISTRITO DE SANTA MARIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6061001,
+            -16.7453756
+          ]
+        },
+        "bbox": [
+          -49.6094135,
+          -16.7482621,
+          -49.6027866,
+          -16.7424891
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1849,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "DISTRITO DE SANTA MARIA"
+      ]
+    },
+    "111": {
+      "key": "111",
+      "normalizedKey": "JARDIM NOVO HORIZONTE",
+      "id": 1893,
+      "code": {
+        "idbairro": 1893,
+        "cdbairro": "111"
+      },
+      "name": {
+        "nmbairro": "JARDIM NOVO HORIZONTE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4907812,
+            -16.6714786
+          ]
+        },
+        "bbox": [
+          -49.49179,
+          -16.6720168,
+          -49.4897725,
+          -16.6709404
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1893,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM NOVO HORIZONTE"
+      ]
+    },
+    "113": {
+      "key": "113",
+      "normalizedKey": "SETOR NOVO PARAISO",
+      "id": 1863,
+      "code": {
+        "idbairro": 1863,
+        "cdbairro": "113"
+      },
+      "name": {
+        "nmbairro": "SETOR NOVO PARAÍSO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5097241,
+            -16.6536369
+          ]
+        },
+        "bbox": [
+          -49.5114844,
+          -16.6556806,
+          -49.5079639,
+          -16.6515932
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1863,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR NOVO PARAISO"
+      ]
+    },
+    "115": {
+      "key": "115",
+      "normalizedKey": "RESIDENCIAL JARDIM DA LUZ",
+      "id": 1829,
+      "code": {
+        "idbairro": 1829,
+        "cdbairro": "115"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL JARDIM DA LUZ"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4096119,
+            -16.6454051
+          ]
+        },
+        "bbox": [
+          -49.4121146,
+          -16.647422,
+          -49.4071092,
+          -16.6433882
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1829,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL JARDIM DA LUZ"
+      ]
+    },
+    "118": {
+      "key": "118",
+      "normalizedKey": "RECANTO DO LAGO",
+      "id": 1842,
+      "code": {
+        "idbairro": 1842,
+        "cdbairro": "118"
+      },
+      "name": {
+        "nmbairro": "RECANTO DO LAGO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4952028,
+            -16.665221
+          ]
+        },
+        "bbox": [
+          -49.496967,
+          -16.6662707,
+          -49.4934385,
+          -16.6641713
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1842,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RECANTO DO LAGO"
+      ]
+    },
+    "119": {
+      "key": "119",
+      "normalizedKey": "SETOR MORADA DO LAGO",
+      "id": 1812,
+      "code": {
+        "idbairro": 1812,
+        "cdbairro": "119"
+      },
+      "name": {
+        "nmbairro": "SETOR MORADA DO LAGO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5078653,
+            -16.6438127
+          ]
+        },
+        "bbox": [
+          -49.510465,
+          -16.6464875,
+          -49.5052655,
+          -16.6411378
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1812,
+        "generatedAt": "2026-06-16T01:16:04.146Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR MORADA DO LAGO"
+      ]
+    },
+    "120": {
+      "key": "120",
+      "normalizedKey": "PARQUE SERRA BRANCA",
+      "id": 1837,
+      "code": {
+        "idbairro": 1837,
+        "cdbairro": "120"
+      },
+      "name": {
+        "nmbairro": "PARQUE SERRA BRANCA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4167753,
+            -16.6186918
+          ]
+        },
+        "bbox": [
+          -49.4227315,
+          -16.623846,
+          -49.4108191,
+          -16.6135376
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1837,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "PARQUE SERRA BRANCA"
+      ]
+    },
+    "121": {
+      "key": "121",
+      "normalizedKey": "SETOR SOLANGE",
+      "id": 1861,
+      "code": {
+        "idbairro": 1861,
+        "cdbairro": "121"
+      },
+      "name": {
+        "nmbairro": "SETOR SOLANGE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5306756,
+            -16.6427514
+          ]
+        },
+        "bbox": [
+          -49.5387591,
+          -16.6466079,
+          -49.5225921,
+          -16.6388949
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1861,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SOLANGE"
+      ]
+    },
+    "124": {
+      "key": "124",
+      "normalizedKey": "SETOR VIDA NOVA",
+      "id": 1841,
+      "code": {
+        "idbairro": 1841,
+        "cdbairro": "124"
+      },
+      "name": {
+        "nmbairro": "SETOR VIDA NOVA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.514988,
+            -16.6324601
+          ]
+        },
+        "bbox": [
+          -49.5179223,
+          -16.6363607,
+          -49.5120537,
+          -16.6285596
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1841,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR VIDA NOVA"
+      ]
+    },
+    "125": {
+      "key": "125",
+      "normalizedKey": "RIO VERMELHO",
+      "id": 1969,
+      "code": {
+        "idbairro": 1969,
+        "cdbairro": "125"
+      },
+      "name": {
+        "nmbairro": "RIO VERMELHO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4119199,
+            -16.6445354
+          ]
+        },
+        "bbox": [
+          -49.4134984,
+          -16.6465926,
+          -49.4103414,
+          -16.6424781
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1969,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RIO VERMELHO"
+      ]
+    },
+    "129": {
+      "key": "129",
+      "normalizedKey": "CHACARA SETOR BARCELOS",
+      "id": 1964,
+      "code": {
+        "idbairro": 1964,
+        "cdbairro": "129"
+      },
+      "name": {
+        "nmbairro": "CHACARA SETOR BARCELOS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4263704,
+            -16.645149
+          ]
+        },
+        "bbox": [
+          -49.4277068,
+          -16.647407,
+          -49.425034,
+          -16.642891
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1964,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SETOR BARCELOS"
+      ]
+    },
+    "130": {
+      "key": "130",
+      "normalizedKey": "CHACARA JARDIM CALIFORNIA",
+      "id": 1952,
+      "code": {
+        "idbairro": 1952,
+        "cdbairro": "130"
+      },
+      "name": {
+        "nmbairro": "CHACARA JARDIM CALIFORNIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4236196,
+            -16.6207626
+          ]
+        },
+        "bbox": [
+          -49.4253798,
+          -16.6217834,
+          -49.4218595,
+          -16.6197418
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1952,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM CALIFORNIA"
+      ]
+    },
+    "132": {
+      "key": "132",
+      "normalizedKey": "CHACARA JARDIM MARISTA",
+      "id": 1940,
+      "code": {
+        "idbairro": 1940,
+        "cdbairro": "132"
+      },
+      "name": {
+        "nmbairro": "CHACARA JARDIM MARISTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4280349,
+            -16.6404631
+          ]
+        },
+        "bbox": [
+          -49.429723,
+          -16.6430266,
+          -49.4263469,
+          -16.6378997
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1940,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM MARISTA"
+      ]
+    },
+    "133": {
+      "key": "133",
+      "normalizedKey": "CHACARA MORADA BOSQUE",
+      "id": 1967,
+      "code": {
+        "idbairro": 1967,
+        "cdbairro": "133"
+      },
+      "name": {
+        "nmbairro": "CHACARA MORADA BOSQUE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4276072,
+            -16.6438827
+          ]
+        },
+        "bbox": [
+          -49.428689,
+          -16.6450583,
+          -49.4265254,
+          -16.6427072
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1967,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA MORADA BOSQUE"
+      ]
+    },
+    "138": {
+      "key": "138",
+      "normalizedKey": "CONDOMINIO ESTANCIAS AROEIRA",
+      "id": 1912,
+      "code": {
+        "idbairro": 1912,
+        "cdbairro": "138"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO ESTANCIAS AROEIRA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4062839,
+            -16.6092128
+          ]
+        },
+        "bbox": [
+          -49.4107677,
+          -16.6124156,
+          -49.4018001,
+          -16.6060101
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1912,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO ESTANCIAS AROEIRA"
+      ]
+    },
+    "139": {
+      "key": "139",
+      "normalizedKey": "CHACARA DONA IRIS II",
+      "id": 1948,
+      "code": {
+        "idbairro": 1948,
+        "cdbairro": "139"
+      },
+      "name": {
+        "nmbairro": "CHACARA DONA IRIS II"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4032876,
+            -16.6253208
+          ]
+        },
+        "bbox": [
+          -49.4065965,
+          -16.6265252,
+          -49.3999786,
+          -16.6241163
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1948,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA DONA IRIS II"
+      ]
+    },
+    "140": {
+      "key": "140",
+      "normalizedKey": "RESIDENCIAL LUZIA MONTEIRO",
+      "id": 1895,
+      "code": {
+        "idbairro": 1895,
+        "cdbairro": "140"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL LUZIA MONTEIRO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4530736,
+            -16.6393301
+          ]
+        },
+        "bbox": [
+          -49.4575658,
+          -16.643873,
+          -49.4485814,
+          -16.6347873
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1895,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL LUZIA MONTEIRO"
+      ]
+    },
+    "143": {
+      "key": "143",
+      "normalizedKey": "SETOR RESIDENCIAL VIEIRA",
+      "id": 1824,
+      "code": {
+        "idbairro": 1824,
+        "cdbairro": "143"
+      },
+      "name": {
+        "nmbairro": "SETOR RESIDENCIAL VIEIRA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4611699,
+            -16.6483044
+          ]
+        },
+        "bbox": [
+          -49.4723194,
+          -16.6518598,
+          -49.4500204,
+          -16.6447491
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1824,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR RESIDENCIAL VIEIRA"
+      ]
+    },
+    "145": {
+      "key": "145",
+      "normalizedKey": "RESIDENCIAL PAI ETERNO",
+      "id": 1874,
+      "code": {
+        "idbairro": 1874,
+        "cdbairro": "145"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL PAI ETERNO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4945084,
+            -16.6428351
+          ]
+        },
+        "bbox": [
+          -49.4961274,
+          -16.6446861,
+          -49.4928893,
+          -16.6409842
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1874,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL PAI ETERNO"
+      ]
+    },
+    "150": {
+      "key": "150",
+      "normalizedKey": "SETOR DAS MANSOES",
+      "id": 1833,
+      "code": {
+        "idbairro": 1833,
+        "cdbairro": "150"
+      },
+      "name": {
+        "nmbairro": "SETOR DAS MANSOES"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4833697,
+            -16.6515577
+          ]
+        },
+        "bbox": [
+          -49.4849177,
+          -16.6535509,
+          -49.4818218,
+          -16.6495645
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1833,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR DAS MANSOES"
+      ]
+    },
+    "157": {
+      "key": "157",
+      "normalizedKey": "RESIDENCIAL TERRA SANTA",
+      "id": 1875,
+      "code": {
+        "idbairro": 1875,
+        "cdbairro": "157"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL TERRA SANTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4767142,
+            -16.640942
+          ]
+        },
+        "bbox": [
+          -49.4783154,
+          -16.6425225,
+          -49.475113,
+          -16.6393616
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1875,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL TERRA SANTA"
+      ]
+    },
+    "203": {
+      "key": "203",
+      "normalizedKey": "VILA DOS SONHOS",
+      "id": 1850,
+      "code": {
+        "idbairro": 1850,
+        "cdbairro": "203"
+      },
+      "name": {
+        "nmbairro": "VILA DOS SONHOS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4961613,
+            -16.6792746
+          ]
+        },
+        "bbox": [
+          -49.4977411,
+          -16.6810288,
+          -49.4945815,
+          -16.6775204
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1850,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA DOS SONHOS"
+      ]
+    },
+    "218": {
+      "key": "218",
+      "normalizedKey": "MARIA EDUARDA",
+      "id": 1934,
+      "code": {
+        "idbairro": 1934,
+        "cdbairro": "218"
+      },
+      "name": {
+        "nmbairro": "MARIA EDUARDA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4735436,
+            -16.6774337
+          ]
+        },
+        "bbox": [
+          -49.4749375,
+          -16.6798734,
+          -49.4721498,
+          -16.674994
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1934,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "MARIA EDUARDA"
+      ]
+    },
+    "219": {
+      "key": "219",
+      "normalizedKey": "RECANTO DAS BRISAS",
+      "id": 1881,
+      "code": {
+        "idbairro": 1881,
+        "cdbairro": "219"
+      },
+      "name": {
+        "nmbairro": "RECANTO DAS BRISAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3932759,
+            -16.6271177
+          ]
+        },
+        "bbox": [
+          -49.3949829,
+          -16.6292143,
+          -49.3915688,
+          -16.625021
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1881,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RECANTO DAS BRISAS"
+      ]
+    },
+    "307": {
+      "key": "307",
+      "normalizedKey": "COND RESIDENCIAL RAIO DE SOL",
+      "id": 1899,
+      "code": {
+        "idbairro": 1899,
+        "cdbairro": "307"
+      },
+      "name": {
+        "nmbairro": "COND. RESIDENCIAL RAIO DE SOL"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4711801,
+            -16.6762845
+          ]
+        },
+        "bbox": [
+          -49.4731447,
+          -16.6786244,
+          -49.4692156,
+          -16.6739446
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1899,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "COND RESIDENCIAL RAIO DE SOL"
+      ]
+    },
+    "308": {
+      "key": "308",
+      "normalizedKey": "RESID VILA EMANUEL EXPANSAO",
+      "id": 1900,
+      "code": {
+        "idbairro": 1900,
+        "cdbairro": "308"
+      },
+      "name": {
+        "nmbairro": "RESID. VILA EMANUEL EXPANSÃO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4985123,
+            -16.6409568
+          ]
+        },
+        "bbox": [
+          -49.4997877,
+          -16.6423034,
+          -49.497237,
+          -16.6396101
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1900,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESID VILA EMANUEL EXPANSAO"
+      ]
+    },
+    "314": {
+      "key": "314",
+      "normalizedKey": "RESIDENCIAL NOVA MORADA",
+      "id": 1911,
+      "code": {
+        "idbairro": 1911,
+        "cdbairro": "314"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL NOVA MORADA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.46186,
+            -16.6239117
+          ]
+        },
+        "bbox": [
+          -49.4642342,
+          -16.6264538,
+          -49.4594859,
+          -16.6213696
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1911,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL NOVA MORADA"
+      ]
+    },
+    "315": {
+      "key": "315",
+      "normalizedKey": "LOTEAMENTO RESIDENCIAL CIDADE JARDIM",
+      "id": 1910,
+      "code": {
+        "idbairro": 1910,
+        "cdbairro": "315"
+      },
+      "name": {
+        "nmbairro": "LOTEAMENTO RESIDENCIAL CIDADE JARDIM"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4607723,
+            -16.634378
+          ]
+        },
+        "bbox": [
+          -49.4659838,
+          -16.6420487,
+          -49.4555609,
+          -16.6267072
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1910,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO RESIDENCIAL CIDADE JARDIM"
+      ]
+    },
+    "316": {
+      "key": "316",
+      "normalizedKey": "RESERVA TRINIDADE",
+      "id": 1913,
+      "code": {
+        "idbairro": 1913,
+        "cdbairro": "316"
+      },
+      "name": {
+        "nmbairro": "RESERVA TRINIDADE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5095468,
+            -16.6521339
+          ]
+        },
+        "bbox": [
+          -49.5115233,
+          -16.6541943,
+          -49.5075704,
+          -16.6500736
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1913,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESERVA TRINIDADE"
+      ]
+    },
+    "317": {
+      "key": "317",
+      "normalizedKey": "RESIDENCIAL LAGUNA EXPANSAO",
+      "id": 1914,
+      "code": {
+        "idbairro": 1914,
+        "cdbairro": "317"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL LAGUNA EXPANSÃO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5105613,
+            -16.6382997
+          ]
+        },
+        "bbox": [
+          -49.5120512,
+          -16.6402239,
+          -49.5090714,
+          -16.6363755
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1914,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL LAGUNA EXPANSAO"
+      ]
+    },
+    "319": {
+      "key": "319",
+      "normalizedKey": "CONDOMINIO DE CHACARAS MONTE SINAI",
+      "id": 1915,
+      "code": {
+        "idbairro": 1915,
+        "cdbairro": "319"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO DE CHACARAS MONTE SINAI"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.617393,
+            -16.6568223
+          ]
+        },
+        "bbox": [
+          -49.6222291,
+          -16.6620631,
+          -49.6125569,
+          -16.6515814
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1915,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO DE CHACARAS MONTE SINAI"
+      ]
+    },
+    "320": {
+      "key": "320",
+      "normalizedKey": "CONDOMINIO DE CHACARA CANAA",
+      "id": 1917,
+      "code": {
+        "idbairro": 1917,
+        "cdbairro": "320"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO DE CHACARA CANAÃ"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6230832,
+            -16.6710556
+          ]
+        },
+        "bbox": [
+          -49.6324075,
+          -16.6784562,
+          -49.6137589,
+          -16.6636551
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1917,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO DE CHACARA CANAA"
+      ]
+    },
+    "322": {
+      "key": "322",
+      "normalizedKey": "CONDOMINIO MONTE HERMON",
+      "id": 1918,
+      "code": {
+        "idbairro": 1918,
+        "cdbairro": "322"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO MONTE HERMON"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6223488,
+            -16.6617223
+          ]
+        },
+        "bbox": [
+          -49.6281586,
+          -16.6655888,
+          -49.6165391,
+          -16.6578558
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1918,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO MONTE HERMON"
+      ]
+    },
+    "323": {
+      "key": "323",
+      "normalizedKey": "CONDOMINIO GALILEIA",
+      "id": 1919,
+      "code": {
+        "idbairro": 1919,
+        "cdbairro": "323"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO GALILEIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6267359,
+            -16.6694843
+          ]
+        },
+        "bbox": [
+          -49.634041,
+          -16.6761886,
+          -49.6194308,
+          -16.6627799
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1919,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO GALILEIA"
+      ]
+    },
+    "326": {
+      "key": "326",
+      "normalizedKey": "RESIDENCIAL HARMONIA",
+      "id": 1921,
+      "code": {
+        "idbairro": 1921,
+        "cdbairro": "326"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL HARMONIA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3984072,
+            -16.6095317
+          ]
+        },
+        "bbox": [
+          -49.4010787,
+          -16.6122721,
+          -49.3957357,
+          -16.6067912
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1921,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL HARMONIA"
+      ]
+    },
+    "330": {
+      "key": "330",
+      "normalizedKey": "RESIDENCIAL JUAREZ FREIRE",
+      "id": 1942,
+      "code": {
+        "idbairro": 1942,
+        "cdbairro": "330"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL JUAREZ FREIRE"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5085787,
+            -16.6750691
+          ]
+        },
+        "bbox": [
+          -49.5170388,
+          -16.6827009,
+          -49.5001186,
+          -16.6674374
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1942,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL JUAREZ FREIRE"
+      ]
+    },
+    "331": {
+      "key": "331",
+      "normalizedKey": "RESIDENCIAL 14 BIS",
+      "id": 1928,
+      "code": {
+        "idbairro": 1928,
+        "cdbairro": "331"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL 14 BIS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3984033,
+            -16.6377783
+          ]
+        },
+        "bbox": [
+          -49.4036542,
+          -16.6420709,
+          -49.3931525,
+          -16.6334856
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1928,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL 14 BIS"
+      ]
+    },
+    "357": {
+      "key": "357",
+      "normalizedKey": "SETOR CRISTINA II EXPANSAO",
+      "id": 1822,
+      "code": {
+        "idbairro": 1822,
+        "cdbairro": "357"
+      },
+      "name": {
+        "nmbairro": "SETOR CRISTINA II EXPANSÃO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.487342,
+            -16.6765051
+          ]
+        },
+        "bbox": [
+          -49.4965933,
+          -16.6810288,
+          -49.4780908,
+          -16.6719814
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1822,
+        "generatedAt": "2026-06-16T01:16:04.147Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR CRISTINA II EXPANSAO"
+      ]
+    },
+    "363": {
+      "key": "363",
+      "normalizedKey": "DESMEMB ANEXO AO SETOR CRISTINA",
+      "id": 1949,
+      "code": {
+        "idbairro": 1949,
+        "cdbairro": "363"
+      },
+      "name": {
+        "nmbairro": "DESMEMB. ANEXO AO SETOR CRISTINA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4229051,
+            -16.6306123
+          ]
+        },
+        "bbox": [
+          -49.4274518,
+          -16.6379082,
+          -49.4183585,
+          -16.6233165
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1949,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "DESMEMB ANEXO AO SETOR CRISTINA"
+      ]
+    },
+    "365": {
+      "key": "365",
+      "normalizedKey": "COND CHACARAS VEREDA DO LAGO",
+      "id": 1941,
+      "code": {
+        "idbairro": 1941,
+        "cdbairro": "365"
+      },
+      "name": {
+        "nmbairro": "COND. CHÁCARAS VEREDA DO LAGO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4788476,
+            -16.6913218
+          ]
+        },
+        "bbox": [
+          -49.4841038,
+          -16.6974088,
+          -49.4735915,
+          -16.6852348
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1941,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "COND CHACARAS VEREDA DO LAGO"
+      ]
+    },
+    "372": {
+      "key": "372",
+      "normalizedKey": "FAZ ENGENHO VELHO",
+      "id": 1943,
+      "code": {
+        "idbairro": 1943,
+        "cdbairro": "372"
+      },
+      "name": {
+        "nmbairro": "FAZ. ENGENHO VELHO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.407145,
+            -16.6370142
+          ]
+        },
+        "bbox": [
+          -49.4123482,
+          -16.6418276,
+          -49.4019419,
+          -16.6322008
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1943,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "FAZ ENGENHO VELHO"
+      ]
+    },
+    "373": {
+      "key": "373",
+      "normalizedKey": "COND DE CHACARAS MONTE SIAO",
+      "id": 1944,
+      "code": {
+        "idbairro": 1944,
+        "cdbairro": "373"
+      },
+      "name": {
+        "nmbairro": "COND. DE CHÁCARAS MONTE SIÃO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6040672,
+            -16.6569861
+          ]
+        },
+        "bbox": [
+          -49.6090826,
+          -16.6627998,
+          -49.5990519,
+          -16.6511724
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1944,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "COND DE CHACARAS MONTE SIAO"
+      ]
+    },
+    "375": {
+      "key": "375",
+      "normalizedKey": "RESIDENCIAL NOVA MORADA PARK",
+      "id": 1937,
+      "code": {
+        "idbairro": 1937,
+        "cdbairro": "375"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL NOVA MORADA PARK"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4655206,
+            -16.6276349
+          ]
+        },
+        "bbox": [
+          -49.467511,
+          -16.6307395,
+          -49.4635301,
+          -16.6245303
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1937,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL NOVA MORADA PARK"
+      ]
+    },
+    "376": {
+      "key": "376",
+      "normalizedKey": "PARQVILLE QUARESMEIRA",
+      "id": 1882,
+      "code": {
+        "idbairro": 1882,
+        "cdbairro": "376"
+      },
+      "name": {
+        "nmbairro": "PARQVILLE QUARESMEIRA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4270002,
+            -16.6497222
+          ]
+        },
+        "bbox": [
+          -49.4315966,
+          -16.6524098,
+          -49.4224039,
+          -16.6470347
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1882,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "PARQVILLE QUARESMEIRA"
+      ]
+    },
+    "378": {
+      "key": "378",
+      "normalizedKey": "RESIDENCIAL EMBAUBA",
+      "id": 1947,
+      "code": {
+        "idbairro": 1947,
+        "cdbairro": "378"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL EMBAUBA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4260191,
+            -16.6228191
+          ]
+        },
+        "bbox": [
+          -49.4312735,
+          -16.6254231,
+          -49.4207646,
+          -16.6202152
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1947,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL EMBAUBA"
+      ]
+    },
+    "437": {
+      "key": "437",
+      "normalizedKey": "RESIDENCIAL SANTISSIMO",
+      "id": 1994,
+      "code": {
+        "idbairro": 1994,
+        "cdbairro": "437"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL SANTÍSSIMO"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4882529,
+            -16.6272545
+          ]
+        },
+        "bbox": [
+          -49.4912525,
+          -16.6307618,
+          -49.4852533,
+          -16.6237472
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1994,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL SANTISSIMO"
+      ]
+    },
+    "438": {
+      "key": "438",
+      "normalizedKey": "RESIDENCIAL JARDIM ALTA VISTA",
+      "id": 1902,
+      "code": {
+        "idbairro": 1902,
+        "cdbairro": "438"
+      },
+      "name": {
+        "nmbairro": "RESIDENCIAL JARDIM ALTA VISTA"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3936244,
+            -16.6024494
+          ]
+        },
+        "bbox": [
+          -49.3969625,
+          -16.6074677,
+          -49.3902863,
+          -16.597431
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1902,
+        "generatedAt": "2026-06-16T01:16:04.148Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL JARDIM ALTA VISTA"
+      ]
+    },
+    "484": {
+      "key": "484",
+      "normalizedKey": "CONDOMINIO MONTE DAS OLIVEIRAS",
+      "id": 1954,
+      "code": {
+        "idbairro": 1954,
+        "cdbairro": "484"
+      },
+      "name": {
+        "nmbairro": "CONDOMINIO MONTE DAS OLIVEIRAS"
+      },
+      "context": {
+        "idempresa": 181
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6059523,
+            -16.6662649
+          ]
+        },
+        "bbox": [
+          -49.6139122,
+          -16.6698943,
+          -49.5979925,
+          -16.6626356
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_bairros",
+        "file": "bairros.geojson",
+        "idField": "idbairro",
+        "idValue": 1954,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO MONTE DAS OLIVEIRAS"
+      ]
+    }
+  },
+  "byNormalizedName": {
+    "PARQUE CRISTO REDENTOR": [
+      "43"
+    ],
+    "JARDIM DAS TAMAREIRAS": [
+      "54"
+    ],
+    "SAO FRANCISCO II": [
+      "47"
+    ],
+    "SETOR PONTA KAYANA": [
+      "24"
+    ],
+    "SETOR BARCELOS": [
+      "35"
+    ],
+    "SETOR ANA ROSA": [
+      "20"
+    ],
+    "SETOR MONTE SINAI": [
+      "105"
+    ],
+    "SETOR SOL DOURADO": [
+      "31"
+    ],
+    "CONDOMINIO RESIDENCIAL IMPERIAL": [
+      "71"
+    ],
+    "SETOR MAYSA": [
+      "27"
+    ],
+    "SETOR PALMARES": [
+      "26"
+    ],
+    "SETOR SUL": [
+      "19"
+    ],
+    "JARDIM MARISTA": [
+      "39"
+    ],
+    "SETOR OESTE": [
+      "10"
+    ],
+    "SETOR PAI ETERNO VILA PADRE ETERNO": [
+      "7"
+    ],
+    "SETOR BELA VISTA": [
+      "25"
+    ],
+    "JARDIM IPANEMA": [
+      "84"
+    ],
+    "RESIDENCIAL ARAGUAIA": [
+      "86"
+    ],
+    "SETOR MORADA DO LAGO": [
+      "119"
+    ],
+    "SETOR LAGUNA PARK": [
+      "29"
+    ],
+    "SETOR SAMARAH": [
+      "28"
+    ],
+    "JARDIM FLORESTA": [
+      "83"
+    ],
+    "RESIDENCIAL PAINEIRAS": [
+      "90"
+    ],
+    "RESIDENCIAL RENATA PARK": [
+      "76"
+    ],
+    "VILA MARIA": [
+      "12"
+    ],
+    "SETOR SERRA DOURADA": [
+      "104"
+    ],
+    "JARDIM DECOLORES": [
+      "41"
+    ],
+    "SETOR CRISTINA II EXPANSAO": [
+      "357"
+    ],
+    "RESIDENCIAL MONTE CRISTO": [
+      "48"
+    ],
+    "SETOR RESIDENCIAL VIEIRA": [
+      "143"
+    ],
+    "SETOR CRISTINA": [
+      "33"
+    ],
+    "JARDIM PRIMAVERA": [
+      "85"
+    ],
+    "SETOR MARIAPOLIS": [
+      "30"
+    ],
+    "SETOR GUARUJA PARK": [
+      "78"
+    ],
+    "RESIDENCIAL JARDIM DA LUZ": [
+      "115"
+    ],
+    "VILA SANTA INES": [
+      "5"
+    ],
+    "JARDIM IMPERIAL": [
+      "38"
+    ],
+    "SETOR DAS MANSOES": [
+      "150"
+    ],
+    "ESTRELA DO ORIENTE": [
+      "51"
+    ],
+    "RESIDENCIAL ROSA MORENA": [
+      "63"
+    ],
+    "VILA JOAO BRAZ": [
+      "9"
+    ],
+    "PARQUE SERRA BRANCA": [
+      "120"
+    ],
+    "SETOR DOS BANDEIRANTES": [
+      "106"
+    ],
+    "SETOR CRISTINA II": [
+      "98"
+    ],
+    "CENTRO": [
+      "1"
+    ],
+    "SETOR VIDA NOVA": [
+      "124"
+    ],
+    "RECANTO DO LAGO": [
+      "118"
+    ],
+    "VILA JD NOSSA SENHORA PERPETUO SOCORRO": [
+      "56"
+    ],
+    "ALTO DO CERRADO I": [
+      "46"
+    ],
+    "SETOR SANTO ONOFRE": [
+      "15"
+    ],
+    "ALTO DO CERRADO II": [
+      "50"
+    ],
+    "DISTRITO DE SANTA MARIA": [
+      "107"
+    ],
+    "VILA DOS SONHOS": [
+      "203"
+    ],
+    "JARDIM SCALA": [
+      "94"
+    ],
+    "SETOR SAO SEBASTIAO": [
+      "89"
+    ],
+    "CHACARA SETOR BELA VISTA": [
+      "66"
+    ],
+    "NOVA CANAA": [
+      "88"
+    ],
+    "CONJUNTO DONA IRIS I": [
+      "81"
+    ],
+    "CHACARA SANTA LUZIA": [
+      "42"
+    ],
+    "JARDIM DAS OLIVEIRAS": [
+      "36"
+    ],
+    "VILA AUGUSTUS": [
+      "2"
+    ],
+    "SETOR SOLANGE": [
+      "121"
+    ],
+    "VILA SANTO AFONSO": [
+      "22"
+    ],
+    "SETOR NOVO PARAISO": [
+      "113"
+    ],
+    "CONJUNTO DONA IRIS II": [
+      "82"
+    ],
+    "VILA EMANUEL": [
+      "14"
+    ],
+    "RESIDENCIAL SAO BERNARDO II": [
+      "69"
+    ],
+    "RESIDENCIAL GARAVELO II": [
+      "92"
+    ],
+    "VILA SOL DOURADO": [
+      "73"
+    ],
+    "VILA REDENCAO VILA BARRO PRETO": [
+      "6"
+    ],
+    "JARDIM IMPERIAL CONJUNTO MARISE": [
+      "87"
+    ],
+    "VILA JARDIM SALVADOR": [
+      "8"
+    ],
+    "RESIDENCIAL PAI ETERNO": [
+      "145"
+    ],
+    "RESIDENCIAL TERRA SANTA": [
+      "157"
+    ],
+    "MORADA DO BOSQUE": [
+      "52"
+    ],
+    "LOTES MANSOES PONTA KAYANA": [
+      "70"
+    ],
+    "RECANTO DAS BRISAS": [
+      "219"
+    ],
+    "PARQVILLE QUARESMEIRA": [
+      "376"
+    ],
+    "RESIDENCIAL MARIA MONTEIRO": [
+      "79"
+    ],
+    "RESIDENCIAL GARAVELO I": [
+      "91"
+    ],
+    "JARDIM CALIFORNIA": [
+      "37"
+    ],
+    "JARDIM NOVO HORIZONTE": [
+      "111"
+    ],
+    "VILA AMADOR": [
+      "16"
+    ],
+    "RESIDENCIAL LUZIA MONTEIRO": [
+      "140"
+    ],
+    "NUCLEO ANHANGUERA": [
+      "49"
+    ],
+    "COND RESIDENCIAL RAIO DE SOL": [
+      "307"
+    ],
+    "RESID VILA EMANUEL EXPANSAO": [
+      "308"
+    ],
+    "RESIDENCIAL JARDIM ALTA VISTA": [
+      "438"
+    ],
+    "SANTUARIO": [
+      "17"
+    ],
+    "RESIDENCIAL SANTA FE": [
+      "57"
+    ],
+    "SAO FRANCISCO I": [
+      "53"
+    ],
+    "RESIDENCIAL MELK": [
+      "80"
+    ],
+    "LOTEAMENTO RESIDENCIAL CIDADE JARDIM": [
+      "315"
+    ],
+    "RESIDENCIAL NOVA MORADA": [
+      "314"
+    ],
+    "CONDOMINIO ESTANCIAS AROEIRA": [
+      "138"
+    ],
+    "RESERVA TRINIDADE": [
+      "316"
+    ],
+    "RESIDENCIAL LAGUNA EXPANSAO": [
+      "317"
+    ],
+    "CONDOMINIO DE CHACARAS MONTE SINAI": [
+      "319"
+    ],
+    "SETOR ABRAAO MANOEL": [
+      "18"
+    ],
+    "CONDOMINIO DE CHACARA CANAA": [
+      "320"
+    ],
+    "CONDOMINIO MONTE HERMON": [
+      "322"
+    ],
+    "CONDOMINIO GALILEIA": [
+      "323"
+    ],
+    "RESIDENCIAL HARMONIA": [
+      "326"
+    ],
+    "SETOR SOARES": [
+      "32"
+    ],
+    "CHACARA SAO SEBASTIAO": [
+      "44"
+    ],
+    "VILA ARCO IRIS": [
+      "34"
+    ],
+    "RESIDENCIAL 14 BIS": [
+      "331"
+    ],
+    "VILA PADRE RENATO": [
+      "21"
+    ],
+    "MARIA EDUARDA": [
+      "218"
+    ],
+    "VILA CARVELO": [
+      "3"
+    ],
+    "RESIDENCIAL NOVA MORADA PARK": [
+      "375"
+    ],
+    "CHACARA JARDIM DECOLORES": [
+      "67"
+    ],
+    "CHACARA JARDIM MARISTA": [
+      "132"
+    ],
+    "COND CHACARAS VEREDA DO LAGO": [
+      "365"
+    ],
+    "RESIDENCIAL JUAREZ FREIRE": [
+      "330"
+    ],
+    "FAZ ENGENHO VELHO": [
+      "372"
+    ],
+    "COND DE CHACARAS MONTE SIAO": [
+      "373"
+    ],
+    "VILA ROBERTO MONTEIRO": [
+      "100"
+    ],
+    "RESIDENCIAL EMBAUBA": [
+      "378"
+    ],
+    "CHACARA DONA IRIS II": [
+      "139"
+    ],
+    "DESMEMB ANEXO AO SETOR CRISTINA": [
+      "363"
+    ],
+    "CHACARA VILA PAI ETERNO": [
+      "62"
+    ],
+    "CHACARA JARDIM CALIFORNIA": [
+      "130"
+    ],
+    "VILA GUILHERME": [
+      "11"
+    ],
+    "CONDOMINIO MONTE DAS OLIVEIRAS": [
+      "484"
+    ],
+    "VILA WILIAM": [
+      "4"
+    ],
+    "JARDIM VALE DOS SONHOS": [
+      "40"
+    ],
+    "SETOR JUSSARA": [
+      "23"
+    ],
+    "CHACARA JARDIM DAS OLIVEIRAS": [
+      "72"
+    ],
+    "CHACARA VILA SANTO AFONSO": [
+      "60"
+    ],
+    "MORADA DO BOSQUE CONJUNTO PRIVE ELIAS": [
+      "97"
+    ],
+    "CHACARA SETOR BARCELOS": [
+      "129"
+    ],
+    "CHACARA MORADA BOSQUE": [
+      "133"
+    ],
+    "RIO VERMELHO": [
+      "125"
+    ],
+    "RESIDENCIAL MORAES": [
+      "93"
+    ],
+    "RESIDENCIAL SANTISSIMO": [
+      "437"
+    ]
+  }
+}

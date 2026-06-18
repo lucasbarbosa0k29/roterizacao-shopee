@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-06-16T00:36:24.768Z",
+  "outputCrs": "EPSG:4326",
+  "layers": [
+    {
+      "key": "bairros",
+      "typeName": "ctmgeo_22s:vw_bairros",
+      "outputFile": "bairros.geojson",
+      "rawTotal": 939,
+      "bboxTotal": 146,
+      "cleanedCount": 136,
+      "fileSize": 740881
+    },
+    {
+      "key": "logradouros",
+      "typeName": "ctmgeo_22s:vw_logradouros",
+      "outputFile": "logradouros.geojson",
+      "rawTotal": 55568,
+      "bboxTotal": 3619,
+      "cleanedCount": 2689,
+      "fileSize": 4417385
+    },
+    {
+      "key": "loteamentos",
+      "typeName": "ctmgeo_22s:vw_loteamentos",
+      "outputFile": "loteamentos.geojson",
+      "rawTotal": 1667,
+      "bboxTotal": 147,
+      "cleanedCount": 135,
+      "fileSize": 726393
+    },
+    {
+      "key": "lotes",
+      "typeName": "ctmgeo_22s:vw_lotes",
+      "outputFile": "lotes.geojson",
+      "rawTotal": 656535,
+      "bboxTotal": 89083,
+      "cleanedCount": 85065,
+      "fileSize": 101709480
+    },
+    {
+      "key": "quadras",
+      "typeName": "ctmgeo_22s:vw_quadras",
+      "outputFile": "quadras.geojson",
+      "rawTotal": 46987,
+      "bboxTotal": 3391,
+      "cleanedCount": 3176,
+      "fileSize": 14216448
+    }
+  ]
+}

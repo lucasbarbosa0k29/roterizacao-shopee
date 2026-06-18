@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-16T01:16:06.068Z",
+  "scope": "Trindade-GO",
+  "crs": "EPSG:4326",
+  "sourceVersion": "clean-trindade-strict-polygon-v1",
+  "files": [
+    {
+      "name": "lotes-index.json",
+      "path": "data\\localfirst\\trindade\\lotes-index.json",
+      "layer": "lotes",
+      "recordCount": 85065,
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "orphanCount": 1487,
+      "weakCount": 0,
+      "fallbackRequiredCount": 1487,
+      "sizeBytes": 130740616,
+      "primaryKey": "cdloteamento|cdquadra|cdlote",
+      "searchFields": [
+        "cdloteamento",
+        "cdquadra",
+        "cdlote",
+        "cdzona",
+        "cdsetor",
+        "cdlogradouro",
+        "cdbairro",
+        "tipo",
+        "idempresa"
+      ]
+    },
+    {
+      "name": "quadras-index.json",
+      "path": "data\\localfirst\\trindade\\quadras-index.json",
+      "layer": "quadras",
+      "recordCount": 3176,
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "orphanCount": 15,
+      "weakCount": 0,
+      "fallbackRequiredCount": 15,
+      "sizeBytes": 3760560,
+      "primaryKey": "cdloteamento|cdquadra",
+      "searchFields": [
+        "cdloteamento",
+        "cdquadra",
+        "status",
+        "linkado",
+        "idempresa"
+      ]
+    },
+    {
+      "name": "logradouros-index.json",
+      "path": "data\\localfirst\\trindade\\logradouros-index.json",
+      "layer": "logradouros",
+      "recordCount": 2689,
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "orphanCount": 175,
+      "weakCount": 0,
+      "fallbackRequiredCount": 175,
+      "sizeBytes": 3941770,
+      "primaryKey": "cdlogradouro",
+      "searchFields": [
+        "nmlogradouro",
+        "tipologradouro",
+        "bairro",
+        "idbairro",
+        "cdlogradouro",
+        "idempresa"
+      ]
+    },
+    {
+      "name": "bairros-index.json",
+      "path": "data\\localfirst\\trindade\\bairros-index.json",
+      "layer": "bairros",
+      "recordCount": 136,
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "orphanCount": 0,
+      "weakCount": 0,
+      "fallbackRequiredCount": 0,
+      "sizeBytes": 154427,
+      "primaryKey": "cdbairro",
+      "searchFields": [
+        "nmbairro",
+        "cdbairro",
+        "idempresa"
+      ]
+    },
+    {
+      "name": "loteamentos-index.json",
+      "path": "data\\localfirst\\trindade\\loteamentos-index.json",
+      "layer": "loteamentos",
+      "recordCount": 135,
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "orphanCount": 0,
+      "weakCount": 0,
+      "fallbackRequiredCount": 0,
+      "sizeBytes": 157375,
+      "primaryKey": "cdloteamento",
+      "searchFields": [
+        "nmloteamento",
+        "cdloteamento",
+        "idempresa"
+      ]
+    }
+  ],
+  "stats": {
+    "summary": {
+      "lots": 85065,
+      "quadras": 3176,
+      "logradouros": 2689,
+      "bairros": 136,
+      "loteamentos": 135
+    },
+    "totals": {
+      "duplicateKeys": 0,
+      "emptyKeys": 0,
+      "missingRequired": 0,
+      "invalidCentroid": 0,
+      "invalidBbox": 0,
+      "orphanCount": 1677,
+      "weakCount": 0,
+      "fallbackRequiredCount": 1677
+    },
+    "files": [
+      {
+        "name": "lotes-index.json",
+        "layer": "lotes",
+        "recordCount": 85065,
+        "duplicateKeys": 0,
+        "emptyKeys": 0,
+        "missingRequired": 0,
+        "invalidCentroid": 0,
+        "invalidBbox": 0,
+        "orphanCount": 1487,
+        "weakCount": 0,
+        "fallbackRequiredCount": 1487,
+        "sizeBytes": 130740616,
+        "primaryKey": "cdloteamento|cdquadra|cdlote",
+        "searchFields": [
+          "cdloteamento",
+          "cdquadra",
+          "cdlote",
+          "cdzona",
+          "cdsetor",
+          "cdlogradouro",
+          "cdbairro",
+          "tipo",
+          "idempresa"
+        ]
+      },
+      {
+        "name": "quadras-index.json",
+        "layer": "quadras",
+        "recordCount": 3176,
+        "duplicateKeys": 0,
+        "emptyKeys": 0,
+        "missingRequired": 0,
+        "invalidCentroid": 0,
+        "invalidBbox": 0,
+        "orphanCount": 15,
+        "weakCount": 0,
+        "fallbackRequiredCount": 15,
+        "sizeBytes": 3760560,
+        "primaryKey": "cdloteamento|cdquadra",
+        "searchFields": [
+          "cdloteamento",
+          "cdquadra",
+          "status",
+          "linkado",
+          "idempresa"
+        ]
+      },
+      {
+        "name": "logradouros-index.json",
+        "layer": "logradouros",
+        "recordCount": 2689,
+        "duplicateKeys": 0,
+        "emptyKeys": 0,
+        "missingRequired": 0,
+        "invalidCentroid": 0,
+        "invalidBbox": 0,
+        "orphanCount": 175,
+        "weakCount": 0,
+        "fallbackRequiredCount": 175,
+        "sizeBytes": 3941770,
+        "primaryKey": "cdlogradouro",
+        "searchFields": [
+          "nmlogradouro",
+          "tipologradouro",
+          "bairro",
+          "idbairro",
+          "cdlogradouro",
+          "idempresa"
+        ]
+      },
+      {
+        "name": "bairros-index.json",
+        "layer": "bairros",
+        "recordCount": 136,
+        "duplicateKeys": 0,
+        "emptyKeys": 0,
+        "missingRequired": 0,
+        "invalidCentroid": 0,
+        "invalidBbox": 0,
+        "orphanCount": 0,
+        "weakCount": 0,
+        "fallbackRequiredCount": 0,
+        "sizeBytes": 154427,
+        "primaryKey": "cdbairro",
+        "searchFields": [
+          "nmbairro",
+          "cdbairro",
+          "idempresa"
+        ]
+      },
+      {
+        "name": "loteamentos-index.json",
+        "layer": "loteamentos",
+        "recordCount": 135,
+        "duplicateKeys": 0,
+        "emptyKeys": 0,
+        "missingRequired": 0,
+        "invalidCentroid": 0,
+        "invalidBbox": 0,
+        "orphanCount": 0,
+        "weakCount": 0,
+        "fallbackRequiredCount": 0,
+        "sizeBytes": 157375,
+        "primaryKey": "cdloteamento",
+        "searchFields": [
+          "nmloteamento",
+          "cdloteamento",
+          "idempresa"
+        ]
+      }
+    ]
+  }
+}

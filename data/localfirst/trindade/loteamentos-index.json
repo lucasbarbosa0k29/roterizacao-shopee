@@ -1,0 +1,7166 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-16T01:16:04.151Z",
+  "scope": "Trindade-GO",
+  "crs": "EPSG:4326",
+  "primaryKey": "cdloteamento",
+  "byKey": {
+    "1": {
+      "key": "1",
+      "normalizedKey": "LOTEAMENTO 1",
+      "id": 1122,
+      "code": {
+        "idloteamento": 1122,
+        "cdloteamento": "1"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 1"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4947294,
+            -16.6561466
+          ]
+        },
+        "bbox": [
+          -49.502767,
+          -16.6627963,
+          -49.4866917,
+          -16.6494968
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1122,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 1"
+      ]
+    },
+    "2": {
+      "key": "2",
+      "normalizedKey": "VILA AUGUSTUS",
+      "id": 1142,
+      "code": {
+        "idloteamento": 1142,
+        "cdloteamento": "2"
+      },
+      "name": {
+        "nmloteamento": "VILA AUGUSTUS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5059049,
+            -16.648784
+          ]
+        },
+        "bbox": [
+          -49.5104869,
+          -16.6512371,
+          -49.5013229,
+          -16.6463308
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1142,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA AUGUSTUS"
+      ]
+    },
+    "3": {
+      "key": "3",
+      "normalizedKey": "LOTEAMENTO 3",
+      "id": 1218,
+      "code": {
+        "idloteamento": 1218,
+        "cdloteamento": "3"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 3"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4978436,
+            -16.6492441
+          ]
+        },
+        "bbox": [
+          -49.4992385,
+          -16.6501447,
+          -49.4964487,
+          -16.6483434
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1218,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 3"
+      ]
+    },
+    "4": {
+      "key": "4",
+      "normalizedKey": "VILA WILIAM",
+      "id": 1237,
+      "code": {
+        "idloteamento": 1237,
+        "cdloteamento": "4"
+      },
+      "name": {
+        "nmloteamento": "VILA WILIAM"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4863149,
+            -16.6613852
+          ]
+        },
+        "bbox": [
+          -49.4870691,
+          -16.6628801,
+          -49.4855607,
+          -16.6598903
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1237,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA WILIAM"
+      ]
+    },
+    "5": {
+      "key": "5",
+      "normalizedKey": "LOTEAMENTO 5",
+      "id": 1113,
+      "code": {
+        "idloteamento": 1113,
+        "cdloteamento": "5"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 5"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.49486,
+            -16.6563181
+          ]
+        },
+        "bbox": [
+          -49.4963317,
+          -16.6577671,
+          -49.4933884,
+          -16.6548691
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1113,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 5"
+      ]
+    },
+    "6": {
+      "key": "6",
+      "normalizedKey": "VILA REDENCAO VILA BARRO PRETO",
+      "id": 1152,
+      "code": {
+        "idloteamento": 1152,
+        "cdloteamento": "6"
+      },
+      "name": {
+        "nmloteamento": "VILA REDENÇÃO (VILA BARRO PRETO)"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5037679,
+            -16.6570561
+          ]
+        },
+        "bbox": [
+          -49.5049465,
+          -16.6583232,
+          -49.5025894,
+          -16.6557889
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1152,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA REDENCAO VILA BARRO PRETO"
+      ]
+    },
+    "7": {
+      "key": "7",
+      "normalizedKey": "LOTEAMENTO 7",
+      "id": 1089,
+      "code": {
+        "idloteamento": 1089,
+        "cdloteamento": "7"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 7"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4880752,
+            -16.6463248
+          ]
+        },
+        "bbox": [
+          -49.4966859,
+          -16.6542921,
+          -49.4794644,
+          -16.6383576
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1089,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 7"
+      ]
+    },
+    "8": {
+      "key": "8",
+      "normalizedKey": "LOTEAMENTO 8",
+      "id": 1155,
+      "code": {
+        "idloteamento": 1155,
+        "cdloteamento": "8"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 8"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4828612,
+            -16.6571343
+          ]
+        },
+        "bbox": [
+          -49.488285,
+          -16.6601382,
+          -49.4774375,
+          -16.6541305
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1155,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 8"
+      ]
+    },
+    "9": {
+      "key": "9",
+      "normalizedKey": "VILA JOAO BRAZ",
+      "id": 1118,
+      "code": {
+        "idloteamento": 1118,
+        "cdloteamento": "9"
+      },
+      "name": {
+        "nmloteamento": "VILA JOAO BRAZ"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4834946,
+            -16.6535625
+          ]
+        },
+        "bbox": [
+          -49.4880525,
+          -16.6560033,
+          -49.4789368,
+          -16.6511217
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1118,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA JOAO BRAZ"
+      ]
+    },
+    "10": {
+      "key": "10",
+      "normalizedKey": "LOTEAMENTO 10",
+      "id": 1088,
+      "code": {
+        "idloteamento": 1088,
+        "cdloteamento": "10"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 10"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5090473,
+            -16.6478236
+          ]
+        },
+        "bbox": [
+          -49.5100345,
+          -16.6486311,
+          -49.50806,
+          -16.6470161
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1088,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 10"
+      ]
+    },
+    "11": {
+      "key": "11",
+      "normalizedKey": "VILA GUILHERME",
+      "id": 1235,
+      "code": {
+        "idloteamento": 1235,
+        "cdloteamento": "11"
+      },
+      "name": {
+        "nmloteamento": "VILA GUILHERME"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4951481,
+            -16.6551167
+          ]
+        },
+        "bbox": [
+          -49.495773,
+          -16.6556298,
+          -49.4945232,
+          -16.6546037
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1235,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA GUILHERME"
+      ]
+    },
+    "12": {
+      "key": "12",
+      "normalizedKey": "LOTEAMENTO 12",
+      "id": 1101,
+      "code": {
+        "idloteamento": 1101,
+        "cdloteamento": "12"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 12"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4968628,
+            -16.6449382
+          ]
+        },
+        "bbox": [
+          -49.5006586,
+          -16.6492941,
+          -49.4930669,
+          -16.6405824
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1101,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 12"
+      ]
+    },
+    "14": {
+      "key": "14",
+      "normalizedKey": "LOTEAMENTO 14",
+      "id": 1147,
+      "code": {
+        "idloteamento": 1147,
+        "cdloteamento": "14"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 14"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.501013,
+            -16.6436085
+          ]
+        },
+        "bbox": [
+          -49.5037821,
+          -16.6475207,
+          -49.4982439,
+          -16.6396963
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1147,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 14"
+      ]
+    },
+    "15": {
+      "key": "15",
+      "normalizedKey": "SETOR SANTO ONOFRE",
+      "id": 1129,
+      "code": {
+        "idloteamento": 1129,
+        "cdloteamento": "15"
+      },
+      "name": {
+        "nmloteamento": "SETOR SANTO ONOFRE"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4887444,
+            -16.6607923
+          ]
+        },
+        "bbox": [
+          -49.4905032,
+          -16.6626818,
+          -49.4869856,
+          -16.6589027
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1129,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR SANTO ONOFRE"
+      ]
+    },
+    "16": {
+      "key": "16",
+      "normalizedKey": "VILA AMADOR",
+      "id": 1176,
+      "code": {
+        "idloteamento": 1176,
+        "cdloteamento": "16"
+      },
+      "name": {
+        "nmloteamento": "VILA AMADOR"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4995611,
+            -16.6570099
+          ]
+        },
+        "bbox": [
+          -49.5004989,
+          -16.6585279,
+          -49.4986233,
+          -16.6554918
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1176,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA AMADOR"
+      ]
+    },
+    "17": {
+      "key": "17",
+      "normalizedKey": "LOTEAMENTO 17",
+      "id": 1186,
+      "code": {
+        "idloteamento": 1186,
+        "cdloteamento": "17"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 17"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4810525,
+            -16.6646583
+          ]
+        },
+        "bbox": [
+          -49.4856638,
+          -16.6698633,
+          -49.4764412,
+          -16.6594532
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1186,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 17"
+      ]
+    },
+    "18": {
+      "key": "18",
+      "normalizedKey": "LOTEAMENTO 18",
+      "id": 1198,
+      "code": {
+        "idloteamento": 1198,
+        "cdloteamento": "18"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 18"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4917468,
+            -16.6590937
+          ]
+        },
+        "bbox": [
+          -49.4925339,
+          -16.6603855,
+          -49.4909597,
+          -16.6578018
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1198,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 18"
+      ]
+    },
+    "19": {
+      "key": "19",
+      "normalizedKey": "LOTEAMENTO 19",
+      "id": 1086,
+      "code": {
+        "idloteamento": 1086,
+        "cdloteamento": "19"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 19"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5043876,
+            -16.6617117
+          ]
+        },
+        "bbox": [
+          -49.5099988,
+          -16.6697662,
+          -49.4987765,
+          -16.6536571
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1086,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 19"
+      ]
+    },
+    "20": {
+      "key": "20",
+      "normalizedKey": "LOTEAMENTO 20",
+      "id": 1078,
+      "code": {
+        "idloteamento": 1078,
+        "cdloteamento": "20"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 20"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.480763,
+            -16.6692185
+          ]
+        },
+        "bbox": [
+          -49.4864083,
+          -16.675834,
+          -49.4751177,
+          -16.6626031
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1078,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 20"
+      ]
+    },
+    "21": {
+      "key": "21",
+      "normalizedKey": "VILA PADRE RENATO",
+      "id": 1213,
+      "code": {
+        "idloteamento": 1213,
+        "cdloteamento": "21"
+      },
+      "name": {
+        "nmloteamento": "VILA PADRE RENATO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4891942,
+            -16.6622969
+          ]
+        },
+        "bbox": [
+          -49.490984,
+          -16.6637194,
+          -49.4874043,
+          -16.6608745
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1213,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA PADRE RENATO"
+      ]
+    },
+    "22": {
+      "key": "22",
+      "normalizedKey": "VILA SANTO AFONSO",
+      "id": 1144,
+      "code": {
+        "idloteamento": 1144,
+        "cdloteamento": "22"
+      },
+      "name": {
+        "nmloteamento": "VILA SANTO AFONSO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4992641,
+            -16.6541733
+          ]
+        },
+        "bbox": [
+          -49.5009207,
+          -16.6554698,
+          -49.4976074,
+          -16.6528768
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1144,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA SANTO AFONSO"
+      ]
+    },
+    "23": {
+      "key": "23",
+      "normalizedKey": "SETOR JUSSARA",
+      "id": 1241,
+      "code": {
+        "idloteamento": 1241,
+        "cdloteamento": "23"
+      },
+      "name": {
+        "nmloteamento": "SETOR JUSSARA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4995536,
+            -16.6558827
+          ]
+        },
+        "bbox": [
+          -49.50036,
+          -16.6566211,
+          -49.4987473,
+          -16.6551444
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1241,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR JUSSARA"
+      ]
+    },
+    "24": {
+      "key": "24",
+      "normalizedKey": "LOTEAMENTO 24",
+      "id": 1076,
+      "code": {
+        "idloteamento": 1076,
+        "cdloteamento": "24"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 24"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4378179,
+            -16.63905
+          ]
+        },
+        "bbox": [
+          -49.4460362,
+          -16.6460764,
+          -49.4295995,
+          -16.6320235
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1076,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 24"
+      ]
+    },
+    "25": {
+      "key": "25",
+      "normalizedKey": "LOTEAMENTO 25",
+      "id": 1090,
+      "code": {
+        "idloteamento": 1090,
+        "cdloteamento": "25"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 25"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4670009,
+            -16.6330551
+          ]
+        },
+        "bbox": [
+          -49.4701523,
+          -16.6361229,
+          -49.4638494,
+          -16.6299873
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1090,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 25"
+      ]
+    },
+    "26": {
+      "key": "26",
+      "normalizedKey": "LOTEAMENTO 26",
+      "id": 1085,
+      "code": {
+        "idloteamento": 1085,
+        "cdloteamento": "26"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 26"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3997634,
+            -16.5903404
+          ]
+        },
+        "bbox": [
+          -49.4066296,
+          -16.5943039,
+          -49.3928972,
+          -16.5863769
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1085,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 26"
+      ]
+    },
+    "27": {
+      "key": "27",
+      "normalizedKey": "LOTEAMENTO 27",
+      "id": 1084,
+      "code": {
+        "idloteamento": 1084,
+        "cdloteamento": "27"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 27"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3913835,
+            -16.6303107
+          ]
+        },
+        "bbox": [
+          -49.4027352,
+          -16.6476653,
+          -49.3800317,
+          -16.6129562
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1084,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 27"
+      ]
+    },
+    "28": {
+      "key": "28",
+      "normalizedKey": "LOTEAMENTO 28",
+      "id": 1096,
+      "code": {
+        "idloteamento": 1096,
+        "cdloteamento": "28"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 28"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4884541,
+            -16.6350801
+          ]
+        },
+        "bbox": [
+          -49.4924116,
+          -16.6405171,
+          -49.4844965,
+          -16.6296431
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1096,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 28"
+      ]
+    },
+    "29": {
+      "key": "29",
+      "normalizedKey": "LOTEAMENTO 29",
+      "id": 1095,
+      "code": {
+        "idloteamento": 1095,
+        "cdloteamento": "29"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 29"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5060208,
+            -16.6456276
+          ]
+        },
+        "bbox": [
+          -49.5073725,
+          -16.6468615,
+          -49.504669,
+          -16.6443936
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1095,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 29"
+      ]
+    },
+    "30": {
+      "key": "30",
+      "normalizedKey": "LOTEAMENTO 30",
+      "id": 1109,
+      "code": {
+        "idloteamento": 1109,
+        "cdloteamento": "30"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 30"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4507274,
+            -16.6190236
+          ]
+        },
+        "bbox": [
+          -49.4541236,
+          -16.6214792,
+          -49.4473312,
+          -16.6165679
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1109,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 30"
+      ]
+    },
+    "31": {
+      "key": "31",
+      "normalizedKey": "LOTEAMENTO 31",
+      "id": 1080,
+      "code": {
+        "idloteamento": 1080,
+        "cdloteamento": "31"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 31"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4978054,
+            -16.671718
+          ]
+        },
+        "bbox": [
+          -49.5004192,
+          -16.6778417,
+          -49.4951915,
+          -16.6655943
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1080,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 31"
+      ]
+    },
+    "32": {
+      "key": "32",
+      "normalizedKey": "LOTEAMENTO 32",
+      "id": 1204,
+      "code": {
+        "idloteamento": 1204,
+        "cdloteamento": "32"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 32"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4120826,
+            -16.6342379
+          ]
+        },
+        "bbox": [
+          -49.4156288,
+          -16.6378565,
+          -49.4085364,
+          -16.6306193
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1204,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 32"
+      ]
+    },
+    "33": {
+      "key": "33",
+      "normalizedKey": "LOTEAMENTO 33",
+      "id": 1107,
+      "code": {
+        "idloteamento": 1107,
+        "cdloteamento": "33"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 33"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4177344,
+            -16.6329145
+          ]
+        },
+        "bbox": [
+          -49.4232337,
+          -16.6379148,
+          -49.4122351,
+          -16.6279142
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1107,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 33"
+      ]
+    },
+    "34": {
+      "key": "34",
+      "normalizedKey": "VILA ARCO IRIS",
+      "id": 1208,
+      "code": {
+        "idloteamento": 1208,
+        "cdloteamento": "34"
+      },
+      "name": {
+        "nmloteamento": "VILA ARCO IRIS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4958096,
+            -16.6672542
+          ]
+        },
+        "bbox": [
+          -49.496828,
+          -16.6688941,
+          -49.4947912,
+          -16.6656143
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1208,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA ARCO IRIS"
+      ]
+    },
+    "35": {
+      "key": "35",
+      "normalizedKey": "LOTEAMENTO 35",
+      "id": 1077,
+      "code": {
+        "idloteamento": 1077,
+        "cdloteamento": "35"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 35"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4192504,
+            -16.645696
+          ]
+        },
+        "bbox": [
+          -49.4262721,
+          -16.6487589,
+          -49.4122287,
+          -16.6426332
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1077,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 35"
+      ]
+    },
+    "36": {
+      "key": "36",
+      "normalizedKey": "LOTEAMENTO 36",
+      "id": 1141,
+      "code": {
+        "idloteamento": 1141,
+        "cdloteamento": "36"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 36"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3979934,
+            -16.6416112
+          ]
+        },
+        "bbox": [
+          -49.4041614,
+          -16.6443891,
+          -49.3918253,
+          -16.6388332
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1141,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 36"
+      ]
+    },
+    "37": {
+      "key": "37",
+      "normalizedKey": "LOTEAMENTO 37",
+      "id": 1169,
+      "code": {
+        "idloteamento": 1169,
+        "cdloteamento": "37"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 37"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4262463,
+            -16.6188396
+          ]
+        },
+        "bbox": [
+          -49.430081,
+          -16.6209183,
+          -49.4224115,
+          -16.6167608
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1169,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 37"
+      ]
+    },
+    "38": {
+      "key": "38",
+      "normalizedKey": "LOTEAMENTO 38",
+      "id": 1114,
+      "code": {
+        "idloteamento": 1114,
+        "cdloteamento": "38"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 38"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5114417,
+            -16.652393
+          ]
+        },
+        "bbox": [
+          -49.5209764,
+          -16.6617536,
+          -49.501907,
+          -16.6430324
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1114,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 38"
+      ]
+    },
+    "39": {
+      "key": "39",
+      "normalizedKey": "LOTEAMENTO 39",
+      "id": 1087,
+      "code": {
+        "idloteamento": 1087,
+        "cdloteamento": "39"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 39"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4182232,
+            -16.6407653
+          ]
+        },
+        "bbox": [
+          -49.4272583,
+          -16.6436306,
+          -49.4091881,
+          -16.6378999
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1087,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 39"
+      ]
+    },
+    "40": {
+      "key": "40",
+      "normalizedKey": "JARDIM VALE DOS SONHOS",
+      "id": 1240,
+      "code": {
+        "idloteamento": 1240,
+        "cdloteamento": "40"
+      },
+      "name": {
+        "nmloteamento": "JARDIM VALE DOS SONHOS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4757923,
+            -16.6193553
+          ]
+        },
+        "bbox": [
+          -49.4788655,
+          -16.6245975,
+          -49.4727191,
+          -16.6141132
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1240,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM VALE DOS SONHOS"
+      ]
+    },
+    "41": {
+      "key": "41",
+      "normalizedKey": "LOTEAMENTO 41",
+      "id": 1103,
+      "code": {
+        "idloteamento": 1103,
+        "cdloteamento": "41"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 41"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4654427,
+            -16.6401902
+          ]
+        },
+        "bbox": [
+          -49.4722167,
+          -16.6447461,
+          -49.4586687,
+          -16.6356344
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1103,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 41"
+      ]
+    },
+    "42": {
+      "key": "42",
+      "normalizedKey": "LOTEAMENTO 42",
+      "id": 1140,
+      "code": {
+        "idloteamento": 1140,
+        "cdloteamento": "42"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 42"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4959772,
+            -16.6306138
+          ]
+        },
+        "bbox": [
+          -49.5016017,
+          -16.6388333,
+          -49.4903527,
+          -16.6223943
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1140,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 42"
+      ]
+    },
+    "43": {
+      "key": "43",
+      "normalizedKey": "LOTEAMENTO 43",
+      "id": 1073,
+      "code": {
+        "idloteamento": 1073,
+        "cdloteamento": "43"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 43"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4807449,
+            -16.6369925
+          ]
+        },
+        "bbox": [
+          -49.4870456,
+          -16.6432372,
+          -49.4744442,
+          -16.6307477
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1073,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 43"
+      ]
+    },
+    "44": {
+      "key": "44",
+      "normalizedKey": "CHACARA SAO SEBASTIAO",
+      "id": 1206,
+      "code": {
+        "idloteamento": 1206,
+        "cdloteamento": "44"
+      },
+      "name": {
+        "nmloteamento": "CHACARA SÃO SEBASTIAO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4744401,
+            -16.6851394
+          ]
+        },
+        "bbox": [
+          -49.4758966,
+          -16.6882309,
+          -49.4729836,
+          -16.6820479
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1206,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SAO SEBASTIAO"
+      ]
+    },
+    "46": {
+      "key": "46",
+      "normalizedKey": "ALTO DO CERRADO I",
+      "id": 1128,
+      "code": {
+        "idloteamento": 1128,
+        "cdloteamento": "46"
+      },
+      "name": {
+        "nmloteamento": "ALTO DO CERRADO I"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4415731,
+            -16.6699653
+          ]
+        },
+        "bbox": [
+          -49.4434409,
+          -16.6719174,
+          -49.4397052,
+          -16.6680132
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1128,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "ALTO DO CERRADO I"
+      ]
+    },
+    "47": {
+      "key": "47",
+      "normalizedKey": "SAO FRANCISCO II",
+      "id": 1075,
+      "code": {
+        "idloteamento": 1075,
+        "cdloteamento": "47"
+      },
+      "name": {
+        "nmloteamento": "SAO FRANCISCO II"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4171911,
+            -16.5733411
+          ]
+        },
+        "bbox": [
+          -49.4225716,
+          -16.5799281,
+          -49.4118107,
+          -16.5667542
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1075,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SAO FRANCISCO II"
+      ]
+    },
+    "48": {
+      "key": "48",
+      "normalizedKey": "LOTEAMENTO 48",
+      "id": 1105,
+      "code": {
+        "idloteamento": 1105,
+        "cdloteamento": "48"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 48"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4814741,
+            -16.6812885
+          ]
+        },
+        "bbox": [
+          -49.4870964,
+          -16.6872093,
+          -49.4758517,
+          -16.6753677
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1105,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 48"
+      ]
+    },
+    "49": {
+      "key": "49",
+      "normalizedKey": "LOTEAMENTO 49",
+      "id": 1180,
+      "code": {
+        "idloteamento": 1180,
+        "cdloteamento": "49"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 49"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4387516,
+            -16.6449369
+          ]
+        },
+        "bbox": [
+          -49.4438723,
+          -16.6460405,
+          -49.4336308,
+          -16.6438333
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1180,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 49"
+      ]
+    },
+    "50": {
+      "key": "50",
+      "normalizedKey": "LOTEAMENTO 50",
+      "id": 1130,
+      "code": {
+        "idloteamento": 1130,
+        "cdloteamento": "50"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 50"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4400861,
+            -16.669196
+          ]
+        },
+        "bbox": [
+          -49.4414486,
+          -16.6707983,
+          -49.4387237,
+          -16.6675936
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1130,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 50"
+      ]
+    },
+    "51": {
+      "key": "51",
+      "normalizedKey": "LOTEAMENTO 51",
+      "id": 1116,
+      "code": {
+        "idloteamento": 1116,
+        "cdloteamento": "51"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 51"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.505458,
+            -16.6601091
+          ]
+        },
+        "bbox": [
+          -49.507687,
+          -16.6630086,
+          -49.503229,
+          -16.6572096
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1116,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 51"
+      ]
+    },
+    "52": {
+      "key": "52",
+      "normalizedKey": "LOTEAMENTO 52",
+      "id": 1160,
+      "code": {
+        "idloteamento": 1160,
+        "cdloteamento": "52"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 52"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4306092,
+            -16.6451274
+          ]
+        },
+        "bbox": [
+          -49.4335492,
+          -16.6470172,
+          -49.4276692,
+          -16.6432375
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1160,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 52"
+      ]
+    },
+    "53": {
+      "key": "53",
+      "normalizedKey": "SAO FRANCISCO I",
+      "id": 1189,
+      "code": {
+        "idloteamento": 1189,
+        "cdloteamento": "53"
+      },
+      "name": {
+        "nmloteamento": "SÃO FRANCISCO I"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4203152,
+            -16.5654029
+          ]
+        },
+        "bbox": [
+          -49.4260712,
+          -16.571509,
+          -49.4145592,
+          -16.5592969
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1189,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SAO FRANCISCO I"
+      ]
+    },
+    "54": {
+      "key": "54",
+      "normalizedKey": "JARDIM DAS TAMAREIRAS",
+      "id": 1074,
+      "code": {
+        "idloteamento": 1074,
+        "cdloteamento": "54"
+      },
+      "name": {
+        "nmloteamento": "JARDIM DAS TAMAREIRAS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.494498,
+            -16.6689724
+          ]
+        },
+        "bbox": [
+          -49.4960682,
+          -16.6722638,
+          -49.4929278,
+          -16.665681
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1074,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM DAS TAMAREIRAS"
+      ]
+    },
+    "56": {
+      "key": "56",
+      "normalizedKey": "LOTEAMENTO 56",
+      "id": 1126,
+      "code": {
+        "idloteamento": 1126,
+        "cdloteamento": "56"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 56"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4958197,
+            -16.6617075
+          ]
+        },
+        "bbox": [
+          -49.5002148,
+          -16.667168,
+          -49.4914245,
+          -16.656247
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1126,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 56"
+      ]
+    },
+    "57": {
+      "key": "57",
+      "normalizedKey": "LOTEAMENTO 57",
+      "id": 1188,
+      "code": {
+        "idloteamento": 1188,
+        "cdloteamento": "57"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 57"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5293323,
+            -16.6340335
+          ]
+        },
+        "bbox": [
+          -49.5360792,
+          -16.6382893,
+          -49.5225854,
+          -16.6297778
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1188,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 57"
+      ]
+    },
+    "60": {
+      "key": "60",
+      "normalizedKey": "CHACARA VILA SANTO AFONSO",
+      "id": 1244,
+      "code": {
+        "idloteamento": 1244,
+        "cdloteamento": "60"
+      },
+      "name": {
+        "nmloteamento": "CHACARA VILA SANTO AFONSO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5063141,
+            -16.6527234
+          ]
+        },
+        "bbox": [
+          -49.5091426,
+          -16.6541905,
+          -49.5034855,
+          -16.6512564
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1244,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA VILA SANTO AFONSO"
+      ]
+    },
+    "62": {
+      "key": "62",
+      "normalizedKey": "CHACARA VILA PAI ETERNO",
+      "id": 1233,
+      "code": {
+        "idloteamento": 1233,
+        "cdloteamento": "62"
+      },
+      "name": {
+        "nmloteamento": "CHACARA VILA PAI ETERNO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4939086,
+            -16.645644
+          ]
+        },
+        "bbox": [
+          -49.495568,
+          -16.6471354,
+          -49.4922493,
+          -16.6441525
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1233,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA VILA PAI ETERNO"
+      ]
+    },
+    "63": {
+      "key": "63",
+      "normalizedKey": "LOTEAMENTO 63",
+      "id": 1117,
+      "code": {
+        "idloteamento": 1117,
+        "cdloteamento": "63"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 63"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5193644,
+            -16.6311829
+          ]
+        },
+        "bbox": [
+          -49.5226279,
+          -16.6349989,
+          -49.516101,
+          -16.6273668
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1117,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 63"
+      ]
+    },
+    "66": {
+      "key": "66",
+      "normalizedKey": "CHACARA SETOR BELA VISTA",
+      "id": 1136,
+      "code": {
+        "idloteamento": 1136,
+        "cdloteamento": "66"
+      },
+      "name": {
+        "nmloteamento": "CHACARA SETOR BELA VISTA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4639535,
+            -16.6376033
+          ]
+        },
+        "bbox": [
+          -49.4688696,
+          -16.6412723,
+          -49.4590375,
+          -16.6339343
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1136,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SETOR BELA VISTA"
+      ]
+    },
+    "67": {
+      "key": "67",
+      "normalizedKey": "CHACARA JARDIM DECOLORES",
+      "id": 1221,
+      "code": {
+        "idloteamento": 1221,
+        "cdloteamento": "67"
+      },
+      "name": {
+        "nmloteamento": "CHACARA JARDIM DECOLORES"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4698837,
+            -16.6379162
+          ]
+        },
+        "bbox": [
+          -49.4750474,
+          -16.6413414,
+          -49.46472,
+          -16.634491
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1221,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM DECOLORES"
+      ]
+    },
+    "69": {
+      "key": "69",
+      "normalizedKey": "LOTEAMENTO 69",
+      "id": 1148,
+      "code": {
+        "idloteamento": 1148,
+        "cdloteamento": "69"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 69"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3983202,
+            -16.5819586
+          ]
+        },
+        "bbox": [
+          -49.4042617,
+          -16.5871692,
+          -49.3923788,
+          -16.576748
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1148,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 69"
+      ]
+    },
+    "70": {
+      "key": "70",
+      "normalizedKey": "LOTES MANSOES PONTA KAYANA",
+      "id": 1161,
+      "code": {
+        "idloteamento": 1161,
+        "cdloteamento": "70"
+      },
+      "name": {
+        "nmloteamento": "LOTES MANSOES (PONTA KAYANA)"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4370668,
+            -16.6371054
+          ]
+        },
+        "bbox": [
+          -49.4463389,
+          -16.6437774,
+          -49.4277947,
+          -16.6304335
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1161,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTES MANSOES PONTA KAYANA"
+      ]
+    },
+    "71": {
+      "key": "71",
+      "normalizedKey": "LOTEAMENTO 71",
+      "id": 1081,
+      "code": {
+        "idloteamento": 1081,
+        "cdloteamento": "71"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 71"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4568879,
+            -16.6391293
+          ]
+        },
+        "bbox": [
+          -49.4595486,
+          -16.6441149,
+          -49.4542272,
+          -16.6341436
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1081,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 71"
+      ]
+    },
+    "72": {
+      "key": "72",
+      "normalizedKey": "CHACARA JARDIM DAS OLIVEIRAS",
+      "id": 1243,
+      "code": {
+        "idloteamento": 1243,
+        "cdloteamento": "72"
+      },
+      "name": {
+        "nmloteamento": "CHACARA JARDIM DAS OLIVEIRAS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.400036,
+            -16.6404287
+          ]
+        },
+        "bbox": [
+          -49.402521,
+          -16.6430796,
+          -49.397551,
+          -16.6377779
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1243,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM DAS OLIVEIRAS"
+      ]
+    },
+    "73": {
+      "key": "73",
+      "normalizedKey": "LOTEAMENTO 73",
+      "id": 1151,
+      "code": {
+        "idloteamento": 1151,
+        "cdloteamento": "73"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 73"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4991863,
+            -16.6742421
+          ]
+        },
+        "bbox": [
+          -49.5010029,
+          -16.6768811,
+          -49.4973697,
+          -16.6716031
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1151,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 73"
+      ]
+    },
+    "76": {
+      "key": "76",
+      "normalizedKey": "LOTEAMENTO 76",
+      "id": 1099,
+      "code": {
+        "idloteamento": 1099,
+        "cdloteamento": "76"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 76"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4058972,
+            -16.6446701
+          ]
+        },
+        "bbox": [
+          -49.4103803,
+          -16.6475474,
+          -49.401414,
+          -16.6417927
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1099,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 76"
+      ]
+    },
+    "78": {
+      "key": "78",
+      "normalizedKey": "LOTEAMENTO 78",
+      "id": 1110,
+      "code": {
+        "idloteamento": 1110,
+        "cdloteamento": "78"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 78"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5058061,
+            -16.6405335
+          ]
+        },
+        "bbox": [
+          -49.5100251,
+          -16.6470909,
+          -49.5015871,
+          -16.6339761
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1110,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 78"
+      ]
+    },
+    "79": {
+      "key": "79",
+      "normalizedKey": "LOTEAMENTO 79",
+      "id": 1167,
+      "code": {
+        "idloteamento": 1167,
+        "cdloteamento": "79"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 79"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4480692,
+            -16.6372293
+          ]
+        },
+        "bbox": [
+          -49.4528576,
+          -16.6447512,
+          -49.4432807,
+          -16.6297073
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1167,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 79"
+      ]
+    },
+    "80": {
+      "key": "80",
+      "normalizedKey": "LOTEAMENTO 80",
+      "id": 1191,
+      "code": {
+        "idloteamento": 1191,
+        "cdloteamento": "80"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 80"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4998606,
+            -16.6369603
+          ]
+        },
+        "bbox": [
+          -49.5019912,
+          -16.6397366,
+          -49.4977299,
+          -16.6341841
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1191,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 80"
+      ]
+    },
+    "81": {
+      "key": "81",
+      "normalizedKey": "LOTEAMENTO 81",
+      "id": 1139,
+      "code": {
+        "idloteamento": 1139,
+        "cdloteamento": "81"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 81"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.400189,
+            -16.6216782
+          ]
+        },
+        "bbox": [
+          -49.404163,
+          -16.6246511,
+          -49.3962149,
+          -16.6187052
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1139,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 81"
+      ]
+    },
+    "82": {
+      "key": "82",
+      "normalizedKey": "LOTEAMENTO 82",
+      "id": 1146,
+      "code": {
+        "idloteamento": 1146,
+        "cdloteamento": "82"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 82"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4050405,
+            -16.6298088
+          ]
+        },
+        "bbox": [
+          -49.4094611,
+          -16.6337273,
+          -49.4006199,
+          -16.6258902
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1146,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 82"
+      ]
+    },
+    "83": {
+      "key": "83",
+      "normalizedKey": "LOTEAMENTO 83",
+      "id": 1097,
+      "code": {
+        "idloteamento": 1097,
+        "cdloteamento": "83"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 83"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3969802,
+            -16.6361658
+          ]
+        },
+        "bbox": [
+          -49.401797,
+          -16.6406784,
+          -49.3921633,
+          -16.6316532
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1097,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 83"
+      ]
+    },
+    "84": {
+      "key": "84",
+      "normalizedKey": "LOTEAMENTO 84",
+      "id": 1092,
+      "code": {
+        "idloteamento": 1092,
+        "cdloteamento": "84"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 84"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3970989,
+            -16.6245496
+          ]
+        },
+        "bbox": [
+          -49.4012115,
+          -16.6345385,
+          -49.3929862,
+          -16.6145608
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1092,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 84"
+      ]
+    },
+    "85": {
+      "key": "85",
+      "normalizedKey": "LOTEAMENTO 85",
+      "id": 1108,
+      "code": {
+        "idloteamento": 1108,
+        "cdloteamento": "85"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 85"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4954391,
+            -16.6627326
+          ]
+        },
+        "bbox": [
+          -49.4983022,
+          -16.6648638,
+          -49.4925759,
+          -16.6606013
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1108,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 85"
+      ]
+    },
+    "86": {
+      "key": "86",
+      "normalizedKey": "LOTEAMENTO 86",
+      "id": 1093,
+      "code": {
+        "idloteamento": 1093,
+        "cdloteamento": "86"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 86"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.414618,
+            -16.6459035
+          ]
+        },
+        "bbox": [
+          -49.4172583,
+          -16.6491933,
+          -49.4119777,
+          -16.6426138
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1093,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 86"
+      ]
+    },
+    "87": {
+      "key": "87",
+      "normalizedKey": "JARDIM IMPERIAL CONJUNTO MARISE",
+      "id": 1154,
+      "code": {
+        "idloteamento": 1154,
+        "cdloteamento": "87"
+      },
+      "name": {
+        "nmloteamento": "JARDIM IMPERIAL (CONJUNTO MARISE)"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.515649,
+            -16.6502595
+          ]
+        },
+        "bbox": [
+          -49.5185102,
+          -16.6522002,
+          -49.5127878,
+          -16.6483187
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1154,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM IMPERIAL CONJUNTO MARISE"
+      ]
+    },
+    "88": {
+      "key": "88",
+      "normalizedKey": "LOTEAMENTO 88",
+      "id": 1138,
+      "code": {
+        "idloteamento": 1138,
+        "cdloteamento": "88"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 88"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5378199,
+            -16.6399518
+          ]
+        },
+        "bbox": [
+          -49.5442843,
+          -16.6453757,
+          -49.5313556,
+          -16.6345278
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1138,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 88"
+      ]
+    },
+    "89": {
+      "key": "89",
+      "normalizedKey": "LOTEAMENTO 89",
+      "id": 1134,
+      "code": {
+        "idloteamento": 1134,
+        "cdloteamento": "89"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 89"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4723685,
+            -16.6837801
+          ]
+        },
+        "bbox": [
+          -49.4747956,
+          -16.6880319,
+          -49.4699413,
+          -16.6795284
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1134,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 89"
+      ]
+    },
+    "90": {
+      "key": "90",
+      "normalizedKey": "RESIDENCIAL PAINEIRAS",
+      "id": 1098,
+      "code": {
+        "idloteamento": 1098,
+        "cdloteamento": "90"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL PAINEIRAS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4069933,
+            -16.6150222
+          ]
+        },
+        "bbox": [
+          -49.4132703,
+          -16.6194842,
+          -49.4007163,
+          -16.6105603
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1098,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL PAINEIRAS"
+      ]
+    },
+    "91": {
+      "key": "91",
+      "normalizedKey": "LOTEAMENTO 91",
+      "id": 1168,
+      "code": {
+        "idloteamento": 1168,
+        "cdloteamento": "91"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 91"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4520022,
+            -16.6458768
+          ]
+        },
+        "bbox": [
+          -49.4557512,
+          -16.6476819,
+          -49.4482533,
+          -16.6440717
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1168,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 91"
+      ]
+    },
+    "92": {
+      "key": "92",
+      "normalizedKey": "RESIDENCIAL GARAVELO II",
+      "id": 1149,
+      "code": {
+        "idloteamento": 1149,
+        "cdloteamento": "92"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL GARAVELO II"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4584361,
+            -16.645919
+          ]
+        },
+        "bbox": [
+          -49.4614755,
+          -16.6475179,
+          -49.4553968,
+          -16.64432
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1149,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL GARAVELO II"
+      ]
+    },
+    "93": {
+      "key": "93",
+      "normalizedKey": "RESIDENCIAL MORAES",
+      "id": 1254,
+      "code": {
+        "idloteamento": 1254,
+        "cdloteamento": "93"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL MORAES"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5122584,
+            -16.6306416
+          ]
+        },
+        "bbox": [
+          -49.5132546,
+          -16.6323707,
+          -49.5112622,
+          -16.6289125
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1254,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL MORAES"
+      ]
+    },
+    "94": {
+      "key": "94",
+      "normalizedKey": "LOTEAMENTO 94",
+      "id": 1133,
+      "code": {
+        "idloteamento": 1133,
+        "cdloteamento": "94"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 94"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.410661,
+            -16.6239705
+          ]
+        },
+        "bbox": [
+          -49.4204948,
+          -16.6324412,
+          -49.4008272,
+          -16.6154999
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1133,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 94"
+      ]
+    },
+    "97": {
+      "key": "97",
+      "normalizedKey": "LOTEAMENTO 97",
+      "id": 1245,
+      "code": {
+        "idloteamento": 1245,
+        "cdloteamento": "97"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 97"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.426851,
+            -16.6459793
+          ]
+        },
+        "bbox": [
+          -49.4282341,
+          -16.6473385,
+          -49.425468,
+          -16.6446202
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1245,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 97"
+      ]
+    },
+    "98": {
+      "key": "98",
+      "normalizedKey": "LOTEAMENTO 98",
+      "id": 1121,
+      "code": {
+        "idloteamento": 1121,
+        "cdloteamento": "98"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 98"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4869217,
+            -16.6680746
+          ]
+        },
+        "bbox": [
+          -49.4900985,
+          -16.673568,
+          -49.4837449,
+          -16.6625812
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1121,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 98"
+      ]
+    },
+    "100": {
+      "key": "100",
+      "normalizedKey": "VILA ROBERTO MONTEIRO",
+      "id": 1228,
+      "code": {
+        "idloteamento": 1228,
+        "cdloteamento": "100"
+      },
+      "name": {
+        "nmloteamento": "VILA ROBERTO MONTEIRO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4930731,
+            -16.6665629
+          ]
+        },
+        "bbox": [
+          -49.4938086,
+          -16.6692102,
+          -49.4923376,
+          -16.6639156
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1228,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "VILA ROBERTO MONTEIRO"
+      ]
+    },
+    "104": {
+      "key": "104",
+      "normalizedKey": "LOTEAMENTO 104",
+      "id": 1102,
+      "code": {
+        "idloteamento": 1102,
+        "cdloteamento": "104"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 104"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4974097,
+            -16.6367562
+          ]
+        },
+        "bbox": [
+          -49.5013289,
+          -16.6412393,
+          -49.4934905,
+          -16.6322731
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1102,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 104"
+      ]
+    },
+    "105": {
+      "key": "105",
+      "normalizedKey": "LOTEAMENTO 105",
+      "id": 1079,
+      "code": {
+        "idloteamento": 1079,
+        "cdloteamento": "105"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 105"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5033665,
+            -16.6370217
+          ]
+        },
+        "bbox": [
+          -49.508182,
+          -16.6433388,
+          -49.498551,
+          -16.6307045
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1079,
+        "generatedAt": "2026-06-16T01:16:04.149Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 105"
+      ]
+    },
+    "106": {
+      "key": "106",
+      "normalizedKey": "SETOR DOS BANDEIRANTES",
+      "id": 1120,
+      "code": {
+        "idloteamento": 1120,
+        "cdloteamento": "106"
+      },
+      "name": {
+        "nmloteamento": "SETOR DOS BANDEIRANTES"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3942021,
+            -16.6082856
+          ]
+        },
+        "bbox": [
+          -49.3991116,
+          -16.6135344,
+          -49.3892926,
+          -16.6030368
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1120,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR DOS BANDEIRANTES"
+      ]
+    },
+    "107": {
+      "key": "107",
+      "normalizedKey": "LOTEAMENTO 107",
+      "id": 1131,
+      "code": {
+        "idloteamento": 1131,
+        "cdloteamento": "107"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 107"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6061001,
+            -16.7453756
+          ]
+        },
+        "bbox": [
+          -49.6094135,
+          -16.7482621,
+          -49.6027866,
+          -16.7424891
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1131,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 107"
+      ]
+    },
+    "111": {
+      "key": "111",
+      "normalizedKey": "JARDIM NOVO HORIZONTE",
+      "id": 1175,
+      "code": {
+        "idloteamento": 1175,
+        "cdloteamento": "111"
+      },
+      "name": {
+        "nmloteamento": "JARDIM NOVO HORIZONTE"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4907812,
+            -16.6714786
+          ]
+        },
+        "bbox": [
+          -49.49179,
+          -16.6720168,
+          -49.4897725,
+          -16.6709404
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1175,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "JARDIM NOVO HORIZONTE"
+      ]
+    },
+    "113": {
+      "key": "113",
+      "normalizedKey": "LOTEAMENTO 113",
+      "id": 1145,
+      "code": {
+        "idloteamento": 1145,
+        "cdloteamento": "113"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 113"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5097241,
+            -16.6536369
+          ]
+        },
+        "bbox": [
+          -49.5114844,
+          -16.6556806,
+          -49.5079639,
+          -16.6515932
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1145,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 113"
+      ]
+    },
+    "115": {
+      "key": "115",
+      "normalizedKey": "LOTEAMENTO 115",
+      "id": 1111,
+      "code": {
+        "idloteamento": 1111,
+        "cdloteamento": "115"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 115"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4096119,
+            -16.6454051
+          ]
+        },
+        "bbox": [
+          -49.4121146,
+          -16.647422,
+          -49.4071092,
+          -16.6433882
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1111,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 115"
+      ]
+    },
+    "118": {
+      "key": "118",
+      "normalizedKey": "RECANTO DO LAGO",
+      "id": 1124,
+      "code": {
+        "idloteamento": 1124,
+        "cdloteamento": "118"
+      },
+      "name": {
+        "nmloteamento": "RECANTO DO LAGO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4952028,
+            -16.665221
+          ]
+        },
+        "bbox": [
+          -49.496967,
+          -16.6662707,
+          -49.4934385,
+          -16.6641713
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1124,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RECANTO DO LAGO"
+      ]
+    },
+    "119": {
+      "key": "119",
+      "normalizedKey": "LOTEAMENTO 119",
+      "id": 1094,
+      "code": {
+        "idloteamento": 1094,
+        "cdloteamento": "119"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 119"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5078653,
+            -16.6438127
+          ]
+        },
+        "bbox": [
+          -49.510465,
+          -16.6464875,
+          -49.5052655,
+          -16.6411378
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1094,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 119"
+      ]
+    },
+    "120": {
+      "key": "120",
+      "normalizedKey": "PARQUE SERRA BRANCA",
+      "id": 1119,
+      "code": {
+        "idloteamento": 1119,
+        "cdloteamento": "120"
+      },
+      "name": {
+        "nmloteamento": "PARQUE SERRA BRANCA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4167753,
+            -16.6186918
+          ]
+        },
+        "bbox": [
+          -49.4227315,
+          -16.623846,
+          -49.4108191,
+          -16.6135376
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1119,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "PARQUE SERRA BRANCA"
+      ]
+    },
+    "121": {
+      "key": "121",
+      "normalizedKey": "LOTEAMENTO 121",
+      "id": 1143,
+      "code": {
+        "idloteamento": 1143,
+        "cdloteamento": "121"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 121"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5306756,
+            -16.6427514
+          ]
+        },
+        "bbox": [
+          -49.5387591,
+          -16.6466079,
+          -49.5225921,
+          -16.6388949
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1143,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 121"
+      ]
+    },
+    "124": {
+      "key": "124",
+      "normalizedKey": "LOTEAMENTO 124",
+      "id": 1123,
+      "code": {
+        "idloteamento": 1123,
+        "cdloteamento": "124"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 124"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.514988,
+            -16.6324601
+          ]
+        },
+        "bbox": [
+          -49.5179223,
+          -16.6363607,
+          -49.5120537,
+          -16.6285596
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1123,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 124"
+      ]
+    },
+    "125": {
+      "key": "125",
+      "normalizedKey": "LOTEAMENTO 125",
+      "id": 1252,
+      "code": {
+        "idloteamento": 1252,
+        "cdloteamento": "125"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 125"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4119199,
+            -16.6445354
+          ]
+        },
+        "bbox": [
+          -49.4134984,
+          -16.6465926,
+          -49.4103414,
+          -16.6424781
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1252,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 125"
+      ]
+    },
+    "129": {
+      "key": "129",
+      "normalizedKey": "CHACARA SETOR BARCELOS",
+      "id": 1246,
+      "code": {
+        "idloteamento": 1246,
+        "cdloteamento": "129"
+      },
+      "name": {
+        "nmloteamento": "CHACARA SETOR BARCELOS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4263704,
+            -16.645149
+          ]
+        },
+        "bbox": [
+          -49.4277068,
+          -16.647407,
+          -49.425034,
+          -16.642891
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1246,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA SETOR BARCELOS"
+      ]
+    },
+    "130": {
+      "key": "130",
+      "normalizedKey": "CHACARA JARDIM CALIFORNIA",
+      "id": 1234,
+      "code": {
+        "idloteamento": 1234,
+        "cdloteamento": "130"
+      },
+      "name": {
+        "nmloteamento": "CHACARA JARDIM CALIFORNIA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4236196,
+            -16.6207626
+          ]
+        },
+        "bbox": [
+          -49.4253798,
+          -16.6217834,
+          -49.4218595,
+          -16.6197418
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1234,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM CALIFORNIA"
+      ]
+    },
+    "132": {
+      "key": "132",
+      "normalizedKey": "CHACARA JARDIM MARISTA",
+      "id": 1222,
+      "code": {
+        "idloteamento": 1222,
+        "cdloteamento": "132"
+      },
+      "name": {
+        "nmloteamento": "CHACARA JARDIM MARISTA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4280349,
+            -16.6404631
+          ]
+        },
+        "bbox": [
+          -49.429723,
+          -16.6430266,
+          -49.4263469,
+          -16.6378997
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1222,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA JARDIM MARISTA"
+      ]
+    },
+    "133": {
+      "key": "133",
+      "normalizedKey": "CHACARA MORADA BOSQUE",
+      "id": 1250,
+      "code": {
+        "idloteamento": 1250,
+        "cdloteamento": "133"
+      },
+      "name": {
+        "nmloteamento": "CHACARA MORADA BOSQUE"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4276072,
+            -16.6438827
+          ]
+        },
+        "bbox": [
+          -49.428689,
+          -16.6450583,
+          -49.4265254,
+          -16.6427072
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1250,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CHACARA MORADA BOSQUE"
+      ]
+    },
+    "138": {
+      "key": "138",
+      "normalizedKey": "CONDOMINIO ESTANCIAS AROEIRA",
+      "id": 1194,
+      "code": {
+        "idloteamento": 1194,
+        "cdloteamento": "138"
+      },
+      "name": {
+        "nmloteamento": "CONDOMINIO ESTANCIAS AROEIRA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4062839,
+            -16.6092128
+          ]
+        },
+        "bbox": [
+          -49.4107677,
+          -16.6124156,
+          -49.4018001,
+          -16.6060101
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1194,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO ESTANCIAS AROEIRA"
+      ]
+    },
+    "139": {
+      "key": "139",
+      "normalizedKey": "LOTEAMENTO 139",
+      "id": 1230,
+      "code": {
+        "idloteamento": 1230,
+        "cdloteamento": "139"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 139"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4032876,
+            -16.6253208
+          ]
+        },
+        "bbox": [
+          -49.4065965,
+          -16.6265252,
+          -49.3999786,
+          -16.6241163
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1230,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 139"
+      ]
+    },
+    "140": {
+      "key": "140",
+      "normalizedKey": "RESIDENCIAL LUZIA MONTEIRO",
+      "id": 1177,
+      "code": {
+        "idloteamento": 1177,
+        "cdloteamento": "140"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL LUZIA MONTEIRO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4530736,
+            -16.6393301
+          ]
+        },
+        "bbox": [
+          -49.4575658,
+          -16.643873,
+          -49.4485814,
+          -16.6347873
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1177,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL LUZIA MONTEIRO"
+      ]
+    },
+    "143": {
+      "key": "143",
+      "normalizedKey": "LOTEAMENTO 143",
+      "id": 1106,
+      "code": {
+        "idloteamento": 1106,
+        "cdloteamento": "143"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 143"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4611699,
+            -16.6483044
+          ]
+        },
+        "bbox": [
+          -49.4723194,
+          -16.6518598,
+          -49.4500204,
+          -16.6447491
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1106,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 143"
+      ]
+    },
+    "145": {
+      "key": "145",
+      "normalizedKey": "LOTEAMENTO 145",
+      "id": 1156,
+      "code": {
+        "idloteamento": 1156,
+        "cdloteamento": "145"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 145"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4945084,
+            -16.6428351
+          ]
+        },
+        "bbox": [
+          -49.4961274,
+          -16.6446861,
+          -49.4928893,
+          -16.6409842
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1156,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 145"
+      ]
+    },
+    "150": {
+      "key": "150",
+      "normalizedKey": "SETOR DAS MANSOES",
+      "id": 1115,
+      "code": {
+        "idloteamento": 1115,
+        "cdloteamento": "150"
+      },
+      "name": {
+        "nmloteamento": "SETOR DAS MANSOES"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4833697,
+            -16.6515577
+          ]
+        },
+        "bbox": [
+          -49.4849177,
+          -16.6535509,
+          -49.4818218,
+          -16.6495645
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1115,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "SETOR DAS MANSOES"
+      ]
+    },
+    "157": {
+      "key": "157",
+      "normalizedKey": "RESIDENCIAL TERRA SANTA",
+      "id": 1157,
+      "code": {
+        "idloteamento": 1157,
+        "cdloteamento": "157"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL TERRA SANTA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4767142,
+            -16.640942
+          ]
+        },
+        "bbox": [
+          -49.4783154,
+          -16.6425225,
+          -49.475113,
+          -16.6393616
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1157,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL TERRA SANTA"
+      ]
+    },
+    "203": {
+      "key": "203",
+      "normalizedKey": "LOTEAMENTO 203",
+      "id": 1132,
+      "code": {
+        "idloteamento": 1132,
+        "cdloteamento": "203"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 203"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4961613,
+            -16.6792746
+          ]
+        },
+        "bbox": [
+          -49.4977411,
+          -16.6810288,
+          -49.4945815,
+          -16.6775204
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1132,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 203"
+      ]
+    },
+    "218": {
+      "key": "218",
+      "normalizedKey": "LOTEAMENTO 218",
+      "id": 1216,
+      "code": {
+        "idloteamento": 1216,
+        "cdloteamento": "218"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 218"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4735436,
+            -16.6774337
+          ]
+        },
+        "bbox": [
+          -49.4749375,
+          -16.6798734,
+          -49.4721498,
+          -16.674994
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1216,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 218"
+      ]
+    },
+    "219": {
+      "key": "219",
+      "normalizedKey": "RECANTO DAS BRISAS",
+      "id": 1163,
+      "code": {
+        "idloteamento": 1163,
+        "cdloteamento": "219"
+      },
+      "name": {
+        "nmloteamento": "RECANTO DAS BRISAS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3932759,
+            -16.6271177
+          ]
+        },
+        "bbox": [
+          -49.3949829,
+          -16.6292143,
+          -49.3915688,
+          -16.625021
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1163,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RECANTO DAS BRISAS"
+      ]
+    },
+    "307": {
+      "key": "307",
+      "normalizedKey": "LOTEAMENTO 307",
+      "id": 1181,
+      "code": {
+        "idloteamento": 1181,
+        "cdloteamento": "307"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 307"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4711801,
+            -16.6762845
+          ]
+        },
+        "bbox": [
+          -49.4731447,
+          -16.6786244,
+          -49.4692156,
+          -16.6739446
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1181,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 307"
+      ]
+    },
+    "308": {
+      "key": "308",
+      "normalizedKey": "LOTEAMENTO 308",
+      "id": 1182,
+      "code": {
+        "idloteamento": 1182,
+        "cdloteamento": "308"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 308"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4985123,
+            -16.6409568
+          ]
+        },
+        "bbox": [
+          -49.4997877,
+          -16.6423034,
+          -49.497237,
+          -16.6396101
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1182,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 308"
+      ]
+    },
+    "314": {
+      "key": "314",
+      "normalizedKey": "LOTEAMENTO 314",
+      "id": 1193,
+      "code": {
+        "idloteamento": 1193,
+        "cdloteamento": "314"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 314"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.46186,
+            -16.6239117
+          ]
+        },
+        "bbox": [
+          -49.4642342,
+          -16.6264538,
+          -49.4594859,
+          -16.6213696
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1193,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 314"
+      ]
+    },
+    "315": {
+      "key": "315",
+      "normalizedKey": "LOTEAMENTO 315",
+      "id": 1192,
+      "code": {
+        "idloteamento": 1192,
+        "cdloteamento": "315"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 315"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4607723,
+            -16.634378
+          ]
+        },
+        "bbox": [
+          -49.4659838,
+          -16.6420487,
+          -49.4555609,
+          -16.6267072
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1192,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 315"
+      ]
+    },
+    "316": {
+      "key": "316",
+      "normalizedKey": "RESERVA TRINIDADE",
+      "id": 1195,
+      "code": {
+        "idloteamento": 1195,
+        "cdloteamento": "316"
+      },
+      "name": {
+        "nmloteamento": "RESERVA TRINIDADE"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5095468,
+            -16.6521339
+          ]
+        },
+        "bbox": [
+          -49.5115233,
+          -16.6541943,
+          -49.5075704,
+          -16.6500736
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1195,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESERVA TRINIDADE"
+      ]
+    },
+    "317": {
+      "key": "317",
+      "normalizedKey": "LOTEAMENTO 317",
+      "id": 1196,
+      "code": {
+        "idloteamento": 1196,
+        "cdloteamento": "317"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 317"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5105613,
+            -16.6382997
+          ]
+        },
+        "bbox": [
+          -49.5120512,
+          -16.6402239,
+          -49.5090714,
+          -16.6363755
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1196,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 317"
+      ]
+    },
+    "319": {
+      "key": "319",
+      "normalizedKey": "LOTEAMENTO 319",
+      "id": 1197,
+      "code": {
+        "idloteamento": 1197,
+        "cdloteamento": "319"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 319"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.617393,
+            -16.6568223
+          ]
+        },
+        "bbox": [
+          -49.6222291,
+          -16.6620631,
+          -49.6125569,
+          -16.6515814
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1197,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 319"
+      ]
+    },
+    "320": {
+      "key": "320",
+      "normalizedKey": "CONDOMINIO DE CHACARA CANAA",
+      "id": 1199,
+      "code": {
+        "idloteamento": 1199,
+        "cdloteamento": "320"
+      },
+      "name": {
+        "nmloteamento": "CONDOMINIO DE CHACARA CANAÃ"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6230832,
+            -16.6710556
+          ]
+        },
+        "bbox": [
+          -49.6324075,
+          -16.6784562,
+          -49.6137589,
+          -16.6636551
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1199,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO DE CHACARA CANAA"
+      ]
+    },
+    "322": {
+      "key": "322",
+      "normalizedKey": "CONDOMINIO MONTE HERMON",
+      "id": 1200,
+      "code": {
+        "idloteamento": 1200,
+        "cdloteamento": "322"
+      },
+      "name": {
+        "nmloteamento": "CONDOMINIO MONTE HERMON"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6223488,
+            -16.6617223
+          ]
+        },
+        "bbox": [
+          -49.6281586,
+          -16.6655888,
+          -49.6165391,
+          -16.6578558
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1200,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO MONTE HERMON"
+      ]
+    },
+    "323": {
+      "key": "323",
+      "normalizedKey": "LOTEAMENTO 323",
+      "id": 1201,
+      "code": {
+        "idloteamento": 1201,
+        "cdloteamento": "323"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 323"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6267359,
+            -16.6694843
+          ]
+        },
+        "bbox": [
+          -49.634041,
+          -16.6761886,
+          -49.6194308,
+          -16.6627799
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1201,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 323"
+      ]
+    },
+    "326": {
+      "key": "326",
+      "normalizedKey": "RESIDENCIAL HARMONIA",
+      "id": 1203,
+      "code": {
+        "idloteamento": 1203,
+        "cdloteamento": "326"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL HARMONIA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3984072,
+            -16.6095317
+          ]
+        },
+        "bbox": [
+          -49.4010787,
+          -16.6122721,
+          -49.3957357,
+          -16.6067912
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1203,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL HARMONIA"
+      ]
+    },
+    "330": {
+      "key": "330",
+      "normalizedKey": "LOTEAMENTO 330",
+      "id": 1224,
+      "code": {
+        "idloteamento": 1224,
+        "cdloteamento": "330"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 330"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.5085787,
+            -16.6750691
+          ]
+        },
+        "bbox": [
+          -49.5170388,
+          -16.6827009,
+          -49.5001186,
+          -16.6674374
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1224,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 330"
+      ]
+    },
+    "331": {
+      "key": "331",
+      "normalizedKey": "LOTEAMENTO 331",
+      "id": 1210,
+      "code": {
+        "idloteamento": 1210,
+        "cdloteamento": "331"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 331"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3984033,
+            -16.6377783
+          ]
+        },
+        "bbox": [
+          -49.4036542,
+          -16.6420709,
+          -49.3931525,
+          -16.6334856
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1210,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 331"
+      ]
+    },
+    "357": {
+      "key": "357",
+      "normalizedKey": "LOTEAMENTO 357",
+      "id": 1104,
+      "code": {
+        "idloteamento": 1104,
+        "cdloteamento": "357"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 357"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.487342,
+            -16.6765051
+          ]
+        },
+        "bbox": [
+          -49.4965933,
+          -16.6810288,
+          -49.4780908,
+          -16.6719814
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1104,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 357"
+      ]
+    },
+    "363": {
+      "key": "363",
+      "normalizedKey": "DESMEMB ANEXO AO SETOR CRISTINA",
+      "id": 1231,
+      "code": {
+        "idloteamento": 1231,
+        "cdloteamento": "363"
+      },
+      "name": {
+        "nmloteamento": "DESMEMB. ANEXO AO SETOR CRISTINA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4229051,
+            -16.6306123
+          ]
+        },
+        "bbox": [
+          -49.4274518,
+          -16.6379082,
+          -49.4183585,
+          -16.6233165
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1231,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "DESMEMB ANEXO AO SETOR CRISTINA"
+      ]
+    },
+    "372": {
+      "key": "372",
+      "normalizedKey": "FAZ ENGENHO VELHO",
+      "id": 1225,
+      "code": {
+        "idloteamento": 1225,
+        "cdloteamento": "372"
+      },
+      "name": {
+        "nmloteamento": "FAZ. ENGENHO VELHO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.407145,
+            -16.6370142
+          ]
+        },
+        "bbox": [
+          -49.4123482,
+          -16.6418276,
+          -49.4019419,
+          -16.6322008
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1225,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "FAZ ENGENHO VELHO"
+      ]
+    },
+    "373": {
+      "key": "373",
+      "normalizedKey": "LOTEAMENTO 373",
+      "id": 1226,
+      "code": {
+        "idloteamento": 1226,
+        "cdloteamento": "373"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 373"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6040672,
+            -16.6569861
+          ]
+        },
+        "bbox": [
+          -49.6090826,
+          -16.6627998,
+          -49.5990519,
+          -16.6511724
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1226,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 373"
+      ]
+    },
+    "375": {
+      "key": "375",
+      "normalizedKey": "LOTEAMENTO 375",
+      "id": 1219,
+      "code": {
+        "idloteamento": 1219,
+        "cdloteamento": "375"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 375"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4655206,
+            -16.6276349
+          ]
+        },
+        "bbox": [
+          -49.467511,
+          -16.6307395,
+          -49.4635301,
+          -16.6245303
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1219,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 375"
+      ]
+    },
+    "376": {
+      "key": "376",
+      "normalizedKey": "LOTEAMENTO 376",
+      "id": 1164,
+      "code": {
+        "idloteamento": 1164,
+        "cdloteamento": "376"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 376"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4270002,
+            -16.6497222
+          ]
+        },
+        "bbox": [
+          -49.4315966,
+          -16.6524098,
+          -49.4224039,
+          -16.6470347
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1164,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 376"
+      ]
+    },
+    "378": {
+      "key": "378",
+      "normalizedKey": "LOTEAMENTO 378",
+      "id": 1229,
+      "code": {
+        "idloteamento": 1229,
+        "cdloteamento": "378"
+      },
+      "name": {
+        "nmloteamento": "Loteamento 378"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4260191,
+            -16.6228191
+          ]
+        },
+        "bbox": [
+          -49.4312735,
+          -16.6254231,
+          -49.4207646,
+          -16.6202152
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1229,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "LOTEAMENTO 378"
+      ]
+    },
+    "438": {
+      "key": "438",
+      "normalizedKey": "RESIDENCIAL JARDIM ALTA VISTA",
+      "id": 1184,
+      "code": {
+        "idloteamento": 1184,
+        "cdloteamento": "438"
+      },
+      "name": {
+        "nmloteamento": "RESIDENCIAL JARDIM ALTA VISTA"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.3936244,
+            -16.6024494
+          ]
+        },
+        "bbox": [
+          -49.3969625,
+          -16.6074677,
+          -49.3902863,
+          -16.597431
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1184,
+        "generatedAt": "2026-06-16T01:16:04.150Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "RESIDENCIAL JARDIM ALTA VISTA"
+      ]
+    },
+    "484": {
+      "key": "484",
+      "normalizedKey": "CONDOMINIO MONTE DAS OLIVEIRAS",
+      "id": 1236,
+      "code": {
+        "idloteamento": 1236,
+        "cdloteamento": "484"
+      },
+      "name": {
+        "nmloteamento": "CONDOMINIO MONTE DAS OLIVEIRAS"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.6059523,
+            -16.6662649
+          ]
+        },
+        "bbox": [
+          -49.6139122,
+          -16.6698943,
+          -49.5979925,
+          -16.6626356
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1236,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "CONDOMINIO MONTE DAS OLIVEIRAS"
+      ]
+    },
+    "579": {
+      "key": "579",
+      "normalizedKey": "COND DE CHACARAS VEREDAS DO LAGO",
+      "id": 1247,
+      "code": {
+        "idloteamento": 1247,
+        "cdloteamento": "579"
+      },
+      "name": {
+        "nmloteamento": "COND. DE CHÁCARAS VEREDAS DO LAGO"
+      },
+      "context": {
+        "idempresa": 181,
+        "cor": null
+      },
+      "geometry": {
+        "centroid": {
+          "type": "Point",
+          "coordinates": [
+            -49.4800777,
+            -16.6900252
+          ]
+        },
+        "bbox": [
+          -49.4871789,
+          -16.6970098,
+          -49.4729765,
+          -16.6830406
+        ]
+      },
+      "source": {
+        "layer": "ctmgeo_22s:vw_loteamentos",
+        "file": "loteamentos.geojson",
+        "idField": "idloteamento",
+        "idValue": 1247,
+        "generatedAt": "2026-06-16T01:16:04.151Z"
+      },
+      "confidence": {
+        "initial": 1,
+        "reason": "stable code match from cleaned export"
+      },
+      "relation": {
+        "orphan": false,
+        "weak": false,
+        "fallbackRequired": false
+      },
+      "aliases": [
+        "COND DE CHACARAS VEREDAS DO LAGO"
+      ]
+    }
+  },
+  "byNormalizedName": {
+    "LOTEAMENTO 43": [
+      "43"
+    ],
+    "JARDIM DAS TAMAREIRAS": [
+      "54"
+    ],
+    "SAO FRANCISCO II": [
+      "47"
+    ],
+    "LOTEAMENTO 24": [
+      "24"
+    ],
+    "LOTEAMENTO 35": [
+      "35"
+    ],
+    "LOTEAMENTO 20": [
+      "20"
+    ],
+    "LOTEAMENTO 105": [
+      "105"
+    ],
+    "LOTEAMENTO 31": [
+      "31"
+    ],
+    "LOTEAMENTO 71": [
+      "71"
+    ],
+    "LOTEAMENTO 27": [
+      "27"
+    ],
+    "LOTEAMENTO 26": [
+      "26"
+    ],
+    "LOTEAMENTO 19": [
+      "19"
+    ],
+    "LOTEAMENTO 39": [
+      "39"
+    ],
+    "LOTEAMENTO 10": [
+      "10"
+    ],
+    "LOTEAMENTO 7": [
+      "7"
+    ],
+    "LOTEAMENTO 25": [
+      "25"
+    ],
+    "LOTEAMENTO 84": [
+      "84"
+    ],
+    "LOTEAMENTO 86": [
+      "86"
+    ],
+    "LOTEAMENTO 119": [
+      "119"
+    ],
+    "LOTEAMENTO 29": [
+      "29"
+    ],
+    "LOTEAMENTO 28": [
+      "28"
+    ],
+    "LOTEAMENTO 83": [
+      "83"
+    ],
+    "RESIDENCIAL PAINEIRAS": [
+      "90"
+    ],
+    "LOTEAMENTO 76": [
+      "76"
+    ],
+    "LOTEAMENTO 12": [
+      "12"
+    ],
+    "LOTEAMENTO 104": [
+      "104"
+    ],
+    "LOTEAMENTO 41": [
+      "41"
+    ],
+    "LOTEAMENTO 357": [
+      "357"
+    ],
+    "LOTEAMENTO 48": [
+      "48"
+    ],
+    "LOTEAMENTO 143": [
+      "143"
+    ],
+    "LOTEAMENTO 33": [
+      "33"
+    ],
+    "LOTEAMENTO 85": [
+      "85"
+    ],
+    "LOTEAMENTO 30": [
+      "30"
+    ],
+    "LOTEAMENTO 78": [
+      "78"
+    ],
+    "LOTEAMENTO 115": [
+      "115"
+    ],
+    "LOTEAMENTO 5": [
+      "5"
+    ],
+    "LOTEAMENTO 38": [
+      "38"
+    ],
+    "SETOR DAS MANSOES": [
+      "150"
+    ],
+    "LOTEAMENTO 51": [
+      "51"
+    ],
+    "LOTEAMENTO 63": [
+      "63"
+    ],
+    "VILA JOAO BRAZ": [
+      "9"
+    ],
+    "PARQUE SERRA BRANCA": [
+      "120"
+    ],
+    "SETOR DOS BANDEIRANTES": [
+      "106"
+    ],
+    "LOTEAMENTO 98": [
+      "98"
+    ],
+    "LOTEAMENTO 1": [
+      "1"
+    ],
+    "LOTEAMENTO 124": [
+      "124"
+    ],
+    "RECANTO DO LAGO": [
+      "118"
+    ],
+    "LOTEAMENTO 56": [
+      "56"
+    ],
+    "ALTO DO CERRADO I": [
+      "46"
+    ],
+    "SETOR SANTO ONOFRE": [
+      "15"
+    ],
+    "LOTEAMENTO 50": [
+      "50"
+    ],
+    "LOTEAMENTO 107": [
+      "107"
+    ],
+    "LOTEAMENTO 203": [
+      "203"
+    ],
+    "LOTEAMENTO 94": [
+      "94"
+    ],
+    "LOTEAMENTO 89": [
+      "89"
+    ],
+    "CHACARA SETOR BELA VISTA": [
+      "66"
+    ],
+    "LOTEAMENTO 88": [
+      "88"
+    ],
+    "LOTEAMENTO 81": [
+      "81"
+    ],
+    "LOTEAMENTO 42": [
+      "42"
+    ],
+    "LOTEAMENTO 36": [
+      "36"
+    ],
+    "VILA AUGUSTUS": [
+      "2"
+    ],
+    "LOTEAMENTO 121": [
+      "121"
+    ],
+    "VILA SANTO AFONSO": [
+      "22"
+    ],
+    "LOTEAMENTO 113": [
+      "113"
+    ],
+    "LOTEAMENTO 82": [
+      "82"
+    ],
+    "LOTEAMENTO 14": [
+      "14"
+    ],
+    "LOTEAMENTO 69": [
+      "69"
+    ],
+    "RESIDENCIAL GARAVELO II": [
+      "92"
+    ],
+    "LOTEAMENTO 73": [
+      "73"
+    ],
+    "VILA REDENCAO VILA BARRO PRETO": [
+      "6"
+    ],
+    "JARDIM IMPERIAL CONJUNTO MARISE": [
+      "87"
+    ],
+    "LOTEAMENTO 8": [
+      "8"
+    ],
+    "LOTEAMENTO 145": [
+      "145"
+    ],
+    "RESIDENCIAL TERRA SANTA": [
+      "157"
+    ],
+    "LOTEAMENTO 52": [
+      "52"
+    ],
+    "LOTES MANSOES PONTA KAYANA": [
+      "70"
+    ],
+    "RECANTO DAS BRISAS": [
+      "219"
+    ],
+    "LOTEAMENTO 376": [
+      "376"
+    ],
+    "LOTEAMENTO 79": [
+      "79"
+    ],
+    "LOTEAMENTO 91": [
+      "91"
+    ],
+    "LOTEAMENTO 37": [
+      "37"
+    ],
+    "JARDIM NOVO HORIZONTE": [
+      "111"
+    ],
+    "VILA AMADOR": [
+      "16"
+    ],
+    "RESIDENCIAL LUZIA MONTEIRO": [
+      "140"
+    ],
+    "LOTEAMENTO 49": [
+      "49"
+    ],
+    "LOTEAMENTO 307": [
+      "307"
+    ],
+    "LOTEAMENTO 308": [
+      "308"
+    ],
+    "RESIDENCIAL JARDIM ALTA VISTA": [
+      "438"
+    ],
+    "LOTEAMENTO 17": [
+      "17"
+    ],
+    "LOTEAMENTO 57": [
+      "57"
+    ],
+    "SAO FRANCISCO I": [
+      "53"
+    ],
+    "LOTEAMENTO 80": [
+      "80"
+    ],
+    "LOTEAMENTO 315": [
+      "315"
+    ],
+    "LOTEAMENTO 314": [
+      "314"
+    ],
+    "CONDOMINIO ESTANCIAS AROEIRA": [
+      "138"
+    ],
+    "RESERVA TRINIDADE": [
+      "316"
+    ],
+    "LOTEAMENTO 317": [
+      "317"
+    ],
+    "LOTEAMENTO 319": [
+      "319"
+    ],
+    "LOTEAMENTO 18": [
+      "18"
+    ],
+    "CONDOMINIO DE CHACARA CANAA": [
+      "320"
+    ],
+    "CONDOMINIO MONTE HERMON": [
+      "322"
+    ],
+    "LOTEAMENTO 323": [
+      "323"
+    ],
+    "RESIDENCIAL HARMONIA": [
+      "326"
+    ],
+    "LOTEAMENTO 32": [
+      "32"
+    ],
+    "CHACARA SAO SEBASTIAO": [
+      "44"
+    ],
+    "VILA ARCO IRIS": [
+      "34"
+    ],
+    "LOTEAMENTO 331": [
+      "331"
+    ],
+    "VILA PADRE RENATO": [
+      "21"
+    ],
+    "LOTEAMENTO 218": [
+      "218"
+    ],
+    "LOTEAMENTO 3": [
+      "3"
+    ],
+    "LOTEAMENTO 375": [
+      "375"
+    ],
+    "CHACARA JARDIM DECOLORES": [
+      "67"
+    ],
+    "CHACARA JARDIM MARISTA": [
+      "132"
+    ],
+    "LOTEAMENTO 330": [
+      "330"
+    ],
+    "FAZ ENGENHO VELHO": [
+      "372"
+    ],
+    "LOTEAMENTO 373": [
+      "373"
+    ],
+    "VILA ROBERTO MONTEIRO": [
+      "100"
+    ],
+    "LOTEAMENTO 378": [
+      "378"
+    ],
+    "LOTEAMENTO 139": [
+      "139"
+    ],
+    "DESMEMB ANEXO AO SETOR CRISTINA": [
+      "363"
+    ],
+    "CHACARA VILA PAI ETERNO": [
+      "62"
+    ],
+    "CHACARA JARDIM CALIFORNIA": [
+      "130"
+    ],
+    "VILA GUILHERME": [
+      "11"
+    ],
+    "CONDOMINIO MONTE DAS OLIVEIRAS": [
+      "484"
+    ],
+    "VILA WILIAM": [
+      "4"
+    ],
+    "JARDIM VALE DOS SONHOS": [
+      "40"
+    ],
+    "SETOR JUSSARA": [
+      "23"
+    ],
+    "CHACARA JARDIM DAS OLIVEIRAS": [
+      "72"
+    ],
+    "CHACARA VILA SANTO AFONSO": [
+      "60"
+    ],
+    "LOTEAMENTO 97": [
+      "97"
+    ],
+    "CHACARA SETOR BARCELOS": [
+      "129"
+    ],
+    "COND DE CHACARAS VEREDAS DO LAGO": [
+      "579"
+    ],
+    "CHACARA MORADA BOSQUE": [
+      "133"
+    ],
+    "LOTEAMENTO 125": [
+      "125"
+    ],
+    "RESIDENCIAL MORAES": [
+      "93"
+    ]
+  }
+}

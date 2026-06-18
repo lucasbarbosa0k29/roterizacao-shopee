@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-16T01:16:05.017Z",
+  "scope": "Trindade-GO",
+  "normalization": {
+    "case": "upper",
+    "removeAccents": true,
+    "trim": true,
+    "collapseWhitespace": true,
+    "removePunctuation": true,
+    "preserveLeadingZeros": true
+  },
+  "aliases": [
+    {
+      "type": "logradouro-type",
+      "input": "R.",
+      "normalized": "R",
+      "value": "RUA",
+      "confidence": 0.8,
+      "notes": "common abbreviation"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "R",
+      "normalized": "R",
+      "value": "RUA",
+      "confidence": 0.95,
+      "notes": "single-letter abbreviation"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "AV.",
+      "normalized": "AV",
+      "value": "AV",
+      "confidence": 0.95,
+      "notes": "common abbreviation"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "AVENIDA",
+      "normalized": "AVENIDA",
+      "value": "AV",
+      "confidence": 0.95,
+      "notes": "canonical street type"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "RODOVIA",
+      "normalized": "RODOVIA",
+      "value": "ROD",
+      "confidence": 0.9,
+      "notes": "road type"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "ALAMEDA",
+      "normalized": "ALAMEDA",
+      "value": "ALM",
+      "confidence": 0.9,
+      "notes": "road type"
+    },
+    {
+      "type": "logradouro-type",
+      "input": "VILA",
+      "normalized": "VILA",
+      "value": "VLA",
+      "confidence": 0.85,
+      "notes": "road type"
+    },
+    {
+      "type": "bairro",
+      "input": "PARQUE CRISTO",
+      "normalized": "PARQUE CRISTO",
+      "value": "PARQUE CRISTO REDENTOR",
+      "confidence": 0.7,
+      "notes": "short neighborhood alias"
+    },
+    {
+      "type": "bairro",
+      "input": "JARDIM TAMAREIRAS",
+      "normalized": "JARDIM TAMAREIRAS",
+      "value": "JARDIM DAS TAMAREIRAS",
+      "confidence": 0.7,
+      "notes": "short neighborhood alias"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR MAYSA 2",
+      "normalized": "SETOR MAYSA 2",
+      "value": "SETOR MAYSA",
+      "confidence": 0.95,
+      "notes": "canonical bairro normalization"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR MAYSA 1",
+      "normalized": "SETOR MAYSA 1",
+      "value": "SETOR MAYSA",
+      "confidence": 0.95,
+      "notes": "canonical bairro normalization"
+    },
+    {
+      "type": "bairro",
+      "input": "CONJUNTO DONA IRIS 1",
+      "normalized": "CONJUNTO DONA IRIS 1",
+      "value": "CONJUNTO DONA IRIS I",
+      "confidence": 0.95,
+      "notes": "roman numeral canonicalization"
+    },
+    {
+      "type": "logradouro",
+      "input": "RUA ROSENDA",
+      "normalized": "RUA ROZENDA",
+      "value": "RUA ROSEDA",
+      "confidence": 0.95,
+      "notes": "clear spelling fix"
+    },
+    {
+      "type": "logradouro",
+      "input": "R S JOSE",
+      "normalized": "R S JOSE",
+      "value": "RUA JOSE",
+      "confidence": 0.95,
+      "notes": "abbreviation normalization"
+    },
+    {
+      "type": "logradouro",
+      "input": "RUA1034",
+      "normalized": "RUA1034",
+      "value": "RUA 1034",
+      "confidence": 0.95,
+      "notes": "missing whitespace normalization"
+    }
+  ],
+  "tokens": {
+    "streetTypes": [
+      "RUA",
+      "AV",
+      "ROD",
+      "ALM",
+      "VLA"
+    ]
+  }
+}
