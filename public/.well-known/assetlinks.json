@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.usarotta.twa",
+      "sha256_cert_fingerprints": [
+        "52:9F:37:A5:27:67:C5:94:D8:EF:69:C9:D5:5F:A4:BA:77:06:3C:BE:62:60:D8:3E:77:0B:69:C5:84:89:EC:00"
+      ]
+    }
+  }
+]
