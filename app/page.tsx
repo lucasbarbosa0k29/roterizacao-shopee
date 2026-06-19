@@ -4082,8 +4082,8 @@ useEffect(() => {
         <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
       {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
-    <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
-      <div className="mb-6 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-0 md:py-8">
+        <div className="mb-6 hidden rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur md:block">
         <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
           Painel de Roteirização
         </div>
