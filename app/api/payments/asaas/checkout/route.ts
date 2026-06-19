@@ -257,16 +257,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const asaasResponseText = await asaasResponse.text().catch(() => "");
-    const asaasPayload = (asaasResponseText
-      ? (() => {
-          try {
-            return JSON.parse(asaasResponseText) as AsaasCheckoutResponse;
-          } catch {
-            return null;
-          }
-        })()
-      : null) as AsaasCheckoutResponse | null;
+    const asaasPayload = (await asaasResponse.json().catch(() => null)) as
+      | AsaasCheckoutResponse
+      | null;
 
     const checkoutId = asaasPayload?.id ?? null;
     const checkoutUrl = buildCheckoutUrl(
@@ -290,25 +283,6 @@ export async function POST(request: Request) {
           } as Prisma.InputJsonValue,
         },
       });
-
-      console.error(
-        "Asaas checkout creation failed",
-        JSON.stringify(
-          {
-            status: asaasResponse.status,
-            statusText: asaasResponse.statusText,
-            responseBody: asaasPayload,
-            responseText: asaasResponseText,
-            productType,
-            quantity,
-            amountCents,
-            externalReference: transaction.externalReference,
-            checkoutPayloadKeys: Object.keys(checkoutPayload),
-          },
-          null,
-          2
-        )
-      );
 
       return NextResponse.json(
         { error: "Erro ao criar checkout no Asaas." },
