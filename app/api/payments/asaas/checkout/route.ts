@@ -291,16 +291,24 @@ export async function POST(request: Request) {
         },
       });
 
-      console.error("Asaas checkout creation failed", {
-        status: asaasResponse.status,
-        statusText: asaasResponse.statusText,
-        responseBody: asaasPayload ?? asaasResponseText,
-        productType,
-        quantity,
-        amountCents,
-        externalReference: transaction.externalReference,
-        checkoutPayloadKeys: Object.keys(checkoutPayload),
-      });
+      console.error(
+        "Asaas checkout creation failed",
+        JSON.stringify(
+          {
+            status: asaasResponse.status,
+            statusText: asaasResponse.statusText,
+            responseBody: asaasPayload,
+            responseText: asaasResponseText,
+            productType,
+            quantity,
+            amountCents,
+            externalReference: transaction.externalReference,
+            checkoutPayloadKeys: Object.keys(checkoutPayload),
+          },
+          null,
+          2
+        )
+      );
 
       return NextResponse.json(
         { error: "Erro ao criar checkout no Asaas." },
