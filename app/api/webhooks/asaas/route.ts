@@ -72,6 +72,7 @@ async function findPaymentTransaction(payment: Record<string, unknown>) {
   const asaasPaymentId = getString(payment.id);
   const externalReference =
     getString(payment.externalReference) || getString(payment.external_reference);
+  const checkoutSession = getString(payment.checkoutSession);
 
   if (asaasPaymentId) {
     const byPaymentId = await prisma.paymentTransaction.findUnique({
@@ -85,6 +86,18 @@ async function findPaymentTransaction(payment: Record<string, unknown>) {
       where: { externalReference },
     });
     if (byExternalReference) return byExternalReference;
+  }
+
+  if (checkoutSession) {
+    const byCheckoutSession = await prisma.paymentTransaction.findFirst({
+      where: {
+        asaasCheckoutUrl: {
+          contains: checkoutSession,
+        },
+      },
+    });
+
+    if (byCheckoutSession) return byCheckoutSession;
   }
 
   return null;
