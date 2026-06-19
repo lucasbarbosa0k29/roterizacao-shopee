@@ -21,7 +21,7 @@ type SubscriptionStatusLabel =
   | "SEM PLANO"
   | "BLOQUEADO";
 
-type PlanOrigin = "manual" | "Mercado Pago" | "avulso" | "sem plano";
+type PlanOrigin = "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano";
 
 type SubscriptionUserRow = {
   id: string;

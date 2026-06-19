@@ -1,4 +1,4 @@
-import { Prisma, type PaymentProductType } from "@prisma/client";
+import { Prisma, type PaymentProductType, type PaymentProvider } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
 
 const MAX_FULFILLMENT_ATTEMPTS = 3;
@@ -31,6 +31,23 @@ function getPlanCode(productType: PaymentProductType) {
     default:
       return null;
   }
+}
+
+function getPaymentProviderLabel(provider: PaymentProvider) {
+  switch (provider) {
+    case "ASAAS":
+      return "Asaas";
+    case "MERCADOPAGO":
+    default:
+      return "Mercado Pago";
+  }
+}
+
+function getPaymentProviderTransactionId(transaction: {
+  mercadoPagoPaymentId: string | null;
+  asaasPaymentId: string | null;
+}) {
+  return transaction.mercadoPagoPaymentId ?? transaction.asaasPaymentId ?? "unknown";
 }
 
 function isSerializableTransactionError(error: unknown) {
@@ -73,7 +90,9 @@ async function fulfillApprovedPaymentTransactionOnce(
           userId: true,
           productType: true,
           quantity: true,
+          provider: true,
           mercadoPagoPaymentId: true,
+          asaasPaymentId: true,
           externalReference: true,
         },
       });
@@ -89,7 +108,7 @@ async function fulfillApprovedPaymentTransactionOnce(
             delta: transaction.quantity,
             reason: "MANUAL_PAYMENT",
             notes: [
-              `Mercado Pago payment ${transaction.mercadoPagoPaymentId ?? "unknown"}`,
+              `${getPaymentProviderLabel(transaction.provider)} payment ${getPaymentProviderTransactionId(transaction)}`,
               `PaymentTransaction ${transaction.id}`,
               `External reference ${transaction.externalReference}`,
             ].join(" | "),
@@ -155,7 +174,7 @@ async function fulfillApprovedPaymentTransactionOnce(
           startsAt,
           expiresAt,
           notes: [
-            `Mercado Pago payment ${transaction.mercadoPagoPaymentId ?? "unknown"}`,
+            `${getPaymentProviderLabel(transaction.provider)} payment ${getPaymentProviderTransactionId(transaction)}`,
             `PaymentTransaction ${transaction.id}`,
             `External reference ${transaction.externalReference}`,
           ].join(" | "),

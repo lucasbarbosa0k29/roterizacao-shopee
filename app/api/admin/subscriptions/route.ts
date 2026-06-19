@@ -21,7 +21,7 @@ type ActiveSubscriptionSnapshot = {
 
 type PaymentTransactionSnapshot = {
   id: string;
-  provider: "MERCADOPAGO";
+  provider: "MERCADOPAGO" | "ASAAS";
   productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
   quantity: number;
   amountCents: number;
@@ -75,7 +75,7 @@ type SubscriptionHistoryRow = {
   recentPayments: PaymentTransactionSnapshot[];
   recentRouteCredits: RouteCreditSnapshot[];
   recentAdminActions: AdminActionSnapshot[];
-  planOrigin: "manual" | "Mercado Pago" | "avulso" | "sem plano";
+  planOrigin: "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano";
   subscriptionStatusLabel: string;
   creditsAvailable: number;
   creditsUsedInCycle: number;
@@ -241,13 +241,22 @@ function normalizeDateString(value: string | Date | null | undefined) {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function getPlanOrigin(user: SubscriptionHistoryRow): "manual" | "Mercado Pago" | "avulso" | "sem plano" {
+function getPlanOrigin(
+  user: SubscriptionHistoryRow
+): "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano" {
   const active = user.currentSubscription;
   const latestPayment = user.latestPayment;
 
   if (active) {
     if (active.source === "ADMIN_GRANT" || active.source === "TRIAL") {
       return "manual";
+    }
+
+    if (
+      latestPayment?.provider === "ASAAS" &&
+      ["APPROVED", "FULFILLED"].includes(latestPayment.status)
+    ) {
+      return "Asaas";
     }
 
     if (active.source === "MANUAL_PAYMENT" || active.source === "INFINITEPAY_LINK") {
@@ -260,7 +269,7 @@ function getPlanOrigin(user: SubscriptionHistoryRow): "manual" | "Mercado Pago" 
     (latestPayment.productType === "BASIC_PLAN" || latestPayment.productType === "PRO_PLAN") &&
     ["APPROVED", "FULFILLED"].includes(latestPayment.status)
   ) {
-    return "Mercado Pago";
+    return latestPayment.provider === "ASAAS" ? "Asaas" : "Mercado Pago";
   }
 
   if (user.creditsAvailable > 0) {

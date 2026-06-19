@@ -47,6 +47,7 @@ enum RouteCreditReason {
 
 enum PaymentProvider {
   MERCADOPAGO
+  ASAAS
 }
 
 enum PaymentProductType {
@@ -228,6 +229,11 @@ model PaymentTransaction {
 
   mercadoPagoPreferenceId String?
   mercadoPagoPaymentId    String? @unique
+  asaasPaymentId          String? @unique
+  asaasCustomerId         String?
+  asaasSubscriptionId     String?
+  asaasCheckoutUrl        String?
+  asaasInvoiceUrl         String?
   externalReference       String  @unique
   initPoint               String?
   sandboxInitPoint        String?

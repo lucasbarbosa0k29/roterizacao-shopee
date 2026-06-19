@@ -150,8 +150,12 @@ export default function PlanosPage() {
       setCheckoutLoading(productType);
 
       const quantity = productType === "EXTRA_ROUTE" ? extraRouteQuantity : 1;
+      const checkoutEndpoint =
+        productType === "EXTRA_ROUTE"
+          ? "/api/payments/mercadopago/checkout"
+          : "/api/payments/asaas/checkout";
 
-      const res = await fetch("/api/payments/mercadopago/checkout", {
+      const res = await fetch(checkoutEndpoint, {
         method: "POST",
         credentials: "include",
         headers: {

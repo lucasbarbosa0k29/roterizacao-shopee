@@ -7,27 +7,20 @@ import { prisma } from "@/app/lib/prisma";
 
 export const runtime = "nodejs";
 
-const MERCADOPAGO_PREFERENCES_URL =
-  "https://api.mercadopago.com/checkout/preferences";
+const ASAAS_API_BASE_URL = process.env.ASAAS_API_BASE_URL || "https://api.asaas.com";
+const ASAAS_CHECKOUT_BASE_URL = process.env.ASAAS_CHECKOUT_BASE_URL || "https://asaas.com";
+const ASAAS_PAYMENT_LINKS_URL = `${ASAAS_API_BASE_URL}/v3/paymentLinks`;
 
 const PRODUCT_CONFIG = {
-  EXTRA_ROUTE: {
-    title: "Rota avulsa",
-    unitAmountCents: 199,
-    minQuantity: 1,
-    maxQuantity: 100,
-  },
   BASIC_PLAN: {
     title: "Plano Basic",
+    description: "Plano Basic do Rotta",
     unitAmountCents: 3999,
-    minQuantity: 1,
-    maxQuantity: 1,
   },
   PRO_PLAN: {
     title: "Plano Pro",
+    description: "Plano Pro do Rotta",
     unitAmountCents: 6999,
-    minQuantity: 1,
-    maxQuantity: 1,
   },
 } as const;
 
@@ -38,10 +31,16 @@ type CheckoutBody = {
   quantity?: unknown;
 };
 
-type MercadoPagoPreferenceResponse = {
+type AsaasPaymentLinkResponse = {
   id?: string;
-  init_point?: string;
-  sandbox_init_point?: string;
+  url?: string;
+  checkoutUrl?: string;
+  paymentLink?: string;
+  link?: string;
+  invoiceUrl?: string;
+  customer?: {
+    id?: string;
+  };
   [key: string]: unknown;
 };
 
@@ -49,23 +48,16 @@ function isProductType(value: unknown): value is ProductType {
   return typeof value === "string" && value in PRODUCT_CONFIG;
 }
 
-function resolveQuantity(productType: ProductType, value: unknown): number | null {
-  const config = PRODUCT_CONFIG[productType];
-
+function resolveQuantity(value: unknown): number | null {
   if (value === undefined || value === null) {
     return 1;
   }
 
-  if (!Number.isInteger(value)) {
+  if (!Number.isInteger(value) || value !== 1) {
     return null;
   }
 
-  const quantity = value as number;
-  if (quantity < config.minQuantity || quantity > config.maxQuantity) {
-    return null;
-  }
-
-  return quantity;
+  return 1;
 }
 
 function toReais(amountCents: number): number {
@@ -73,13 +65,34 @@ function toReais(amountCents: number): number {
 }
 
 function generateExternalReference(): string {
-  return `mp_${randomUUID()}`;
+  return `asaas_${randomUUID()}`;
+}
+
+function getSessionUserId(session: { user?: unknown } | null | undefined): string | undefined {
+  const user = session?.user;
+  if (!user || typeof user !== "object") return undefined;
+
+  const id = (user as { id?: unknown }).id;
+  return typeof id === "string" && id.trim() ? id : undefined;
+}
+
+function buildCheckoutUrl(checkoutId?: string | null, responseUrl?: string | null) {
+  if (responseUrl && responseUrl.trim()) {
+    return responseUrl.trim();
+  }
+
+  if (!checkoutId) {
+    return null;
+  }
+
+  return `${ASAAS_CHECKOUT_BASE_URL.replace(/\/$/, "")}/checkoutSession/show?id=${encodeURIComponent(
+    checkoutId
+  )}`;
 }
 
 async function createPaymentTransaction(params: {
   userId: string;
   productType: ProductType;
-  quantity: number;
   amountCents: number;
 }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -87,9 +100,9 @@ async function createPaymentTransaction(params: {
       return await prisma.paymentTransaction.create({
         data: {
           userId: params.userId,
-          provider: "MERCADOPAGO",
+          provider: "ASAAS",
           productType: params.productType,
-          quantity: params.quantity,
+          quantity: 1,
           amountCents: params.amountCents,
           currency: "BRL",
           status: "PENDING",
@@ -113,21 +126,17 @@ async function createPaymentTransaction(params: {
 
 export async function POST(request: Request) {
   try {
-    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-    const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL;
-    const baseUrl =
-      process.env.NEXTAUTH_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "https://roterizacao-shopee.onrender.com";
+    const accessToken = process.env.ASAAS_ACCESS_TOKEN;
+
     if (!accessToken) {
       return NextResponse.json(
-        { error: "Mercado Pago access token not configured." },
+        { error: "Asaas access token not configured." },
         { status: 500 }
       );
     }
 
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as any)?.id as string | undefined;
+    const session = (await getServerSession(authOptions)) as { user?: unknown } | null;
+    const userId = getSessionUserId(session);
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -136,21 +145,11 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => null)) as CheckoutBody | null;
 
     if (!body || !isProductType(body.productType)) {
-      return NextResponse.json(
-        { error: "Produto inválido." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Produto inválido." }, { status: 400 });
     }
 
     const productType = body.productType;
-    if (productType !== "EXTRA_ROUTE") {
-      return NextResponse.json(
-        { error: "Este produto agora usa checkout Asaas." },
-        { status: 400 }
-      );
-    }
-
-    const quantity = resolveQuantity(productType, body.quantity);
+    const quantity = resolveQuantity(body.quantity);
 
     if (quantity === null) {
       return NextResponse.json(
@@ -161,7 +160,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, active: true },
+      select: { active: true },
     });
 
     if (!user?.active) {
@@ -169,55 +168,37 @@ export async function POST(request: Request) {
     }
 
     const config = PRODUCT_CONFIG[productType];
-    const amountCents = config.unitAmountCents * quantity;
+    const amountCents = config.unitAmountCents;
 
     const transaction = await createPaymentTransaction({
       userId,
       productType,
-      quantity,
       amountCents,
     });
 
-    const preferencePayload = {
-      items: [
-        {
-          title: config.title,
-          quantity,
-          unit_price: toReais(config.unitAmountCents),
-          currency_id: "BRL",
-        },
-      ],
-      payer: {
-        email: user.email,
-      },
-      external_reference: transaction.externalReference,
-      metadata: {
-        userId,
-        paymentTransactionId: transaction.id,
-        productType,
-        quantity,
-      },
-      back_urls: {
-        success: `${baseUrl}/planos?payment=success`,
-        failure: `${baseUrl}/planos?payment=failure`,
-        pending: `${baseUrl}/planos?payment=pending`,
-      },
-      auto_return: "approved",
-      ...(notificationUrl
-        ? { notification_url: notificationUrl }
-        : {}),
+    const checkoutPayload = {
+      billingType: "UNDEFINED",
+      chargeType: "DETACHED",
+      name: config.title,
+      description: config.description,
+      value: toReais(config.unitAmountCents),
+      externalReference: transaction.externalReference,
+      isAddressRequired: false,
+      notificationEnabled: true,
+      dueDateLimitDays: 7,
     };
 
-    let mercadoPagoResponse: Response;
+    let asaasResponse: Response;
 
     try {
-      mercadoPagoResponse = await fetch(MERCADOPAGO_PREFERENCES_URL, {
+      asaasResponse = await fetch(ASAAS_PAYMENT_LINKS_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          access_token: accessToken,
           "Content-Type": "application/json",
+          "User-Agent": "Rotta",
         },
-        body: JSON.stringify(preferencePayload),
+        body: JSON.stringify(checkoutPayload),
       });
     } catch (error) {
       await prisma.paymentTransaction.update({
@@ -229,48 +210,50 @@ export async function POST(request: Request) {
             message:
               error instanceof Error
                 ? error.message
-                : "Erro de transporte ao criar checkout no Mercado Pago.",
+                : "Erro de transporte ao criar checkout no Asaas.",
             timestamp: new Date().toISOString(),
           } as Prisma.InputJsonValue,
         },
       });
 
-      console.error(
-        "POST /api/payments/mercadopago/checkout transport error:",
-        error
-      );
+      console.error("POST /api/payments/asaas/checkout transport error:", error);
 
       return NextResponse.json(
-        { error: "Erro ao criar checkout no Mercado Pago." },
+        { error: "Erro ao criar checkout no Asaas." },
         { status: 502 }
       );
     }
 
-    const mercadoPagoPayload =
-      (await mercadoPagoResponse.json().catch(() => null)) as
-        | MercadoPagoPreferenceResponse
-        | null;
+    const asaasPayload = (await asaasResponse.json().catch(() => null)) as
+      | AsaasPaymentLinkResponse
+      | null;
 
-    if (
-      !mercadoPagoResponse.ok ||
-      !mercadoPagoPayload?.id ||
-      (!mercadoPagoPayload.init_point && !mercadoPagoPayload.sandbox_init_point)
-    ) {
+    const checkoutId = asaasPayload?.id ?? null;
+    const checkoutUrl = buildCheckoutUrl(
+      checkoutId,
+      asaasPayload?.url ??
+        asaasPayload?.checkoutUrl ??
+        asaasPayload?.paymentLink ??
+        asaasPayload?.link ??
+        null
+    );
+
+    if (!asaasResponse.ok || !checkoutUrl) {
       await prisma.paymentTransaction.update({
         where: { id: transaction.id },
         data: {
           status: "REJECTED",
           rawPayload: {
-            ok: mercadoPagoResponse.ok,
-            status: mercadoPagoResponse.status,
-            statusText: mercadoPagoResponse.statusText,
-            payload: mercadoPagoPayload,
+            ok: asaasResponse.ok,
+            status: asaasResponse.status,
+            statusText: asaasResponse.statusText,
+            payload: asaasPayload,
           } as Prisma.InputJsonValue,
         },
       });
 
       return NextResponse.json(
-        { error: "Erro ao criar checkout no Mercado Pago." },
+        { error: "Erro ao criar checkout no Asaas." },
         { status: 502 }
       );
     }
@@ -278,22 +261,19 @@ export async function POST(request: Request) {
     const updatedTransaction = await prisma.paymentTransaction.update({
       where: { id: transaction.id },
       data: {
-        mercadoPagoPreferenceId: mercadoPagoPayload.id,
-        initPoint: mercadoPagoPayload.init_point,
-        sandboxInitPoint: mercadoPagoPayload.sandbox_init_point,
-        rawPayload: mercadoPagoPayload as Prisma.InputJsonValue,
+        asaasCheckoutUrl: checkoutUrl,
+        asaasCustomerId: asaasPayload?.customer?.id ?? null,
+        asaasInvoiceUrl: asaasPayload?.invoiceUrl ?? null,
+        rawPayload: asaasPayload as Prisma.InputJsonValue,
       },
     });
 
-    const checkoutUrl =
-      updatedTransaction.initPoint ?? updatedTransaction.sandboxInitPoint;
-
     return NextResponse.json({
-      checkoutUrl,
+      checkoutUrl: updatedTransaction.asaasCheckoutUrl ?? checkoutUrl,
       paymentTransactionId: updatedTransaction.id,
     });
   } catch (error) {
-    console.error("POST /api/payments/mercadopago/checkout error:", error);
+    console.error("POST /api/payments/asaas/checkout error:", error);
     return NextResponse.json(
       { error: "Erro ao iniciar checkout." },
       { status: 500 }
