@@ -4079,11 +4079,11 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="w-full px-0 sm:px-4 md:px-6 py-0 md:py-6">
+        <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
       {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
-        <div className="mx-auto flex h-[calc(100dvh-4rem)] w-full max-w-5xl items-center px-2 sm:px-4 md:h-auto md:min-h-0 md:items-start md:px-6 md:py-8">
-        <div className="mb-6 hidden rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur md:block">
+    <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
+      <div className="mb-6 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
         <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
           Painel de Roteirização
         </div>
@@ -4106,14 +4106,14 @@ useEffect(() => {
         </div>
       </div>
 
-        <div
-          data-tour="upload-area"
-          className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-6 md:p-6"
-        >
-        <div className="flex flex-col gap-4 md:flex-row">
+      <div
+        data-tour="upload-area"
+        className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]"
+      >
+        <div className="flex flex-col md:flex-row gap-4">
           {/* INPUT PLANILHA */}
           <label
-            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-4 hover:border-[#1f5a6b] hover:bg-white sm:p-5 md:p-6"
+            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white"
             onClick={(e) => {
               if (access?.canStartRoute === true) return;
               e.preventDefault();
@@ -4138,7 +4138,7 @@ useEffect(() => {
             />
 
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#dff5ef] text-xl text-[#0f5f58] md:h-14 md:w-14 md:text-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-[#dff5ef] flex items-center justify-center text-xl text-[#0f5f58]">
                 ⬆️
               </div>
 
@@ -4158,7 +4158,7 @@ useEffect(() => {
             type="submit"
             disabled={loading}
             data-tour="start-analysis-button"
-            className="min-h-[60px] w-full rounded-[20px] bg-[#17313b] text-lg font-semibold text-white shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50 md:w-[220px] md:min-h-[64px] md:text-base"
+            className="min-h-[56px] w-full md:w-[220px] rounded-[20px] bg-[#17313b] text-white font-semibold text-base shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50"
           >
             {loading ? "Processando..." : "Iniciar Análise"}
           </button>
