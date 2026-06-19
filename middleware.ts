@@ -3,7 +3,13 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { SUPER_ADMIN_EMAIL } from "@/app/lib/admin-roles";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/manifest.webmanifest",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/.well-known/assetlinks.json",
+];
 const ADMIN_PATHS = ["/admin"];
 const ADMIN_API_PREFIX = "/api/admin";
 const PUBLIC_FILE = /\.(png|jpg|jpeg|webp|svg|ico)$/i;
