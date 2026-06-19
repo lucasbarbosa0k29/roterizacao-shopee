@@ -4113,7 +4113,7 @@ useEffect(() => {
         <div className="flex flex-col gap-4 md:flex-row">
           {/* INPUT PLANILHA */}
           <label
-            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white sm:p-5 md:p-5"
+            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-4 hover:border-[#1f5a6b] hover:bg-white sm:p-5 md:p-6"
             onClick={(e) => {
               if (access?.canStartRoute === true) return;
               e.preventDefault();
@@ -4138,7 +4138,7 @@ useEffect(() => {
             />
 
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#dff5ef] text-xl text-[#0f5f58]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#dff5ef] text-xl text-[#0f5f58] md:h-14 md:w-14 md:text-2xl">
                 ⬆️
               </div>
 
@@ -4158,7 +4158,7 @@ useEffect(() => {
             type="submit"
             disabled={loading}
             data-tour="start-analysis-button"
-            className="min-h-[60px] w-full rounded-[20px] bg-[#17313b] text-lg font-semibold text-white shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50 md:w-[220px] md:min-h-[56px] md:text-base"
+            className="min-h-[60px] w-full rounded-[20px] bg-[#17313b] text-lg font-semibold text-white shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50 md:w-[220px] md:min-h-[64px] md:text-base"
           >
             {loading ? "Processando..." : "Iniciar Análise"}
           </button>
