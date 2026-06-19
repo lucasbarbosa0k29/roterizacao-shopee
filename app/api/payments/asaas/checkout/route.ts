@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 
 const ASAAS_API_BASE_URL = process.env.ASAAS_API_BASE_URL || "https://api.asaas.com";
 const ASAAS_CHECKOUT_BASE_URL = process.env.ASAAS_CHECKOUT_BASE_URL || "https://asaas.com";
-const ASAAS_PAYMENT_LINKS_URL = `${ASAAS_API_BASE_URL}/v3/paymentLinks`;
+const ASAAS_CHECKOUTS_URL = `${ASAAS_API_BASE_URL}/v3/checkouts`;
 
 const PRODUCT_CONFIG = {
   BASIC_PLAN: {
@@ -22,6 +22,11 @@ const PRODUCT_CONFIG = {
     description: "Plano Pro do Rotta",
     unitAmountCents: 6999,
   },
+  EXTRA_ROUTE: {
+    title: "Rota avulsa",
+    description: "Crédito avulso do Rotta",
+    unitAmountCents: 199,
+  },
 } as const;
 
 type ProductType = keyof typeof PRODUCT_CONFIG;
@@ -31,13 +36,11 @@ type CheckoutBody = {
   quantity?: unknown;
 };
 
-type AsaasPaymentLinkResponse = {
+type AsaasCheckoutResponse = {
   id?: string;
   url?: string;
   checkoutUrl?: string;
-  paymentLink?: string;
   link?: string;
-  invoiceUrl?: string;
   customer?: {
     id?: string;
   };
@@ -48,12 +51,26 @@ function isProductType(value: unknown): value is ProductType {
   return typeof value === "string" && value in PRODUCT_CONFIG;
 }
 
-function resolveQuantity(value: unknown): number | null {
+function resolveQuantity(productType: ProductType, value: unknown): number | null {
   if (value === undefined || value === null) {
     return 1;
   }
 
-  if (!Number.isInteger(value) || value !== 1) {
+  if (!Number.isInteger(value)) {
+    return null;
+  }
+
+  const quantity = value as number;
+
+  if (productType === "EXTRA_ROUTE") {
+    if (quantity < 1 || quantity > 100) {
+      return null;
+    }
+
+    return quantity;
+  }
+
+  if (quantity !== 1) {
     return null;
   }
 
@@ -93,6 +110,7 @@ function buildCheckoutUrl(checkoutId?: string | null, responseUrl?: string | nul
 async function createPaymentTransaction(params: {
   userId: string;
   productType: ProductType;
+  quantity: number;
   amountCents: number;
 }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -102,7 +120,7 @@ async function createPaymentTransaction(params: {
           userId: params.userId,
           provider: "ASAAS",
           productType: params.productType,
-          quantity: 1,
+          quantity: params.quantity,
           amountCents: params.amountCents,
           currency: "BRL",
           status: "PENDING",
@@ -149,7 +167,7 @@ export async function POST(request: Request) {
     }
 
     const productType = body.productType;
-    const quantity = resolveQuantity(body.quantity);
+    const quantity = resolveQuantity(productType, body.quantity);
 
     if (quantity === null) {
       return NextResponse.json(
@@ -168,30 +186,45 @@ export async function POST(request: Request) {
     }
 
     const config = PRODUCT_CONFIG[productType];
-    const amountCents = config.unitAmountCents;
+    const amountCents = config.unitAmountCents * quantity;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      process.env.NEXTAUTH_URL?.trim() ||
+      "https://usarotta.com.br";
 
     const transaction = await createPaymentTransaction({
       userId,
       productType,
+      quantity,
       amountCents,
     });
 
     const checkoutPayload = {
-      billingType: "UNDEFINED",
-      chargeType: "DETACHED",
-      name: config.title,
-      description: config.description,
-      value: toReais(config.unitAmountCents),
+      billingTypes: ["PIX", "CREDIT_CARD"],
+      chargeTypes: ["DETACHED"],
       externalReference: transaction.externalReference,
       isAddressRequired: false,
       notificationEnabled: true,
-      dueDateLimitDays: 7,
+      minutesToExpire: 60,
+      callback: {
+        successUrl: `${baseUrl}/planos?payment=success`,
+        cancelUrl: `${baseUrl}/planos?payment=failure`,
+        expiredUrl: `${baseUrl}/planos?payment=expired`,
+      },
+      items: [
+        {
+          name: config.title,
+          description: config.description,
+          quantity,
+          value: toReais(config.unitAmountCents),
+        },
+      ],
     };
 
     let asaasResponse: Response;
 
     try {
-      asaasResponse = await fetch(ASAAS_PAYMENT_LINKS_URL, {
+      asaasResponse = await fetch(ASAAS_CHECKOUTS_URL, {
         method: "POST",
         headers: {
           access_token: accessToken,
@@ -225,7 +258,7 @@ export async function POST(request: Request) {
     }
 
     const asaasPayload = (await asaasResponse.json().catch(() => null)) as
-      | AsaasPaymentLinkResponse
+      | AsaasCheckoutResponse
       | null;
 
     const checkoutId = asaasPayload?.id ?? null;
@@ -233,7 +266,6 @@ export async function POST(request: Request) {
       checkoutId,
       asaasPayload?.url ??
         asaasPayload?.checkoutUrl ??
-        asaasPayload?.paymentLink ??
         asaasPayload?.link ??
         null
     );
@@ -263,7 +295,6 @@ export async function POST(request: Request) {
       data: {
         asaasCheckoutUrl: checkoutUrl,
         asaasCustomerId: asaasPayload?.customer?.id ?? null,
-        asaasInvoiceUrl: asaasPayload?.invoiceUrl ?? null,
         rawPayload: asaasPayload as Prisma.InputJsonValue,
       },
     });
