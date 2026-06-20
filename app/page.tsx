@@ -1653,15 +1653,44 @@ useEffect(() => {
     return !!row?.memoryDebug?.memoryHit || decisionReason.startsWith("MEMORY");
   }
 
-  function getVisualStatusLabel(status: Status, idxs: number[]) {
-    if (status === "OK" && idxs.some((idx) => isRowMemoryHit(idx))) {
-      return "Memória";
-    }
-    if (status === "OK") return "Validado";
-    if (status === "PARCIAL") return "Aproximado";
-    if (status === "NAO_ENCONTRADO") return "Pendente";
-    if (status === "CONFIRMADO") return "Confirmado";
-    return status;
+  function getTrindadeShadow(row: any) {
+    return row?.trindadeShadow || row?.trindadeShadowAudit || null;
+  }
+
+  function isRowMemoryHitRow(row: any) {
+    const decisionReason = String(row?.decisionReason || row?.memoryDebug?.decisionReason || "").toUpperCase();
+    return !!row?.memoryDebug?.memoryHit || decisionReason.startsWith("MEMORY");
+  }
+
+  function isTrindadeVisuallyValidated(row: any) {
+    const trindadeShadow = getTrindadeShadow(row);
+    if (trindadeShadow?.matchedLayer === "logradouros") return false;
+    return (
+      row?.localFirstInspectApplied !== true &&
+      (
+        row?.localFirstTrindadeUsedAsFinal === true ||
+        row?.source === "LOCALFIRST_TRINDADE" ||
+        row?.matchType === "LOCALFIRST_TRINDADE" ||
+        trindadeShadow?.localFirstAppliedAsFinal === true
+      )
+    );
+  }
+
+  function getVisualStatusLabel(status: Status, row: any) {
+    const trindadeShadow = getTrindadeShadow(row);
+    return status === "OK" && isRowMemoryHitRow(row)
+      ? "Memória"
+      : status === "OK"
+        ? "Validado"
+        : status === "PARCIAL" && isTrindadeVisuallyValidated(row)
+          ? "Validado"
+          : status === "PARCIAL"
+            ? "Aproximado"
+            : status === "NAO_ENCONTRADO"
+              ? "Pendente"
+              : status === "CONFIRMADO"
+                ? "Confirmado"
+                : status;
   }
 
   function getGroupBaseIdx(idxs: number[]) {
@@ -2159,7 +2188,7 @@ useEffect(() => {
               ? "PARCIAL"
               : "NAO_ENCONTRADO";
 
-      const statusLabel = getVisualStatusLabel(status, idxs);
+      const statusLabel = getVisualStatusLabel(status, rows[baseIdx]);
 
       return {
         id: g.id,
@@ -2219,7 +2248,7 @@ useEffect(() => {
         idxs: [idx],
         sequenceText,
         status,
-        statusLabel: getVisualStatusLabel(status, [idx]),
+        statusLabel: getVisualStatusLabel(status, rows[idx]),
         addressDisplay: <div className="font-medium">{address}</div>,
         addressForExport: getExportAddress(idx),
         bairro,
@@ -2295,7 +2324,7 @@ useEffect(() => {
         idxs,
         sequenceText,
         status,
-        statusLabel: getVisualStatusLabel(status, idxs),
+        statusLabel: getVisualStatusLabel(status, rows[baseIdx]),
         addressDisplay,
         addressForExport,
         bairro,
@@ -2363,23 +2392,23 @@ useEffect(() => {
   }, [visibleGroupedRows]);
 
   const exportSummary = useMemo(() => {
-    const summary = {
-      total: visibleGroupedRows.length,
-      ok: 0,
-      partial: 0,
-      manual: 0,
-      notFound: 0,
+      const summary = {
+        total: visibleGroupedRows.length,
+        ok: 0,
+        partial: 0,
+        manual: 0,
+        notFound: 0,
       grouped: 0,
     };
 
-    for (const group of visibleGroupedRows) {
-      if (group.idxs.length > 1) summary.grouped += 1;
+      for (const group of visibleGroupedRows) {
+        if (group.idxs.length > 1) summary.grouped += 1;
 
-      if (group.status === "CONFIRMADO" || group.status === "OK") summary.ok += 1;
-      else if (group.status === "PARCIAL") summary.partial += 1;
-      else if (group.status === "MANUAL") summary.manual += 1;
-      else summary.notFound += 1;
-    }
+        if (group.statusLabel === "Validado" || group.status === "CONFIRMADO") summary.ok += 1;
+        else if (group.statusLabel === "Aproximado") summary.partial += 1;
+        else if (group.statusLabel === "Pendente") summary.notFound += 1;
+        else if (group.status === "MANUAL") summary.manual += 1;
+      }
 
     return summary;
   }, [visibleGroupedRows]);
@@ -4083,17 +4112,17 @@ useEffect(() => {
       {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
     <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
-      <div className="mb-6 rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
+      <div className="mb-3 rounded-[28px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur md:mb-6 md:p-6">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#1f5a6b] md:text-[11px] md:tracking-[0.22em]">
           Painel de Roteirização
         </div>
-        <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+        <h1 className="mt-2 text-xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-2xl md:mt-3 md:text-4xl md:leading-normal">
           Transforme planilhas em rotas revisáveis e prontas para exportação
         </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+        <p className="mt-2 hidden max-w-3xl text-sm leading-6 text-slate-600 md:mt-3 md:block md:text-base">
           Envie a planilha operacional, acompanhe o processamento e revise os pontos em um fluxo visual único.
         </p>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-4 hidden flex-wrap gap-2 md:mt-5 md:flex">
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
             Importação Assistida
           </span>
@@ -4108,12 +4137,12 @@ useEffect(() => {
 
       <div
         data-tour="upload-area"
-        className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]"
+        className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] md:p-6"
       >
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:gap-4">
           {/* INPUT PLANILHA */}
           <label
-            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-5 hover:border-[#1f5a6b] hover:bg-white"
+            className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-4 hover:border-[#1f5a6b] hover:bg-white md:p-5"
             onClick={(e) => {
               if (access?.canStartRoute === true) return;
               e.preventDefault();
@@ -4137,16 +4166,16 @@ useEffect(() => {
               }}
             />
 
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#dff5ef] flex items-center justify-center text-xl text-[#0f5f58]">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dff5ef] text-lg text-[#0f5f58] md:h-12 md:w-12 md:text-xl">
                 ⬆️
               </div>
 
               <div className="min-w-0">
-                <div className="font-semibold text-slate-900">
+                <div className="text-sm font-semibold text-slate-900 md:text-base">
                   Carregar Arquivo Operacional
                 </div>
-                <div className="text-sm text-slate-600 truncate">
+                <div className="truncate text-xs text-slate-600 md:text-sm">
                   {file ? file.name : "Nenhum arquivo escolhido"}
                 </div>
               </div>
@@ -4158,7 +4187,7 @@ useEffect(() => {
             type="submit"
             disabled={loading}
             data-tour="start-analysis-button"
-            className="min-h-[56px] w-full md:w-[220px] rounded-[20px] bg-[#17313b] text-white font-semibold text-base shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50"
+            className="min-h-[52px] w-full rounded-[20px] bg-[#17313b] text-sm font-semibold text-white shadow-[0_16px_30px_rgba(23,49,59,0.24)] hover:bg-[#10242c] disabled:opacity-50 md:w-[220px] md:min-h-[56px] md:text-base"
           >
             {loading ? "Processando..." : "Iniciar Análise"}
           </button>
@@ -5046,7 +5075,7 @@ onContextMenu={(e) => {
                                     <span
                                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(status)}`}
                                     >
-                                      {getVisualStatusLabel(status, [idx])}
+                                      {getVisualStatusLabel(status, rows[idx])}
                                     </span>
                                   </div>
 

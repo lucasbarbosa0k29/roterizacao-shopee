@@ -2013,6 +2013,12 @@ export default function TrindadeArcgisMap({
                   try {
                     sharedView.popup.close();
                   } catch {}
+                  setMarker(lat, lng);
+                  sharedManualClickCenterKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+                  sharedManualClickCenterEchoesToSuppress = 3;
+                  suppressNextCenterGoToRef.current = true;
+                  onPick?.({ lat, lng });
+                  onPickDetails?.(buildManualFreePickDetails(lat, lng));
                   return;
                 }
 
@@ -2123,55 +2129,6 @@ export default function TrindadeArcgisMap({
                 onPick?.({ lat: pickedLat, lng: pickedLng });
                 onPickDetails?.(buildPickDetailsFromCentroid(pickedRecord));
               });
-
-            return;
-
-            let pickedRecord = null as TrindadeCentroidRecord | null;
-            let pickedLat = lat;
-            let pickedLng = lng;
-
-            if (!pickedRecord) {
-              const centroidMatch = findNearestCentroidForManualPick(
-                centroidRef.current,
-                lat,
-                lng,
-                MANUAL_CENTROID_PICK_RADIUS_METERS,
-              );
-              pickedRecord = centroidMatch.record;
-              pickedLat = pickedRecord?.lat ?? lat;
-              pickedLng = pickedRecord?.lng ?? lng;
-            }
-
-            const centroidPickedRecord = pickedRecord as TrindadeCentroidRecord;
-            const popupKey = pickedRecord
-              ? `centroid:${centroidPickedRecord.sourceIndex}|${pickedLat.toFixed(6)},${pickedLng.toFixed(6)}`
-              : `free:${pickedLat.toFixed(6)},${pickedLng.toFixed(6)}`;
-
-            sharedManualClickCenterKey = `${pickedLat.toFixed(6)},${pickedLng.toFixed(6)}`;
-            sharedManualClickCenterEchoesToSuppress = 3;
-            suppressNextCenterGoToRef.current = true;
-            onPick?.({ lat: pickedLat, lng: pickedLng });
-            onPickDetails?.(
-              pickedRecord
-                ? buildPickDetailsFromCentroid(centroidPickedRecord)
-                : buildManualFreePickDetails(lat, lng),
-            );
-            setMarker(pickedLat, pickedLng);
-
-            if (popupKey !== lastPopupSelectionKeyRef.current) {
-              lastPopupSelectionKeyRef.current = popupKey;
-              openLotPopup(
-                {
-                  bairro: pickedRecord?.bairroNome || "",
-                  quadra: pickedRecord?.quadraDisplay || pickedRecord?.cdquadra || "",
-                  lote: pickedRecord?.loteDisplay || pickedRecord?.cdlote || "",
-                },
-                pickedLat,
-                pickedLng,
-              );
-            }
-
-            return;
           }
 
           const pt = new sharedPoint({ latitude: lat, longitude: lng });
@@ -2235,6 +2192,13 @@ export default function TrindadeArcgisMap({
                 try {
                   sharedView.popup.close();
                 } catch {}
+                const freePickDetails = buildManualFreePickDetails(lat, lng);
+                setMarker(lat, lng);
+                sharedManualClickCenterKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+                sharedManualClickCenterEchoesToSuppress = 3;
+                suppressNextCenterGoToRef.current = true;
+                onPick?.({ lat, lng });
+                onPickDetails?.(freePickDetails);
                 return;
               }
 

@@ -777,6 +777,9 @@ function findLoteCandidate(
         flags: { exact: true, fallback: false },
       };
     }
+
+    // Bairro canônico já foi resolvido: não deixamos o fluxo escapar para outro bairro.
+    return null;
   }
 
   const exactKey = `${rawCdloteamento || input.cdloteamento}|${normalizedQuadra}|${normalizedLote}`;
@@ -1165,20 +1168,23 @@ function buildPromotionSimulation(
     matchedLayer: TrindadeShadowResult["matchedLayer"];
     streetBairroResolution: TrindadeStreetBairroResolution | null | undefined;
     comparisonResult?: TrindadeShadowComparison | null;
+    normalized: ReturnType<typeof normalizeTrindadeInput>;
   },
 ): TrindadePromotionSimulation {
   const fromMatchType = input.matchType;
-  const isStrongStreetBairro = input.streetBairroResolution?.level === "STRONG_STREET_BAIRRO";
+  const hasStreetBairroResolution = input.streetBairroResolution?.level !== "NONE";
   const hasUniqueCandidate = !!input.streetBairroResolution?.uniqueCandidate;
   const isOperationalLotLayer = input.matchedLayer === "lotes";
+  const isOperationalStreetLayer = input.matchedLayer === "logradouros";
   const hasSafeComparison = input.comparisonResult !== "DIFF_CONFLICT";
+  const hasQuadraLote = !!input.normalized.quadra && !!input.normalized.lote;
   const eligible =
-    (input.matchType === "MATCH_FALLBACK" && isStrongStreetBairro) ||
-    (input.matchType === "MATCH_MEDIO" &&
-      isOperationalLotLayer &&
-      isStrongStreetBairro &&
-      hasUniqueCandidate &&
-      hasSafeComparison);
+    hasSafeComparison &&
+    hasStreetBairroResolution &&
+    (
+      (isOperationalLotLayer && hasQuadraLote && hasUniqueCandidate) ||
+      isOperationalStreetLayer
+    );
 
   return {
     eligible,
@@ -1186,24 +1192,24 @@ function buildPromotionSimulation(
     promotedTo: eligible ? "MATCH_RUA_BAIRRO" : null,
     fromMatchType,
     reason: eligible
-      ? input.matchType === "MATCH_MEDIO"
-        ? "strong_lote_match_medio_promotion"
-        : "strong_street_bairro_shadow_promotion"
-      : input.matchType === "MATCH_FALLBACK"
-        ? input.streetBairroResolution?.level === "NONE"
-          ? "no_street_bairro_resolution"
-          : "street_bairro_resolution_not_strong"
-        : input.matchType === "MATCH_MEDIO"
-          ? !isOperationalLotLayer
-            ? "unsafe_match_layer"
-            : !isStrongStreetBairro
-              ? "street_bairro_resolution_not_strong"
-              : !hasUniqueCandidate
-                ? "multiple_candidates"
-                : !hasSafeComparison
-                  ? "diff_conflict"
-                  : "current_match_type_not_eligible"
-          : "current_match_type_not_eligible",
+      ? isOperationalStreetLayer
+        ? "logradouro_rua_bairro_promotion"
+        : "lote_unique_street_bairro_promotion"
+      : !isOperationalLotLayer
+        ? (!isOperationalStreetLayer ? "unsafe_match_layer" : !hasSafeComparison
+            ? "diff_conflict"
+            : !hasStreetBairroResolution
+              ? "missing_street_bairro"
+              : "current_match_type_not_eligible")
+        : !hasQuadraLote
+          ? "missing_quadra_lote"
+          : !hasStreetBairroResolution
+            ? "missing_street_bairro"
+            : !hasUniqueCandidate
+              ? "multiple_candidates"
+              : !hasSafeComparison
+                ? "diff_conflict"
+                : "current_match_type_not_eligible",
   };
 }
 
@@ -1279,8 +1285,6 @@ function buildDecisionSimulation(
     input.cityDetected &&
     input.localFirstFound &&
     !!input.promotionSimulation?.eligible &&
-    input.streetBairroResolution?.level === "STRONG_STREET_BAIRRO" &&
-    !!input.streetBairroResolution?.uniqueCandidate &&
     input.comparisonResult !== "DIFF_CONFLICT" &&
     !input.conflictWithHere;
 
@@ -1298,8 +1302,7 @@ function buildDecisionSimulation(
   } else if (
     !input.localFirstFound ||
     !input.promotionSimulation?.eligible ||
-    input.streetBairroResolution?.level !== "STRONG_STREET_BAIRRO" ||
-    (input.streetBairroResolution?.candidatesCount || 0) !== 1
+    input.streetBairroResolution?.level === "NONE"
   ) {
     riskLevel = "MEDIUM";
   }
@@ -1308,9 +1311,9 @@ function buildDecisionSimulation(
     input.cityDetected ? "city_trindade" : "city_not_trindade",
     input.localFirstFound ? "local_first_found" : "no_local_candidate",
     input.promotionSimulation?.eligible ? "promotion_eligible" : "not_promotion_eligible",
-    input.streetBairroResolution?.level === "STRONG_STREET_BAIRRO"
-      ? "strong_street_bairro"
-      : "non_strong_street_bairro",
+    input.streetBairroResolution?.level !== "NONE"
+      ? "street_bairro_resolved"
+      : "missing_street_bairro",
     input.streetBairroResolution?.uniqueCandidate ? "unique_candidate" : "non_unique_candidate",
     input.comparisonResult !== "DIFF_CONFLICT" ? "no_diff_conflict" : "diff_conflict",
     input.matchedLayer ? `matched_layer:${input.matchedLayer}` : "matched_layer:none",
@@ -1324,15 +1327,15 @@ function buildDecisionSimulation(
       ? "decision_simulation_localfirst_wins"
       : !input.cityDetected
         ? "city_not_trindade"
-        : !input.localFirstFound
-          ? "no_local_candidate"
-          : !input.promotionSimulation?.eligible
-            ? "not_promotion_eligible"
-            : input.streetBairroResolution?.level !== "STRONG_STREET_BAIRRO"
-              ? "weak_street_bairro"
-              : input.comparisonResult === "DIFF_CONFLICT" || input.conflictWithHere
-                ? "diff_conflict"
-                : "current_wins",
+      : !input.localFirstFound
+        ? "no_local_candidate"
+        : !input.promotionSimulation?.eligible
+          ? "not_promotion_eligible"
+          : input.streetBairroResolution?.level === "NONE"
+            ? "missing_street_bairro"
+            : input.comparisonResult === "DIFF_CONFLICT" || input.conflictWithHere
+              ? "diff_conflict"
+              : "current_wins",
     riskLevel,
     safeguards,
   };
@@ -1393,15 +1396,22 @@ function buildSafetyGate(
   const pass =
     input.decisionSimulation.wouldReplaceCurrent &&
     input.decisionSimulation.riskLevel === "LOW" &&
-    input.streetBairroResolution?.level === "STRONG_STREET_BAIRRO" &&
     !!input.promotionSimulation?.eligible &&
-    (input.streetBairroResolution?.candidatesCount || 0) === 1 &&
+    input.streetBairroResolution?.level !== "NONE" &&
     input.comparisonResult !== "DIFF_CONFLICT" &&
-    (input.matchedLayer === "logradouros" || input.matchedLayer === "lotes") &&
-    [
-      "strong_street_bairro_shadow_promotion",
-      "strong_lote_match_medio_promotion",
-    ].includes(String(input.promotionSimulation?.reason || ""));
+    (
+      (
+        input.matchedLayer === "lotes" &&
+        Boolean(input.normalized.quadra) &&
+        Boolean(input.normalized.lote) &&
+        !!input.streetBairroResolution?.uniqueCandidate &&
+        String(input.promotionSimulation?.reason || "") === "lote_unique_street_bairro_promotion"
+      ) ||
+      (
+        input.matchedLayer === "logradouros" &&
+        String(input.promotionSimulation?.reason || "") === "logradouro_rua_bairro_promotion"
+      )
+    );
 
   return {
     pass,
@@ -1545,6 +1555,7 @@ export async function runTrindadeLocalFirstShadow(
       matchedLayer: null,
       streetBairroResolution,
       comparisonResult: "NO_LOCAL_CANDIDATE",
+      normalized,
     });
     const shadowConfidence = buildShadowConfidence("SKIPPED", flags, streetBairroResolution, normalized);
     const decisionSimulation = buildDecisionSimulation({
@@ -1636,6 +1647,7 @@ export async function runTrindadeLocalFirstShadow(
     matchedLayer,
     streetBairroResolution,
     comparisonResult: comparison.comparisonResult,
+    normalized,
   });
   const shadowConfidence = buildShadowConfidence(matchType, flags, streetBairroResolution, normalized);
   const shadow: TrindadeShadowResult = {

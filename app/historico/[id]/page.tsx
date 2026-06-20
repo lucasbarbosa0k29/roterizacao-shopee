@@ -9,10 +9,65 @@ type Job = {
   originalName?: string | null;
   totalStops: number;
   processedStops: number;
-  resultJson?: any;
+  resultJson?: unknown;
   resultSavedAt?: string | null;
   createdAt: string;
 };
+
+type TrindadeShadowAuditLike = {
+  matchedLayer?: string | null;
+  localFirstAppliedAsFinal?: boolean | null;
+  localFirstAppliedReason?: string | null;
+  streetBairroResolution?: {
+    level?: string | null;
+    uniqueCandidate?: boolean | null;
+    exactBairroMatch?: boolean | null;
+    exactStreetMatch?: boolean | null;
+  } | null;
+} | null;
+
+type TrindadeResultRow = {
+  status?: string | null;
+  sequence?: string | number | null;
+  original?: string | null;
+  source?: string | null;
+  matchType?: string | null;
+  quadraAuto?: string | null;
+  loteAuto?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  trindadeShadow?: TrindadeShadowAuditLike;
+  trindadeShadowAudit?: TrindadeShadowAuditLike;
+  localFirstTrindadeUsedAsFinal?: boolean | null;
+  localFirstInspectApplied?: boolean | null;
+};
+
+function getTrindadeShadow(row: TrindadeResultRow) {
+  return row?.trindadeShadow || row?.trindadeShadowAudit || null;
+}
+
+function isTrindadeVisuallyValidated(row: TrindadeResultRow) {
+  const trindadeShadow = getTrindadeShadow(row);
+  if (trindadeShadow?.matchedLayer === "logradouros") return false;
+  return (
+    row?.localFirstInspectApplied !== true &&
+    (
+      row?.localFirstTrindadeUsedAsFinal === true ||
+      row?.source === "LOCALFIRST_TRINDADE" ||
+      row?.matchType === "LOCALFIRST_TRINDADE" ||
+      trindadeShadow?.localFirstAppliedAsFinal === true
+    )
+  );
+}
+
+function getTrindadeStatusDisplayLabel(status: string, row: TrindadeResultRow) {
+  if (status === "OK") return "Validado";
+  if (status === "PARCIAL" && isTrindadeVisuallyValidated(row)) return "Validado";
+  if (status === "PARCIAL") return "Aproximado";
+  if (status === "NAO_ENCONTRADO" || status === "NÃO ENCONTRADO") return "Pendente";
+  if (status === "CONFIRMADO") return "Confirmado";
+  return getStatusDisplayLabel(status);
+}
 
 function getStatusDisplayLabel(status: string) {
   if (status === "OK") return "Validado";
@@ -25,7 +80,7 @@ function getStatusDisplayLabel(status: string) {
 export default function HistoricoDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const id = String((params as any)?.id || "");
+  const id = String((params as { id?: string })?.id || "");
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +99,7 @@ export default function HistoricoDetailPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data?.error || "Erro ao abrir histórico.");
+        alert(data?.error || "Erro ao abrir historico.");
         setJob(null);
         return;
       }
@@ -61,15 +116,15 @@ export default function HistoricoDetailPage() {
   }, [id]);
 
   if (loading) return <div className="p-8">Carregando...</div>;
-  if (!job) return <div className="p-8">Não encontrado.</div>;
+  if (!job) return <div className="p-8">Nao encontrado.</div>;
 
-  const rows = Array.isArray(job.resultJson) ? job.resultJson : [];
+  const rows = (Array.isArray(job.resultJson) ? job.resultJson : []) as TrindadeResultRow[];
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold">Histórico</h1>
+          <h1 className="text-2xl font-extrabold">Historico</h1>
           <div className="text-sm text-slate-600 mt-1">
             <span className="font-semibold">Arquivo:</span>{" "}
             {job.originalName || "Planilha sem nome"}
@@ -81,8 +136,7 @@ export default function HistoricoDetailPage() {
 
           {job.resultSavedAt && (
             <div className="text-xs text-slate-500 mt-1">
-              Resultado salvo em:{" "}
-              {new Date(job.resultSavedAt).toLocaleString("pt-BR")}
+              Resultado salvo em: {new Date(job.resultSavedAt).toLocaleString("pt-BR")}
             </div>
           )}
         </div>
@@ -110,9 +164,7 @@ export default function HistoricoDetailPage() {
         </div>
 
         {rows.length === 0 ? (
-          <div className="p-5 text-slate-600">
-            Sem resultado salvo (resultJson vazio).
-          </div>
+          <div className="p-5 text-slate-600">Sem resultado salvo (resultJson vazio).</div>
         ) : (
           <div className="p-5 text-sm overflow-auto">
             <table className="min-w-[900px] w-full">
@@ -128,10 +180,10 @@ export default function HistoricoDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, 500).map((r: any, idx: number) => (
+                {rows.slice(0, 500).map((r: TrindadeResultRow, idx: number) => (
                   <tr key={idx} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{r.sequence ?? ""}</td>
-                    <td className="py-2 pr-3">{getStatusDisplayLabel(String(r.status ?? ""))}</td>
+                    <td className="py-2 pr-3">{getTrindadeStatusDisplayLabel(String(r.status ?? ""), r)}</td>
                     <td className="py-2 pr-3">{r.original ?? ""}</td>
                     <td className="py-2 pr-3">{r.quadraAuto ?? ""}</td>
                     <td className="py-2 pr-3">{r.loteAuto ?? ""}</td>
@@ -144,7 +196,7 @@ export default function HistoricoDetailPage() {
 
             {rows.length > 500 && (
               <div className="text-xs text-slate-500 mt-3">
-                Mostrando só as primeiras 500 linhas pra não travar.
+                Mostrando so as primeiras 500 linhas pra nao travar.
               </div>
             )}
           </div>

@@ -4094,23 +4094,21 @@ if (shouldAutoSaveAddressMemory) {
 
   const trindadeShadowEnabled = process.env.ROTTA_TRINDADE_LOCALFIRST_SHADOW === "1";
   const trindadeLocalFirstDecisionEnabled = process.env.ROTTA_TRINDADE_LOCALFIRST_DECISION === "1";
+  const trindadeLocalFirstInspectAllEnabled =
+    process.env.ROTTA_TRINDADE_LOCALFIRST_INSPECT_ALL === "1";
   const trindadeLocalFirstRuntimeEnabled = trindadeShadowEnabled || trindadeLocalFirstDecisionEnabled;
   let trindadeShadowAudit: Record<string, unknown> | null = null;
   let trindadeLocalFirstUsedAsFinal = false;
   let trindadeLocalFirstAppliedReason: string | null = null;
+  let trindadeLocalFirstFinalSource: string | null = null;
+  let trindadeLocalFirstFinalMatchType: string | null = null;
+  let trindadeLocalFirstInspectApplied = false;
+  let trindadeLocalFirstInspectAppliedReason: string | null = null;
+  let trindadeLocalFirstInspectOriginalBlockedReason: string | null = null;
+  let trindadeLocalFirstInspectOriginalSafetyGate: Record<string, unknown> | null = null;
   const trindadeDecisionCityDetected = normalizeKey(cityForDecision || "").includes("TRINDADE");
   const trindadeDecisionHasQuadra = Boolean(normalized.quadra || quadraAuto);
   const trindadeDecisionHasLote = Boolean(normalized.lote || loteAuto);
-  if (trindadeDecisionCityDetected) {
-    console.info("[TRINDADE_DECISION_FLAG]", {
-      flagEnabled: trindadeLocalFirstDecisionEnabled,
-      shadowEnabled: trindadeShadowEnabled,
-      runtimeEnabled: trindadeLocalFirstRuntimeEnabled,
-      cityDetected: trindadeDecisionCityDetected,
-      hasQuadra: trindadeDecisionHasQuadra,
-      hasLote: trindadeDecisionHasLote,
-    });
-  }
   if (trindadeLocalFirstRuntimeEnabled && trindadeDecisionCityDetected) {
     const trindadeCurrentResultForShadow = {
       source: memoryHit
@@ -4135,11 +4133,6 @@ if (shouldAutoSaveAddressMemory) {
     };
 
     try {
-      console.info("[TRINDADE_SHADOW_CALLED]", {
-        cityDetected: trindadeDecisionCityDetected,
-        hasQuadra: trindadeDecisionHasQuadra,
-        hasLote: trindadeDecisionHasLote,
-      });
       const trindadeShadow = await import("@/app/lib/trindade-localfirst-shadow");
       const trindadeShadowInput = trindadeShadow.normalizeTrindadeInput({
         city: cityForDecision || cityIn || "",
@@ -4162,108 +4155,98 @@ if (shouldAutoSaveAddressMemory) {
 
       if (trindadeShadow.isTrindadeCandidate(trindadeShadowInput)) {
         const shadow = await trindadeShadow.runTrindadeLocalFirstShadow(trindadeShadowInput);
-        console.info("[TRINDADE_SHADOW_RESULT]", {
-          cityDetected: shadow.cityDetected,
-          localFirstFound: shadow.localFirstFound,
-          matchType: shadow.matchType,
-          matchedLayer: shadow.matchedLayer,
-          hasCandidate: !!shadow.candidate,
-          hasQuadra: trindadeDecisionHasQuadra,
-          hasLote: trindadeDecisionHasLote,
-        });
         const comparison = trindadeShadow.compareTrindadeShadowWithCurrent(
           shadow,
           trindadeCurrentResultForShadow,
         );
         const trindadeLocalFirstCandidate = shadow.candidate;
+        const trindadeLocalFirstBlockedReason = !trindadeLocalFirstDecisionEnabled
+          ? "flag_off"
+          : !shadow.cityDetected
+            ? "city_not_trindade"
+            : !shadow.localFirstFound
+              ? "no_local_candidate"
+              : shadow.safetyGate?.pass !== true
+                ? "safety_gate_blocked"
+                : shadow.decisionSimulation?.riskLevel !== "LOW"
+                  ? "risk_not_low"
+                  : shadow.promotionSimulation?.eligible !== true
+                    ? "promotion_not_eligible"
+                    : shadow.streetBairroResolution?.level !== "STRONG_STREET_BAIRRO"
+                      ? "weak_street_bairro"
+                      : (shadow.streetBairroResolution?.candidatesCount || 0) !== 1
+                        ? "multiple_candidates"
+                        : shadow.matchedLayer !== "lotes"
+                          ? "unsafe_match_layer"
+                          : shadow.comparisonResult === "DIFF_CONFLICT"
+                            ? "diff_conflict"
+                            : !Number.isFinite(Number(trindadeLocalFirstCandidate?.lat)) ||
+                                !Number.isFinite(Number(trindadeLocalFirstCandidate?.lng))
+                              ? "candidate_without_coords"
+                              : "not_promoted";
         const trindadeLocalFirstCanApply =
           trindadeLocalFirstDecisionEnabled &&
           shadow.cityDetected &&
           shadow.localFirstFound &&
           shadow.safetyGate?.pass === true &&
-          shadow.decisionSimulation?.riskLevel === "LOW" &&
-          shadow.promotionSimulation?.eligible === true &&
-          shadow.streetBairroResolution?.level === "STRONG_STREET_BAIRRO" &&
-          (shadow.streetBairroResolution?.candidatesCount || 0) === 1 &&
-          shadow.matchedLayer === "lotes" &&
           shadow.comparisonResult !== "DIFF_CONFLICT" &&
+          shadow.promotionSimulation?.eligible === true &&
+          shadow.decisionSimulation?.riskLevel === "LOW" &&
           Number.isFinite(Number(trindadeLocalFirstCandidate?.lat)) &&
           Number.isFinite(Number(trindadeLocalFirstCandidate?.lng));
-        console.info("[TRINDADE_PROMOTION_ELIGIBLE]", {
-          eligible: trindadeLocalFirstCanApply,
-          matchType: shadow.matchType,
-          matchedLayer: shadow.matchedLayer,
-          localFirstFound: shadow.localFirstFound,
-          blockedReason: trindadeLocalFirstCanApply
-            ? null
-            : !trindadeLocalFirstDecisionEnabled
-              ? "flag_off"
-              : !shadow.cityDetected
-                ? "city_not_trindade"
-                : !shadow.localFirstFound
-                  ? "no_local_candidate"
-                  : shadow.safetyGate?.pass !== true
-                    ? "safety_gate_blocked"
-                    : shadow.decisionSimulation?.riskLevel !== "LOW"
-                      ? "risk_not_low"
-                      : shadow.promotionSimulation?.eligible !== true
-                        ? "promotion_not_eligible"
-                        : shadow.streetBairroResolution?.level !== "STRONG_STREET_BAIRRO"
-                          ? "weak_street_bairro"
-                          : (shadow.streetBairroResolution?.candidatesCount || 0) !== 1
-                            ? "multiple_candidates"
-                            : shadow.matchedLayer !== "lotes"
-                              ? "unsafe_match_layer"
-                              : shadow.comparisonResult === "DIFF_CONFLICT"
-                                ? "diff_conflict"
-                                : !Number.isFinite(Number(trindadeLocalFirstCandidate?.lat)) ||
-                                    !Number.isFinite(Number(trindadeLocalFirstCandidate?.lng))
-                                  ? "candidate_without_coords"
-                                  : "unknown",
-        });
+        const trindadeLocalFirstInspectBlockedReason =
+          !trindadeLocalFirstInspectAllEnabled
+            ? "inspect_flag_off"
+            : !trindadeDecisionCityDetected
+              ? "city_not_trindade"
+              : !shadow.localFirstFound
+                ? "no_local_candidate"
+                : !trindadeLocalFirstCandidate
+                ? "no_candidate"
+                : !Number.isFinite(Number(trindadeLocalFirstCandidate.lat)) ||
+                    !Number.isFinite(Number(trindadeLocalFirstCandidate.lng))
+                  ? "candidate_without_coords"
+                  : shadow.matchedLayer !== "lotes" &&
+                      shadow.matchedLayer !== "quadras" &&
+                      shadow.matchedLayer !== "logradouros"
+                        ? "unsafe_match_layer"
+                        : null;
         if (trindadeLocalFirstCanApply && trindadeLocalFirstCandidate) {
           lat = Number(trindadeLocalFirstCandidate.lat);
           lng = Number(trindadeLocalFirstCandidate.lng);
           trindadeLocalFirstUsedAsFinal = true;
           trindadeLocalFirstAppliedReason = "safety_gate_pass_v1";
-          console.info("[TRINDADE_PROMOTED]", {
-            promoted: true,
-            source: "LOCALFIRST_TRINDADE",
-            matchType: "LOCALFIRST_TRINDADE",
-            localFirstFound: shadow.localFirstFound,
-            blockedReason: null,
-          });
-        } else {
-          console.info("[TRINDADE_PROMOTION_BLOCKED_REASON]", {
-            promoted: false,
-            source: trindadeCurrentResultForShadow.source,
-            matchType: shadow.matchType,
-            localFirstFound: shadow.localFirstFound,
-            blockedReason: !trindadeLocalFirstDecisionEnabled
-              ? "flag_off"
-              : !shadow.cityDetected
-                ? "city_not_trindade"
-                : !shadow.localFirstFound
-                  ? "no_local_candidate"
-                  : shadow.safetyGate?.pass !== true
-                    ? "safety_gate_blocked"
-                    : shadow.decisionSimulation?.riskLevel !== "LOW"
-                      ? "risk_not_low"
-                      : shadow.promotionSimulation?.eligible !== true
-                        ? "promotion_not_eligible"
-                        : shadow.streetBairroResolution?.level !== "STRONG_STREET_BAIRRO"
-                          ? "weak_street_bairro"
-                          : (shadow.streetBairroResolution?.candidatesCount || 0) !== 1
-                            ? "multiple_candidates"
-                            : shadow.matchedLayer !== "lotes"
-                              ? "unsafe_match_layer"
-                              : shadow.comparisonResult === "DIFF_CONFLICT"
-                                ? "diff_conflict"
-                                : !Number.isFinite(Number(trindadeLocalFirstCandidate?.lat)) ||
-                                    !Number.isFinite(Number(trindadeLocalFirstCandidate?.lng))
-                                  ? "candidate_without_coords"
-                                  : "not_promoted",
-          });
+          trindadeLocalFirstFinalSource = "LOCALFIRST_TRINDADE";
+          trindadeLocalFirstFinalMatchType = "LOCALFIRST_TRINDADE";
+        }
+        if (
+          trindadeLocalFirstInspectAllEnabled &&
+          !trindadeLocalFirstUsedAsFinal &&
+          trindadeDecisionCityDetected &&
+          trindadeLocalFirstCandidate &&
+          shadow.localFirstFound &&
+          Number.isFinite(Number(trindadeLocalFirstCandidate.lat)) &&
+          Number.isFinite(Number(trindadeLocalFirstCandidate.lng)) &&
+          (shadow.matchedLayer === "lotes" ||
+            shadow.matchedLayer === "quadras" ||
+            shadow.matchedLayer === "logradouros")
+        ) {
+          lat = Number(trindadeLocalFirstCandidate.lat);
+          lng = Number(trindadeLocalFirstCandidate.lng);
+          trindadeLocalFirstUsedAsFinal = true;
+          // Logradouro aqui é apenas para inspeção visual; nunca deve virar regra de produção.
+          trindadeLocalFirstAppliedReason =
+            shadow.matchedLayer === "logradouros"
+              ? "trindade_localfirst_inspect_logradouro"
+              : "trindade_localfirst_inspect_lote_quadra";
+          trindadeLocalFirstFinalSource = "LOCALFIRST_TRINDADE";
+          trindadeLocalFirstFinalMatchType = "LOCALFIRST_TRINDADE_INSPECT";
+          trindadeLocalFirstInspectApplied = true;
+          trindadeLocalFirstInspectAppliedReason = trindadeLocalFirstAppliedReason;
+          trindadeLocalFirstInspectOriginalBlockedReason = trindadeLocalFirstBlockedReason;
+          trindadeLocalFirstInspectOriginalSafetyGate = shadow.safetyGate
+            ? { ...shadow.safetyGate }
+            : null;
         }
         const comparisonPayload = {
           currentStatus: trindadeCurrentResultForShadow.status ?? null,
@@ -4304,13 +4287,6 @@ if (shouldAutoSaveAddressMemory) {
           localFirstAppliedReason: trindadeLocalFirstAppliedReason,
         };
       } else {
-        console.info("[TRINDADE_PROMOTION_BLOCKED_REASON]", {
-          promoted: false,
-          source: trindadeCurrentResultForShadow.source,
-          matchType: "SKIPPED",
-          localFirstFound: false,
-          blockedReason: "not_trindade_candidate",
-        });
         trindadeShadowAudit = {
           enabled: true,
           cityDetected: false,
@@ -4405,7 +4381,6 @@ if (shouldAutoSaveAddressMemory) {
         localFirstAppliedAsFinal: false,
         localFirstAppliedReason: null,
       };
-      console.warn("[TRINDADE_SHADOW_ERROR]", error);
     }
   }
 
@@ -4423,7 +4398,7 @@ if (shouldAutoSaveAddressMemory) {
     normalizedLine,
 
     source: trindadeLocalFirstUsedAsFinal
-      ? "LOCALFIRST_TRINDADE"
+      ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
       : memoryHit
         ? "MEMORY"
         : localFirstGoianiaUsedAsFinal
@@ -4432,7 +4407,7 @@ if (shouldAutoSaveAddressMemory) {
             ? "HERE_DISCOVER"
             : "HERE_GEOCODE",
     matchType: trindadeLocalFirstUsedAsFinal
-      ? "LOCALFIRST_TRINDADE"
+      ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
       : memoryHit
         ? "MEMORY"
         : localFirstGoianiaUsedAsFinal
@@ -4442,6 +4417,14 @@ if (shouldAutoSaveAddressMemory) {
             : "HERE_GEOCODE",
     localFirstTrindadeUsedAsFinal: trindadeLocalFirstUsedAsFinal,
     localFirstTrindadeAppliedReason: trindadeLocalFirstAppliedReason,
+    ...(trindadeLocalFirstInspectApplied
+      ? {
+          localFirstInspectApplied: true,
+          appliedReason: trindadeLocalFirstInspectAppliedReason,
+          originalBlockedReason: trindadeLocalFirstInspectOriginalBlockedReason,
+          originalSafetyGate: trindadeLocalFirstInspectOriginalSafetyGate,
+        }
+      : {}),
     status,
     lat,
     lng,

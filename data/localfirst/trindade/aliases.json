@@ -108,6 +108,46 @@
       "notes": "roman numeral canonicalization"
     },
     {
+      "type": "bairro",
+      "input": "VILA PAI ETERNO",
+      "normalized": "VILA PAI ETERNO",
+      "value": "SETOR PAI ETERNO ( VILA PADRE ETERNO)",
+      "confidence": 0.95,
+      "notes": "alexandro audit alias"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR VILA PAI ETERNO",
+      "normalized": "SETOR VILA PAI ETERNO",
+      "value": "SETOR PAI ETERNO ( VILA PADRE ETERNO)",
+      "confidence": 0.95,
+      "notes": "alexandro audit alias"
+    },
+    {
+      "type": "bairro",
+      "input": "RESIDENCIAL PAI ETERNO",
+      "normalized": "RESIDENCIAL PAI ETERNO",
+      "value": "SETOR PAI ETERNO ( VILA PADRE ETERNO)",
+      "confidence": 0.95,
+      "notes": "alexandro audit alias"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR PAI ETERNO",
+      "normalized": "SETOR PAI ETERNO",
+      "value": "SETOR PAI ETERNO ( VILA PADRE ETERNO)",
+      "confidence": 0.95,
+      "notes": "alexandro audit alias"
+    },
+    {
+      "type": "bairro",
+      "input": "VILA PADRE ETERNO",
+      "normalized": "VILA PADRE ETERNO",
+      "value": "SETOR PAI ETERNO ( VILA PADRE ETERNO)",
+      "confidence": 0.95,
+      "notes": "alexandro audit alias"
+    },
+    {
       "type": "logradouro",
       "input": "RUA ROSENDA",
       "normalized": "RUA ROZENDA",
