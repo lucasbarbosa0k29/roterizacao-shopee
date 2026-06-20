@@ -2404,7 +2404,11 @@ useEffect(() => {
       for (const group of visibleGroupedRows) {
         if (group.idxs.length > 1) summary.grouped += 1;
 
-        if (group.statusLabel === "Validado" || group.status === "CONFIRMADO") summary.ok += 1;
+        if (
+          group.statusLabel === "Validado" ||
+          group.statusLabel === "Memória" ||
+          group.status === "CONFIRMADO"
+        ) summary.ok += 1;
         else if (group.statusLabel === "Aproximado") summary.partial += 1;
         else if (group.statusLabel === "Pendente") summary.notFound += 1;
         else if (group.status === "MANUAL") summary.manual += 1;
