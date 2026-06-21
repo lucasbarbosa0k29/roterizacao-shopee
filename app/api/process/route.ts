@@ -4463,6 +4463,55 @@ if (shouldAutoSaveAddressMemory) {
     }
   }
 
+  const finalSource = trindadeLocalFirstUsedAsFinal
+    ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
+    : localFirstGoianiaUsedAsFinal
+      ? "LOCALFIRST_GOIANIA"
+      : memoryHit
+        ? "MEMORY"
+        : finalRankedKind === "discover"
+          ? "HERE_DISCOVER"
+          : "HERE_GEOCODE";
+  const finalMatchType = trindadeLocalFirstUsedAsFinal
+    ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
+    : localFirstGoianiaUsedAsFinal
+      ? "LOCALFIRST_GOIANIA"
+      : memoryHit
+        ? "MEMORY"
+        : finalRankedKind === "discover"
+          ? "HERE_DISCOVER"
+          : "HERE_GEOCODE";
+
+  const goianiaActiveStreetCityKey = normalizeKey(cityForDecision || "").replace(/\s+/g, "");
+  const goianiaActiveStreetRuleApplies =
+    goianiaActiveStreetCityKey.includes("GOIANIA") &&
+    !goianiaActiveStreetCityKey.includes("APARECIDA") &&
+    ["OK", "Validado"].includes(String(status)) &&
+    ["HERE_GEOCODE", "HERE_DISCOVER", "LOCALFIRST_GOIANIA"].includes(finalSource) &&
+    !!String(normalized.rua || "").trim();
+
+  if (goianiaActiveStreetRuleApplies) {
+    const finalStreetCandidate =
+      finalSource === "LOCALFIRST_GOIANIA" ? localFirstGoianiaCandidateStreet || "" : goianiaHereStreetCandidate;
+    const finalStreetCompatibility = compareGoianiaStreet(normalized.rua, finalStreetCandidate);
+    const hereResultType = String(bestItem?.resultType || "");
+    const hereStreetMissing = !String(bestRankedAddress?.street || "").trim();
+    const hereStreetlessResultType = ["locality", "postalCode", "administrativeArea"].includes(hereResultType);
+
+    if (finalStreetCompatibility === "STREET_MISMATCH") {
+      status = "PARCIAL";
+      decisionReason = "GOIANIA_STREET_MISMATCH";
+    } else if (
+      finalStreetCompatibility === "STREET_UNKNOWN" &&
+      (finalSource === "HERE_GEOCODE" || finalSource === "HERE_DISCOVER") &&
+      hereStreetlessResultType &&
+      hereStreetMissing
+    ) {
+      status = "PARCIAL";
+      decisionReason = "GOIANIA_STREET_UNKNOWN_NO_STREET";
+    }
+  }
+
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
@@ -4476,24 +4525,8 @@ if (shouldAutoSaveAddressMemory) {
     normalized,
     normalizedLine,
 
-    source: trindadeLocalFirstUsedAsFinal
-      ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
-      : localFirstGoianiaUsedAsFinal
-        ? "LOCALFIRST_GOIANIA"
-        : memoryHit
-          ? "MEMORY"
-          : finalRankedKind === "discover"
-            ? "HERE_DISCOVER"
-            : "HERE_GEOCODE",
-    matchType: trindadeLocalFirstUsedAsFinal
-      ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
-      : localFirstGoianiaUsedAsFinal
-        ? "LOCALFIRST_GOIANIA"
-        : memoryHit
-          ? "MEMORY"
-          : finalRankedKind === "discover"
-            ? "HERE_DISCOVER"
-            : "HERE_GEOCODE",
+    source: finalSource,
+    matchType: finalMatchType,
     localFirstTrindadeUsedAsFinal: trindadeLocalFirstUsedAsFinal,
     localFirstTrindadeAppliedReason: trindadeLocalFirstAppliedReason,
     ...(trindadeLocalFirstInspectApplied
