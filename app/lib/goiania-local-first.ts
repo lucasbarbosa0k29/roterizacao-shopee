@@ -1,5 +1,9 @@
 import fs from "fs";
 import path from "path";
+import {
+  compareGoianiaStreet,
+  type GoianiaStreetComparison,
+} from "@/app/lib/goiania-street-normalization";
 
 export type GoianiaLocalFirstMatchType =
   | "exact"
@@ -21,6 +25,15 @@ export type GoianiaLocalFirstShadow = {
   candidatesCount: number;
   reason: string;
   key: string | null;
+  localFirstStreetCompatibility?: GoianiaStreetComparison | null;
+  localFirstStreetScoreAdjustment?: number;
+  localFirstScoreBeforeStreet?: number | null;
+  localFirstScoreAfterStreet?: number | null;
+  localFirstStreetLabel?: string | null;
+  localFirstStreetAdjustedCandidatesCount?: number;
+  localFirstWinnerChangedByStreet?: boolean;
+  localFirstWinnerBeforeStreetLabel?: string | null;
+  localFirstWinnerAfterStreetLabel?: string | null;
   candidate: {
     bairro: string;
     quadra: string;
@@ -234,6 +247,35 @@ function compareCandidate(a: LocalFirstCandidate, b: LocalFirstCandidate) {
   return (Number(a.d) || Number.POSITIVE_INFINITY) - (Number(b.d) || Number.POSITIVE_INFINITY);
 }
 
+function localFirstBaseScore(candidate: LocalFirstCandidate) {
+  const confidenceScore = candidate.c === "HIGH" ? 70 : candidate.c === "MEDIUM" ? 45 : 20;
+  const distance = Number.isFinite(candidate.d) ? Number(candidate.d) : 200;
+  return confidenceScore + Math.max(0, 30 - Math.min(distance, 300) / 10);
+}
+
+function streetScoreAdjustment(compatibility: GoianiaStreetComparison | null) {
+  if (compatibility === "STREET_MATCH") return 25;
+  if (compatibility === "STREET_PARTIAL_MATCH") return 10;
+  if (compatibility === "STREET_MISMATCH") return -40;
+  return 0;
+}
+
+function scoreCandidateWithStreet(candidate: LocalFirstCandidate, inputStreet: string) {
+  const baseScore = localFirstBaseScore(candidate);
+  const streetLabel = String(candidate.r || "").trim();
+  const compatibility = inputStreet && streetLabel ? compareGoianiaStreet(inputStreet, streetLabel) : null;
+  const adjustment = streetScoreAdjustment(compatibility);
+
+  return {
+    candidate,
+    streetCompatibility: compatibility,
+    streetScoreAdjustment: adjustment,
+    scoreBeforeStreet: baseScore,
+    scoreAfterStreet: baseScore + adjustment,
+    streetLabel: streetLabel || null,
+  };
+}
+
 function positiveShadowResult(args: {
   matchType:
     | "exact"
@@ -244,9 +286,27 @@ function positiveShadowResult(args: {
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
+  inputStreet?: string;
 }): GoianiaLocalFirstShadow {
-  const candidates = [...args.candidates].sort(compareCandidate);
-  const best = candidates[0] || null;
+  const inputStreet = normalizeKey(args.inputStreet || "");
+  const candidatesBeforeStreet = [...args.candidates].sort(compareCandidate);
+  const bestBeforeStreet = candidatesBeforeStreet[0] || null;
+  const scoredCandidates = candidatesBeforeStreet
+    .map((candidate, index) => ({ ...scoreCandidateWithStreet(candidate, inputStreet), index }))
+    .sort((a, b) => {
+      if (b.scoreAfterStreet !== a.scoreAfterStreet) return b.scoreAfterStreet - a.scoreAfterStreet;
+      return compareCandidate(a.candidate, b.candidate) || a.index - b.index;
+    });
+  const bestScored = scoredCandidates[0] || null;
+  const best = bestScored?.candidate || null;
+  const adjustedCandidatesCount = scoredCandidates.filter((candidate) => candidate.streetScoreAdjustment !== 0).length;
+  const winnerChangedByStreet =
+    !!bestBeforeStreet &&
+    !!best &&
+    (bestBeforeStreet.si !== best.si ||
+      bestBeforeStreet.lat !== best.lat ||
+      bestBeforeStreet.lng !== best.lng ||
+      bestBeforeStreet.r !== best.r);
 
   return {
     attempted: true,
@@ -254,9 +314,18 @@ function positiveShadowResult(args: {
     matchType: args.matchType,
     confidence: best?.c || null,
     distanceM: Number.isFinite(best?.d) ? Number(best.d) : null,
-    candidatesCount: candidates.length,
+    candidatesCount: candidatesBeforeStreet.length,
     reason: args.reason,
     key: args.key,
+    localFirstStreetCompatibility: bestScored?.streetCompatibility ?? null,
+    localFirstStreetScoreAdjustment: bestScored?.streetScoreAdjustment ?? 0,
+    localFirstScoreBeforeStreet: bestScored?.scoreBeforeStreet ?? null,
+    localFirstScoreAfterStreet: bestScored?.scoreAfterStreet ?? null,
+    localFirstStreetLabel: bestScored?.streetLabel ?? null,
+    localFirstStreetAdjustedCandidatesCount: adjustedCandidatesCount,
+    localFirstWinnerChangedByStreet: winnerChangedByStreet,
+    localFirstWinnerBeforeStreetLabel: bestBeforeStreet?.r ? String(bestBeforeStreet.r) : null,
+    localFirstWinnerAfterStreetLabel: best?.r ? String(best.r) : null,
     candidate: best
       ? {
           bairro: String(best.b || ""),
@@ -299,6 +368,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
   loteKey: string;
   rawLote: string;
   key: string;
+  inputStreet?: string;
   exactReason?: string;
   canonicalExactReason?: string;
   compoundReason?: string;
@@ -321,6 +391,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
       reason: args.exactReason || "exact_key",
       key: args.key,
       candidates: exact,
+      inputStreet: args.inputStreet,
     });
   }
 
@@ -341,6 +412,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
         : args.canonicalExactReason || "zero_pad_normalized_exact_key",
       key: canonicalKey,
       candidates: canonicalExact,
+      inputStreet: args.inputStreet,
     });
   }
 
@@ -361,6 +433,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
       reason: "compound_lot_normalized_key",
       key: matchedKey,
       candidates: index[matchedKey] || [],
+      inputStreet: args.inputStreet,
     });
   }
 
@@ -381,6 +454,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
       reason: args.compoundReason || (compoundKeys.length === 1 ? "compound_lot" : "compound_lot_ambiguous"),
       key: matchedKey,
       candidates: compoundKeys.flatMap((candidateKey) => index[candidateKey] || []),
+      inputStreet: args.inputStreet,
     });
   }
 
@@ -415,6 +489,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
   bairro: string;
   quadra: string;
   lote: string;
+  rua?: string;
 }): GoianiaLocalFirstShadow {
   if (!isGoianiaLocalFirstEnabled()) return disabledShadow();
 
@@ -451,6 +526,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     loteKey,
     rawLote: args.lote,
     key,
+    inputStreet: args.rua,
   });
 
   if (
@@ -472,6 +548,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     loteKey,
     rawLote: args.lote,
     key: buildNormalizedKey(bairroWithoutPrefix, quadraKey, loteKey),
+    inputStreet: args.rua,
     exactReason: "prefix_resolved_exact",
     canonicalExactReason: "prefix_resolved_zero_pad_normalized_exact",
     compoundReason: "prefix_resolved_compound_lot",

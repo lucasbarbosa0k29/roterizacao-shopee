@@ -202,6 +202,15 @@ type MemoryDebugRow = {
   localFirstGoianiaCandidateLat?: number | null;
   localFirstGoianiaCandidateLng?: number | null;
   localFirstGoianiaCandidateStreet?: string | null;
+  localFirstStreetCompatibility?: GoianiaStreetComparison | null;
+  localFirstStreetScoreAdjustment?: number;
+  localFirstScoreBeforeStreet?: number | null;
+  localFirstScoreAfterStreet?: number | null;
+  localFirstStreetLabel?: string | null;
+  localFirstStreetAdjustedCandidatesCount?: number;
+  localFirstWinnerChangedByStreet?: boolean;
+  localFirstWinnerBeforeStreetLabel?: string | null;
+  localFirstWinnerAfterStreetLabel?: string | null;
   goianiaLocalFirstStreetCompatibility?: GoianiaStreetComparison | null;
   goianiaLocalFirstInputStreetNormalized?: string | null;
   goianiaLocalFirstCandidateStreetNormalized?: string | null;
@@ -2382,6 +2391,7 @@ async function processOne(
     bairro: normalized.bairro || bairroIn,
     quadra: normalized.quadra,
     lote: normalized.lote,
+    rua: normalized.rua,
   });
   const localFirstGoianiaCandidate = localFirstGoianiaShadow.candidate;
   let localFirstGoianiaCandidateEligible = false;
@@ -4240,6 +4250,15 @@ if (shouldAutoSaveAddressMemory) {
         localFirstGoianiaCandidateLat,
         localFirstGoianiaCandidateLng,
         localFirstGoianiaCandidateStreet,
+        localFirstStreetCompatibility: localFirstGoianiaShadow.localFirstStreetCompatibility ?? null,
+        localFirstStreetScoreAdjustment: localFirstGoianiaShadow.localFirstStreetScoreAdjustment ?? 0,
+        localFirstScoreBeforeStreet: localFirstGoianiaShadow.localFirstScoreBeforeStreet ?? null,
+        localFirstScoreAfterStreet: localFirstGoianiaShadow.localFirstScoreAfterStreet ?? null,
+        localFirstStreetLabel: localFirstGoianiaShadow.localFirstStreetLabel ?? null,
+        localFirstStreetAdjustedCandidatesCount: localFirstGoianiaShadow.localFirstStreetAdjustedCandidatesCount ?? 0,
+        localFirstWinnerChangedByStreet: !!localFirstGoianiaShadow.localFirstWinnerChangedByStreet,
+        localFirstWinnerBeforeStreetLabel: localFirstGoianiaShadow.localFirstWinnerBeforeStreetLabel ?? null,
+        localFirstWinnerAfterStreetLabel: localFirstGoianiaShadow.localFirstWinnerAfterStreetLabel ?? null,
         goianiaLocalFirstStreetCompatibility,
         goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
         goianiaLocalFirstCandidateStreetNormalized,
