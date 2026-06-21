@@ -2365,9 +2365,17 @@ async function processOne(
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
       localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
+      localFirstGoianiaShadow.matchType !== "compound_lot_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot"
     ) {
       return "NO_LOCAL_CANDIDATE";
+    }
+    const goianiaCompoundLotInput = /(\/|-|\bE\b)/i.test(String(normalized.lote || ""));
+    if (
+      aptLike &&
+      (localFirstGoianiaShadow.matchType === "compound_lot_canonical" || goianiaCompoundLotInput)
+    ) {
+      return "COMPOUND_LOT_BUILDING_CONTEXT";
     }
     if (localFirstGoianiaShadow.confidence !== "HIGH") return "NOT_HIGH_CONFIDENCE";
     if (

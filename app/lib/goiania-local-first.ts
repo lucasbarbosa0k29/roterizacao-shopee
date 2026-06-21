@@ -5,6 +5,7 @@ export type GoianiaLocalFirstMatchType =
   | "exact"
   | "exact_canonical"
   | "exact_alphanumeric_canonical"
+  | "compound_lot_canonical"
   | "compound_lot"
   | "same_quadra"
   | "not_found"
@@ -138,6 +139,44 @@ function canonicalizeLookupToken(value: string) {
   return { value, kind: "none" as const };
 }
 
+function buildCompoundLotCanonicalKeys(args: {
+  bairroKey: string;
+  quadraKeys: string[];
+  rawLote: string;
+}) {
+  const raw = compact(args.rawLote).toUpperCase();
+  if (!/(\/|-|\bE\b)/.test(raw)) return [];
+
+  const parts = raw
+    .split(/\s*(?:\/|-|\bE\b)\s*/i)
+    .map((part) => normalizeKey(part))
+    .filter(Boolean);
+
+  if (parts.length < 2 || !parts.every((part) => /^\d+$/.test(part))) {
+    return [];
+  }
+
+  const normalizedParts = parts.map(canonicalizeNumericToken);
+  const loteVariants = [normalizedParts.join(" ")];
+
+  if (/^\d+\s*-\s*\d+$/.test(raw)) {
+    loteVariants.push(raw.replace(/\s+/g, ""));
+  }
+
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const quadraKey of args.quadraKeys) {
+    for (const loteKey of loteVariants) {
+      const key = buildNormalizedKey(args.bairroKey, quadraKey, normalizeKey(loteKey));
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      keys.push(key);
+    }
+  }
+
+  return keys;
+}
+
 function stripBairroPrefix(bairroKey: string) {
   for (const prefix of BAIRRO_PREFIXES) {
     if (!bairroKey.startsWith(`${prefix} `)) continue;
@@ -196,7 +235,12 @@ function compareCandidate(a: LocalFirstCandidate, b: LocalFirstCandidate) {
 }
 
 function positiveShadowResult(args: {
-  matchType: "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot";
+  matchType:
+    | "exact"
+    | "exact_canonical"
+    | "exact_alphanumeric_canonical"
+    | "compound_lot_canonical"
+    | "compound_lot";
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
@@ -230,7 +274,7 @@ function positiveShadowResult(args: {
 function negativeShadowResult(args: {
   matchType: Exclude<
     GoianiaLocalFirstMatchType,
-    "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot"
+    "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot_canonical" | "compound_lot"
   >;
   reason: string;
   key: string | null;
@@ -253,6 +297,7 @@ function lookupGoianiaLocalFirstByKeys(args: {
   bairroKey: string;
   quadraKey: string;
   loteKey: string;
+  rawLote: string;
   key: string;
   exactReason?: string;
   canonicalExactReason?: string;
@@ -296,6 +341,26 @@ function lookupGoianiaLocalFirstByKeys(args: {
         : args.canonicalExactReason || "zero_pad_normalized_exact_key",
       key: canonicalKey,
       candidates: canonicalExact,
+    });
+  }
+
+  const compoundCanonicalKeys = buildCompoundLotCanonicalKeys({
+    bairroKey: args.bairroKey,
+    quadraKeys: [...new Set([args.quadraKey, canonicalQuadraKey.value])],
+    rawLote: args.rawLote,
+  }).filter((candidateKey) => candidateKey !== args.key && candidateKey !== canonicalKey);
+  const compoundCanonicalMatches = compoundCanonicalKeys.filter((candidateKey) => {
+    const candidates = index[candidateKey];
+    return Array.isArray(candidates) && candidates.length > 0;
+  });
+
+  if (compoundCanonicalMatches.length === 1) {
+    const matchedKey = compoundCanonicalMatches[0];
+    return positiveShadowResult({
+      matchType: "compound_lot_canonical",
+      reason: "compound_lot_normalized_key",
+      key: matchedKey,
+      candidates: index[matchedKey] || [],
     });
   }
 
@@ -384,6 +449,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     bairroKey,
     quadraKey,
     loteKey,
+    rawLote: args.lote,
     key,
   });
 
@@ -391,6 +457,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     originalResult.matchType === "exact" ||
     originalResult.matchType === "exact_canonical" ||
     originalResult.matchType === "exact_alphanumeric_canonical" ||
+    originalResult.matchType === "compound_lot_canonical" ||
     originalResult.matchType === "compound_lot"
   ) {
     return originalResult;
@@ -403,6 +470,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     bairroKey: bairroWithoutPrefix,
     quadraKey,
     loteKey,
+    rawLote: args.lote,
     key: buildNormalizedKey(bairroWithoutPrefix, quadraKey, loteKey),
     exactReason: "prefix_resolved_exact",
     canonicalExactReason: "prefix_resolved_zero_pad_normalized_exact",
@@ -413,6 +481,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
     prefixResult.matchType === "exact" ||
     prefixResult.matchType === "exact_canonical" ||
     prefixResult.matchType === "exact_alphanumeric_canonical" ||
+    prefixResult.matchType === "compound_lot_canonical" ||
     prefixResult.matchType === "compound_lot"
   ) {
     return prefixResult;
