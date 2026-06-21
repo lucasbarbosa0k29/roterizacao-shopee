@@ -2364,6 +2364,7 @@ async function processOne(
     if (
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
+      localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot"
     ) {
       return "NO_LOCAL_CANDIDATE";
@@ -4045,7 +4046,13 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
   });
   const localEvidenceBonus =
     25 +
-    (localFirstGoianiaShadow.matchType === "exact" || localFirstGoianiaShadow.matchType === "exact_canonical" ? 10 : 0) +
+    (
+      localFirstGoianiaShadow.matchType === "exact" ||
+      localFirstGoianiaShadow.matchType === "exact_canonical" ||
+      localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical"
+        ? 10
+        : 0
+    ) +
     (localCandidateDistanceM <= 50 ? 10 : 0);
 
   localFirstGoianiaCandidateScore = localBaseScore + localEvidenceBonus;

@@ -4,6 +4,7 @@ import path from "path";
 export type GoianiaLocalFirstMatchType =
   | "exact"
   | "exact_canonical"
+  | "exact_alphanumeric_canonical"
   | "compound_lot"
   | "same_quadra"
   | "not_found"
@@ -117,6 +118,26 @@ function canonicalizeNumericToken(value: string) {
   return String(Number(value));
 }
 
+function canonicalizeAlphanumericToken(value: string) {
+  const match = value.match(/^0+(\d+)([A-Z])$/);
+  if (!match) return value;
+  return `${Number(match[1])}${match[2]}`;
+}
+
+function canonicalizeLookupToken(value: string) {
+  const alphanumeric = canonicalizeAlphanumericToken(value);
+  if (alphanumeric !== value) {
+    return { value: alphanumeric, kind: "alphanumeric" as const };
+  }
+
+  const numeric = canonicalizeNumericToken(value);
+  if (numeric !== value) {
+    return { value: numeric, kind: "numeric" as const };
+  }
+
+  return { value, kind: "none" as const };
+}
+
 function stripBairroPrefix(bairroKey: string) {
   for (const prefix of BAIRRO_PREFIXES) {
     if (!bairroKey.startsWith(`${prefix} `)) continue;
@@ -175,7 +196,7 @@ function compareCandidate(a: LocalFirstCandidate, b: LocalFirstCandidate) {
 }
 
 function positiveShadowResult(args: {
-  matchType: "exact" | "exact_canonical" | "compound_lot";
+  matchType: "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot";
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
@@ -207,7 +228,10 @@ function positiveShadowResult(args: {
 }
 
 function negativeShadowResult(args: {
-  matchType: Exclude<GoianiaLocalFirstMatchType, "exact" | "exact_canonical" | "compound_lot">;
+  matchType: Exclude<
+    GoianiaLocalFirstMatchType,
+    "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot"
+  >;
   reason: string;
   key: string | null;
   candidatesCount?: number;
@@ -255,16 +279,21 @@ function lookupGoianiaLocalFirstByKeys(args: {
     });
   }
 
-  const canonicalQuadraKey = canonicalizeNumericToken(args.quadraKey);
-  const canonicalLoteKey = canonicalizeNumericToken(args.loteKey);
-  const canonicalKey = buildNormalizedKey(args.bairroKey, canonicalQuadraKey, canonicalLoteKey);
+  const canonicalQuadraKey = canonicalizeLookupToken(args.quadraKey);
+  const canonicalLoteKey = canonicalizeLookupToken(args.loteKey);
+  const canonicalKey = buildNormalizedKey(args.bairroKey, canonicalQuadraKey.value, canonicalLoteKey.value);
   const canonicalExact =
     canonicalKey !== args.key && Array.isArray(index[canonicalKey]) ? index[canonicalKey] : [];
 
   if (canonicalExact.length) {
+    const hasAlphanumericCanonical =
+      canonicalQuadraKey.kind === "alphanumeric" || canonicalLoteKey.kind === "alphanumeric";
+
     return positiveShadowResult({
-      matchType: "exact_canonical",
-      reason: args.canonicalExactReason || "zero_pad_normalized_exact_key",
+      matchType: hasAlphanumericCanonical ? "exact_alphanumeric_canonical" : "exact_canonical",
+      reason: hasAlphanumericCanonical
+        ? "zero_pad_alphanumeric_normalized_exact_key"
+        : args.canonicalExactReason || "zero_pad_normalized_exact_key",
       key: canonicalKey,
       candidates: canonicalExact,
     });
@@ -361,6 +390,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
   if (
     originalResult.matchType === "exact" ||
     originalResult.matchType === "exact_canonical" ||
+    originalResult.matchType === "exact_alphanumeric_canonical" ||
     originalResult.matchType === "compound_lot"
   ) {
     return originalResult;
@@ -382,6 +412,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
   if (
     prefixResult.matchType === "exact" ||
     prefixResult.matchType === "exact_canonical" ||
+    prefixResult.matchType === "exact_alphanumeric_canonical" ||
     prefixResult.matchType === "compound_lot"
   ) {
     return prefixResult;
