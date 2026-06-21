@@ -242,6 +242,10 @@ type RankedHereEntry = {
   score: number;
   from: string;
   kind: "geocode" | "discover";
+  streetCompatibility?: GoianiaStreetComparison | null;
+  streetScoreAdjustment?: number;
+  finalScoreBeforeStreet?: number;
+  finalScoreAfterStreet?: number;
 };
 
 type RankedHereEntryWithArcgis = RankedHereEntry & {
@@ -1788,6 +1792,46 @@ function scoreHereItemSmart(
   return s;
 }
 
+function isGoianiaForStreetRanking(city: string) {
+  const cityKey = normalizeKey(city || "").replace(/\s+/g, "");
+  return cityKey.includes("GOIANIA") && !cityKey.includes("APARECIDA");
+}
+
+function streetScoreAdjustmentForGoiania(
+  compatibility: GoianiaStreetComparison | null,
+) {
+  if (compatibility === "STREET_MATCH") return 25;
+  if (compatibility === "STREET_PARTIAL_MATCH") return 10;
+  if (compatibility === "STREET_MISMATCH") return -40;
+  return 0;
+}
+
+function applyGoianiaStreetRankingScore(args: {
+  baseScore: number;
+  city: string;
+  inputStreet: string;
+  candidateStreet: string;
+}) {
+  const candidateStreet = String(args.candidateStreet || "").trim();
+  const shouldApply =
+    isGoianiaForStreetRanking(args.city) &&
+    !!String(args.inputStreet || "").trim() &&
+    !!candidateStreet;
+  const streetCompatibility = shouldApply
+    ? compareGoianiaStreet(args.inputStreet, candidateStreet)
+    : null;
+  const streetScoreAdjustment = streetScoreAdjustmentForGoiania(streetCompatibility);
+  const finalScoreAfterStreet = args.baseScore + streetScoreAdjustment;
+
+  return {
+    score: finalScoreAfterStreet,
+    streetCompatibility,
+    streetScoreAdjustment,
+    finalScoreBeforeStreet: args.baseScore,
+    finalScoreAfterStreet,
+  };
+}
+
 function dedupeKeyForHere(it: any) {
   const a = it?.address || {};
   const label = String(a?.label || it?.title || "").trim();
@@ -2793,14 +2837,21 @@ async function processOne(
           const key = dedupeKeyForHere(it);
           if (seen.has(key)) continue;
           seen.set(key, it);
-          const sc = scoreHereItemSmart(it, want);
+          const baseScore = scoreHereItemSmart(it, want);
+          const streetRank = applyGoianiaStreetRankingScore({
+            baseScore,
+            city: cityForDecision,
+            inputStreet: normalized.rua,
+            candidateStreet: String(it?.address?.street || ""),
+          });
+          const sc = streetRank.score;
           if (sc > bestGeocodeScoreForQuery) bestGeocodeScoreForQuery = sc;
           if (sc > bestGeocodeScoreOverall) {
             bestGeocodeScoreOverall = sc;
             bestGeocodeQuery = qTry;
             bestGeocodeItem = it;
           }
-          scored.push({ it, score: sc, from: qTry, kind: "geocode" });
+          scored.push({ it, from: qTry, kind: "geocode", ...streetRank });
         }
       }
 
@@ -2908,14 +2959,21 @@ async function processOne(
               const key = dedupeKeyForHere(it);
               if (seen.has(key)) continue;
               seen.set(key, it);
-              const sc = scoreHereItemSmart(it, want);
+              const baseScore = scoreHereItemSmart(it, want);
+              const streetRank = applyGoianiaStreetRankingScore({
+                baseScore,
+                city: cityForDecision,
+                inputStreet: normalized.rua,
+                candidateStreet: String(it?.address?.street || ""),
+              });
+              const sc = streetRank.score;
               if (sc > bestGeocodeScoreForQuery) bestGeocodeScoreForQuery = sc;
               if (sc > bestGeocodeScoreOverall) {
                 bestGeocodeScoreOverall = sc;
                 bestGeocodeQuery = qTry;
                 bestGeocodeItem = it;
               }
-              scored.push({ it, score: sc, from: qTry, kind: "geocode" });
+              scored.push({ it, from: qTry, kind: "geocode", ...streetRank });
             }
           }
 
@@ -3121,12 +3179,19 @@ async function processOne(
             const key = dedupeKeyForHere(it);
             if (urbanSeen.has(key)) continue;
             urbanSeen.add(key);
-            const sc = scoreHereItemSmart(it, want);
+            const baseScore = scoreHereItemSmart(it, want);
+            const streetRank = applyGoianiaStreetRankingScore({
+              baseScore,
+              city: cityForDecision,
+              inputStreet: normalized.rua,
+              candidateStreet: String(it?.address?.street || ""),
+            });
+            const sc = streetRank.score;
             if (sc > urbanBestScore) {
               urbanBestScore = sc;
               urbanBestItem = it;
             }
-            urbanScored.push({ it, score: sc, from: urbanPattern.query, kind: "geocode" });
+            urbanScored.push({ it, from: urbanPattern.query, kind: "geocode", ...streetRank });
           }
         }
 
@@ -3336,8 +3401,15 @@ async function processOne(
                 const key = dedupeKeyForHere(it);
                 if (seen.has(key)) continue;
                 seen.set(key, it);
-                const sc = scoreHereItemSmart(it, want);
-                scored.push({ it, score: sc, from: discoverQuery, kind: "discover" });
+                const baseScore = scoreHereItemSmart(it, want);
+                const streetRank = applyGoianiaStreetRankingScore({
+                  baseScore,
+                  city: cityForDecision,
+                  inputStreet: normalized.rua,
+                  candidateStreet: String(it?.address?.street || ""),
+                });
+                const sc = streetRank.score;
+                scored.push({ it, from: discoverQuery, kind: "discover", ...streetRank });
               }
             }
           }
@@ -4052,6 +4124,12 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
     quadra: normalized.quadra,
     lote: normalized.lote,
   });
+  const localStreetRank = applyGoianiaStreetRankingScore({
+    baseScore: localBaseScore,
+    city: cityForDecision,
+    inputStreet: normalized.rua,
+    candidateStreet: localFirstGoianiaCandidate.streetLabel || "",
+  });
   const localEvidenceBonus =
     25 +
     (
@@ -4063,7 +4141,7 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
     ) +
     (localCandidateDistanceM <= 50 ? 10 : 0);
 
-  localFirstGoianiaCandidateScore = localBaseScore + localEvidenceBonus;
+  localFirstGoianiaCandidateScore = localStreetRank.score + localEvidenceBonus;
   localFirstGoianiaWouldBeatFinal = localFirstGoianiaCandidateScore > bestHereScore;
 
   if (lat != null && lng != null) {
@@ -4482,36 +4560,6 @@ if (shouldAutoSaveAddressMemory) {
           ? "HERE_DISCOVER"
           : "HERE_GEOCODE";
 
-  const goianiaActiveStreetCityKey = normalizeKey(cityForDecision || "").replace(/\s+/g, "");
-  const goianiaActiveStreetRuleApplies =
-    goianiaActiveStreetCityKey.includes("GOIANIA") &&
-    !goianiaActiveStreetCityKey.includes("APARECIDA") &&
-    ["OK", "Validado"].includes(String(status)) &&
-    ["HERE_GEOCODE", "HERE_DISCOVER", "LOCALFIRST_GOIANIA"].includes(finalSource) &&
-    !!String(normalized.rua || "").trim();
-
-  if (goianiaActiveStreetRuleApplies) {
-    const finalStreetCandidate =
-      finalSource === "LOCALFIRST_GOIANIA" ? localFirstGoianiaCandidateStreet || "" : goianiaHereStreetCandidate;
-    const finalStreetCompatibility = compareGoianiaStreet(normalized.rua, finalStreetCandidate);
-    const hereResultType = String(bestItem?.resultType || "");
-    const hereStreetMissing = !String(bestRankedAddress?.street || "").trim();
-    const hereStreetlessResultType = ["locality", "postalCode", "administrativeArea"].includes(hereResultType);
-
-    if (finalStreetCompatibility === "STREET_MISMATCH") {
-      status = "PARCIAL";
-      decisionReason = "GOIANIA_STREET_MISMATCH";
-    } else if (
-      finalStreetCompatibility === "STREET_UNKNOWN" &&
-      (finalSource === "HERE_GEOCODE" || finalSource === "HERE_DISCOVER") &&
-      hereStreetlessResultType &&
-      hereStreetMissing
-    ) {
-      status = "PARCIAL";
-      decisionReason = "GOIANIA_STREET_UNKNOWN_NO_STREET";
-    }
-  }
-
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
@@ -4628,6 +4676,10 @@ if (shouldAutoSaveAddressMemory) {
     arcgisLotUsed: arcgisLot || null,
    hereRankTop5: scored.slice(0, 5).map((x: any) => ({
       score: x.score,
+      streetCompatibility: x.streetCompatibility ?? null,
+      streetScoreAdjustment: x.streetScoreAdjustment ?? 0,
+      finalScoreBeforeStreet: x.finalScoreBeforeStreet ?? x.score,
+      finalScoreAfterStreet: x.finalScoreAfterStreet ?? x.score,
       label: x.it?.address?.label || x.it?.title || "",
       resultType: x.it?.resultType || "",
       from: x.from,
