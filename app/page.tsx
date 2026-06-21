@@ -4537,11 +4537,21 @@ useEffect(() => {
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span
-                                    className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(g.status)}`}
-                                  >
-                                    {g.statusLabel}
-                                  </span>
+                                    <span
+                                      className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
+                                        g.statusLabel === "Validado" ||
+                                        g.statusLabel === "Memória" ||
+                                        g.status === "CONFIRMADO"
+                                          ? "OK"
+                                          : g.statusLabel === "Aproximado"
+                                            ? "PARCIAL"
+                                            : g.statusLabel === "Pendente"
+                                              ? "NAO_ENCONTRADO"
+                                              : g.status,
+                                      )}`}
+                                    >
+                                      {g.statusLabel}
+                                    </span>
 
                                   <span className="text-sm font-semibold text-slate-900">
                                     Seq: {g.sequenceText}
@@ -5077,7 +5087,17 @@ onContextMenu={(e) => {
                                       Seq {String(rows[idx]?.sequence ?? "")}
                                     </span>
                                     <span
-                                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(status)}`}
+                                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
+                                        getVisualStatusLabel(status, rows[idx]) === "Validado" ||
+                                        getVisualStatusLabel(status, rows[idx]) === "Memória" ||
+                                        status === "CONFIRMADO"
+                                          ? "OK"
+                                          : getVisualStatusLabel(status, rows[idx]) === "Aproximado"
+                                            ? "PARCIAL"
+                                            : getVisualStatusLabel(status, rows[idx]) === "Pendente"
+                                              ? "NAO_ENCONTRADO"
+                                              : status,
+                                      )}`}
                                     >
                                       {getVisualStatusLabel(status, rows[idx])}
                                     </span>
