@@ -51,6 +51,11 @@ import {
   lookupGoianiaLocalFirstShadow,
   type GoianiaLocalFirstShadow,
 } from "@/app/lib/goiania-local-first";
+import {
+  compareGoianiaStreet,
+  normalizeGoianiaStreetName,
+  type GoianiaStreetComparison,
+} from "@/app/lib/goiania-street-normalization";
 
 
 export const runtime = "nodejs";
@@ -197,9 +202,15 @@ type MemoryDebugRow = {
   localFirstGoianiaCandidateLat?: number | null;
   localFirstGoianiaCandidateLng?: number | null;
   localFirstGoianiaCandidateStreet?: string | null;
+  goianiaLocalFirstStreetCompatibility?: GoianiaStreetComparison | null;
+  goianiaLocalFirstInputStreetNormalized?: string | null;
+  goianiaLocalFirstCandidateStreetNormalized?: string | null;
   localFirstGoianiaWouldBypass?: boolean;
   localFirstGoianiaBypassReason?: string | null;
   localFirstGoianiaUsedAsFinal?: boolean;
+  goianiaHereStreetCompatibility?: GoianiaStreetComparison | null;
+  goianiaHereInputStreetNormalized?: string | null;
+  goianiaHereCandidateStreetNormalized?: string | null;
   googleCommercialFallbackAttempted?: boolean;
   googleCommercialFallbackFound?: boolean;
   googleCommercialFallbackRejectedReason?: string | null;
@@ -3709,6 +3720,31 @@ if (status === "OK") {
   }
 
   const bestRankedAddress = bestItem?.address || {};
+  const goianiaStreetDebugCityKey = normalizeKey(cityForDecision || "").replace(/\s+/g, "");
+  const shouldExposeGoianiaStreetDebug =
+    goianiaStreetDebugCityKey.includes("GOIANIA") && !goianiaStreetDebugCityKey.includes("APARECIDA");
+  const goianiaHereStreetCandidate =
+    String(bestRankedAddress?.street || "") ||
+    String(bestItem?.title || "") ||
+    String(bestRankedAddress?.label || "");
+  const goianiaLocalFirstStreetCompatibility =
+    shouldExposeGoianiaStreetDebug && normalized.rua && localFirstGoianiaCandidateStreet
+      ? compareGoianiaStreet(normalized.rua, localFirstGoianiaCandidateStreet)
+      : null;
+  const goianiaHereStreetCompatibility =
+    shouldExposeGoianiaStreetDebug && normalized.rua && goianiaHereStreetCandidate
+      ? compareGoianiaStreet(normalized.rua, goianiaHereStreetCandidate)
+      : null;
+  const goianiaInputStreetNormalized =
+    shouldExposeGoianiaStreetDebug && normalized.rua ? normalizeGoianiaStreetName(normalized.rua) : null;
+  const goianiaLocalFirstCandidateStreetNormalized =
+    shouldExposeGoianiaStreetDebug && localFirstGoianiaCandidateStreet
+      ? normalizeGoianiaStreetName(localFirstGoianiaCandidateStreet)
+      : null;
+  const goianiaHereCandidateStreetNormalized =
+    shouldExposeGoianiaStreetDebug && goianiaHereStreetCandidate
+      ? normalizeGoianiaStreetName(goianiaHereStreetCandidate)
+      : null;
 
   const geocodeConfidenceDiag = computeGeocodeConfidence({
     source: localFirstGoianiaUsedAsFinal
@@ -4111,6 +4147,9 @@ if (shouldAutoSaveAddressMemory) {
         localFirstGoianiaCandidateLat,
         localFirstGoianiaCandidateLng,
         localFirstGoianiaCandidateStreet,
+        goianiaLocalFirstStreetCompatibility,
+        goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
+        goianiaLocalFirstCandidateStreetNormalized,
         localFirstGoianiaWouldBypass,
         localFirstGoianiaBypassReason,
         localFirstGoianiaUsedAsFinal,
@@ -4475,6 +4514,9 @@ if (shouldAutoSaveAddressMemory) {
     geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
     geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
     geocodeConfidenceReasons: geocodeConfidenceDiag.reasons,
+    goianiaHereStreetCompatibility,
+    goianiaHereInputStreetNormalized: goianiaInputStreetNormalized,
+    goianiaHereCandidateStreetNormalized,
     approxMemoryStrength,
     approxMemoryScore,
     approxMemoryReasons,
@@ -4576,6 +4618,9 @@ if (shouldAutoSaveAddressMemory) {
       geocodeConfidenceLevel: geocodeConfidenceDiag.level,
       geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
       geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      goianiaHereStreetCompatibility,
+      goianiaHereInputStreetNormalized: goianiaInputStreetNormalized,
+      goianiaHereCandidateStreetNormalized,
       aparecidaShadowFlags: aparecidaMemoryDebugFlags,
       aparecidaShadowDebug,
       aparecidaLocalStreetShadow,
