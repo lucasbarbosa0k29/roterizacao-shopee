@@ -2381,7 +2381,8 @@ async function processOne(
     !goianiaVerticalCondoCityKey.includes("APARECIDA") &&
     memoryKeyPlan.condoPlan.shouldAttempt &&
     memoryKeyPlan.condoPlan.hasVerticalSignal;
-  const goianiaVerticalCondoMemoryHit = goianiaVerticalCondoDetected && !!memoryHit;
+  const goianiaCondoVerticalExactMemoryHit =
+    goianiaVerticalCondoDetected && !!memoryHit && memoryHitKind !== "base";
 
 // 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
   let lat: number | null = memoryHit?.lat ?? approxMemoryHit?.lat ?? null;
@@ -3603,16 +3604,13 @@ if (
     }
   }
 
-  if (goianiaVerticalCondoMemoryHit && lat != null && lng != null) {
+  if (goianiaCondoVerticalExactMemoryHit && lat != null && lng != null) {
     status = "OK";
-    decisionReason =
-      memoryHitKind === "base"
-        ? "GOIANIA_VERTICAL_CONDO_MEMORY_BASE"
-        : "GOIANIA_VERTICAL_CONDO_MEMORY_HIT";
+    decisionReason = "GOIANIA_CONDO_MEMORY_EXACT_HIT";
   }
 
   // ✅ apt/prédio sem QD/LT só cai no HERE se não houver memória vertical segura de Goiânia
-  if (aptLike && !hasQL && lat != null && lng != null && !goianiaVerticalCondoMemoryHit) {
+  if (aptLike && !hasQL && lat != null && lng != null && !goianiaCondoVerticalExactMemoryHit) {
     const hereAddress = bestItem?.address || {};
     const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, bestItem);
     const hereStreet = normalizeKey(
@@ -3694,7 +3692,7 @@ if (conflictQL) {
 // 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
 if (status === "OK") {
   const buildingValidatedOk = aptLike && !hasQL && decisionReason === "OK_BUILDING_STREET_NUMBER";
-  const goianiaVerticalCondoOK = goianiaVerticalCondoMemoryHit;
+  const goianiaVerticalCondoOK = goianiaCondoVerticalExactMemoryHit;
   const missingCore =
     !goianiaVerticalCondoOK &&
     (!normalized.rua ||
