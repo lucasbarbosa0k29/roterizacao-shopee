@@ -42,7 +42,7 @@ import {
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
 } from "@/app/lib/aparecida-local-lots";
-import { buildCondoMemoryKeyPlan } from "@/app/lib/condo-memory-keys";
+import { buildCondoMemoryKeyPlan, type CondoMemoryKeyKind } from "@/app/lib/condo-memory-keys";
 import {
   buildGoogleCommercialFallbackPlan,
   lookupGoogleCommercialFallbackCandidate,
@@ -136,7 +136,7 @@ type MemoryDebugRow = {
   memoryKey: string;
   memoryBaseKey: string | null;
   memoryHit: boolean;
-  memoryHitKind: "exact" | "base" | "condo_physical" | "condo_name" | null;
+  memoryHitKind: "exact" | "base" | CondoMemoryKeyKind | null;
   matchedKey: string | null;
   hereSkippedBecauseMemory: boolean;
   decisionReason: string;
@@ -343,7 +343,7 @@ function extractConservativeHereHouseNumber(bestRankedAddress: any, bestItem: an
 
 type MemoryKeyCandidate = {
   key: string;
-  kind: "exact" | "base" | "condo_physical" | "condo_name";
+  kind: "exact" | "base" | CondoMemoryKeyKind;
 };
 
 function buildMemoryKeyCandidates(args: {
@@ -674,9 +674,11 @@ function hasQuadraLoteText(s: string) {
 
 function makeBaseAddress(address: string) {
   return String(address || "")
-    .replace(/\b(APTO|APT|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(APTO|APT|APART|APARTAMENTO)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
     .replace(/\b(BLOCO|BL)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
     .replace(/\b(TORRE)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(SALA)\b\s*[-:]?\s*[\w\/\-.]+/gi, " ")
+    .replace(/\b(ED|EDIF|EDIFICIO|PREDIO)\b\s*[-:]?\s*[^,]+/gi, " ")
     .replace(/\b(EDIFICIO|EDIF[IÍ]CIO|EDIF\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
     .replace(/\b(CONDOMINIO|CONDOM[IÍ]NIO|COND\.?)\b\s*[-:]?\s*[^,]+/gi, " ")
     .replace(/\b(RESIDENCIAL|RES\.)\b\s*[-:]?\s*[^,]+/gi, " ")
@@ -2073,7 +2075,10 @@ async function processOne(
 
   // ✅ 0) MEMÓRIA GLOBAL: tenta reaproveitar coordenada já salva (ANTES do CONDOMINIO)
   const cityForKey = (cityIn || "").trim();
-  const memoryKeyPlan = buildMemoryKeyCandidates({ addressRaw, cityForKey });
+  const memoryKeyPlan = buildMemoryKeyCandidates({
+    addressRaw,
+    cityForKey,
+  });
   const memoryKey = memoryKeyPlan.exactKey;
   const memoryBaseKey = memoryKeyPlan.memoryBaseKey;
   const condoMemoryKeyCandidates = memoryKeyPlan.candidates;
@@ -2081,7 +2086,11 @@ async function processOne(
   await incrementDailyMetric(METRIC_MEMORY_LOOKUP_TOTAL).catch(() => {});
 
   let memoryHit: null | { lat: number; lng: number; label?: string | null } = null;
-  let memoryHitKind: null | "exact" | "base" | "condo_physical" | "condo_name" = null;
+  let memoryHitKind:
+    | null
+    | "exact"
+    | "base"
+    | CondoMemoryKeyKind = null;
   let matchedMemoryKey: string | null = null;
   let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
@@ -2366,6 +2375,13 @@ async function processOne(
   localFirstGoianiaBypassReason = resolveGoianiaLocalFirstBypassReason();
   localFirstGoianiaWouldBypass = localFirstGoianiaBypassReason === "WOULD_BYPASS";
   localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
+  const goianiaVerticalCondoCityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
+  const goianiaVerticalCondoDetected =
+    goianiaVerticalCondoCityKey.includes("GOIANIA") &&
+    !goianiaVerticalCondoCityKey.includes("APARECIDA") &&
+    memoryKeyPlan.condoPlan.shouldAttempt &&
+    memoryKeyPlan.condoPlan.hasVerticalSignal;
+  const goianiaVerticalCondoMemoryHit = goianiaVerticalCondoDetected && !!memoryHit;
 
 // 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
   let lat: number | null = memoryHit?.lat ?? approxMemoryHit?.lat ?? null;
@@ -3587,8 +3603,16 @@ if (
     }
   }
 
-  // ✅ apt/prédio sem QD/LT só vira OK se HERE confirmar rua + número + cidade
-  if (aptLike && !hasQL && lat != null && lng != null) {
+  if (goianiaVerticalCondoMemoryHit && lat != null && lng != null) {
+    status = "OK";
+    decisionReason =
+      memoryHitKind === "base"
+        ? "GOIANIA_VERTICAL_CONDO_MEMORY_BASE"
+        : "GOIANIA_VERTICAL_CONDO_MEMORY_HIT";
+  }
+
+  // ✅ apt/prédio sem QD/LT só cai no HERE se não houver memória vertical segura de Goiânia
+  if (aptLike && !hasQL && lat != null && lng != null && !goianiaVerticalCondoMemoryHit) {
     const hereAddress = bestItem?.address || {};
     const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, bestItem);
     const hereStreet = normalizeKey(
@@ -3670,12 +3694,14 @@ if (conflictQL) {
 // 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
 if (status === "OK") {
   const buildingValidatedOk = aptLike && !hasQL && decisionReason === "OK_BUILDING_STREET_NUMBER";
+  const goianiaVerticalCondoOK = goianiaVerticalCondoMemoryHit;
   const missingCore =
-    !normalized.rua ||
-    (!buildingValidatedOk && !quadraAuto) ||
-    (!buildingValidatedOk && !loteAuto) ||
-    lat == null ||
-    lng == null;
+    !goianiaVerticalCondoOK &&
+    (!normalized.rua ||
+      (!buildingValidatedOk && !quadraAuto) ||
+      (!buildingValidatedOk && !loteAuto) ||
+      lat == null ||
+      lng == null);
 
   if (missingCore) {
     status = "PARCIAL";

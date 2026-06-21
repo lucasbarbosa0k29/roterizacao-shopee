@@ -1,4 +1,6 @@
-export type CondoMemoryKeyKind = "condo_physical" | "condo_name";
+export type CondoMemoryKeyKind =
+  | "condo_physical"
+  | "condo_name";
 
 export type CondoMemoryKey = {
   kind: CondoMemoryKeyKind;
@@ -16,21 +18,30 @@ export type CondoMemoryKeyPlan = {
 
 const STREET_PREFIX_RE = /^(RUA|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|VIELA|VIA|R)\b/;
 const STREET_PREFIX_CLEAN_RE = /^(RUA|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|VIELA|VIA|R)\b\s*/;
-const VERTICAL_SIGNAL_RE = /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA|EDIFICIO|EDIF|PREDIO|CONDOMINIO|COND)\b/;
-const RESIDENTIAL_SIGNAL_RE = /\b(RESIDENCIAL|RES)\b/;
-const BLOCKED_SIGNAL_RES: RegExp[] = [
+const GOIANIA_CITY_RE = /\bGOIANIA\b/;
+const GOIANIA_VERTICAL_SIGNAL_RE =
+  /\b(APT|APTO|APART|APARTAMENTO|BLOCO|BL|TORRE|EDIFICIO|EDIF|ED|PREDIO|SALA|CONDOMINIO|COND)\b/;
+const LEGACY_VERTICAL_SIGNAL_RE =
+  /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA|EDIFICIO|EDIF|PREDIO|CONDOMINIO|COND)\b/;
+const LEGACY_RESIDENTIAL_SIGNAL_RE = /\b(RESIDENCIAL|RES)\b/;
+const COMMERCIAL_SIGNAL_RE =
+  /\b(LOJA|SHOPPING|COLEGIO|SUPERMERCADO|MERCADO|GALERIA)\b/;
+const CADASTRAL_QUADRA_LOTE_RES: RegExp[] = [
   /\bQD\b/,
   /\bQUADRA\b/,
   /\bLT\b/,
   /\bLOTE\b/,
+];
+const BLOCKED_SIGNAL_RES: RegExp[] = [
+  ...CADASTRAL_QUADRA_LOTE_RES,
   /\bCASA\b/,
   /\bLOTEAMENTO\b/,
   /\bJARDINS\b/,
   /\bALPHAVILLE\b/,
 ];
 
-const LEADING_DESCRIPTOR_RE = /^(?:EDIFICIO|EDIF|PREDIO|PRED|CONDOMINIO|COND|RESIDENCIAL|RES|APT|APTO|APARTAMENTO|APART|BLOCO|BL|TORRE|ANDAR|SALA)\b[\s\-:]*/;
-const TRAILING_UNIT_RE = /\b(?:APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA)\b\s*[-:]?\s*[A-Z0-9\/\-]+(?:\s+[A-Z0-9\/\-]+)?$/;
+const LEADING_DESCRIPTOR_RE = /^(?:EDIFICIO|EDIF|ED|PREDIO|PRED|CONDOMINIO|COND|RESIDENCIAL|RES|APT|APTO|APARTAMENTO|APART|BLOCO|BL|TORRE|SALA)\b[\s\-:]*/;
+const TRAILING_UNIT_RE = /\b(?:APT|APTO|APART|APARTAMENTO|BLOCO|BL|TORRE|SALA|ED|EDIF|PRED|PREDIO)\b\s*[-:]?\s*[A-Z0-9\/\-]+(?:\s+[A-Z0-9\/\-]+)?$/;
 const TRAILING_NUMBER_RE = /\b(?:N(?:[ºO])?|NUM(?:ERO)?|NO)\b\s*[-:]?\s*[A-Z0-9\/\-]+$/;
 
 export function normalizeMemoryKey(text: string) {
@@ -114,7 +125,7 @@ function extractNearestStreetNumber(segments: string[], streetIndex: number) {
     if (i === streetIndex) continue;
 
     const segment = segments[i];
-    if (VERTICAL_SIGNAL_RE.test(segment)) continue;
+    if (GOIANIA_VERTICAL_SIGNAL_RE.test(segment) || LEGACY_VERTICAL_SIGNAL_RE.test(segment)) continue;
     if (BLOCKED_SIGNAL_RES.some((rx) => rx.test(segment))) continue;
 
     const number = extractStreetNumberFromSegment(segment);
@@ -155,22 +166,42 @@ function hasBlockedCadastralSignal(address: string) {
   return BLOCKED_SIGNAL_RES.some((rx) => rx.test(normalizeMemoryKey(address)));
 }
 
-function hasVerticalSignal(address: string) {
+function hasBlockedSignalExceptQuadraLote(address: string) {
   const normalized = normalizeMemoryKey(address);
+  return BLOCKED_SIGNAL_RES.some((rx) => {
+    if (CADASTRAL_QUADRA_LOTE_RES.includes(rx)) return false;
+    return rx.test(normalized);
+  });
+}
+
+function hasVerticalSignal(address: string, isGoiania = false) {
+  const normalized = normalizeMemoryKey(address);
+  if (isGoiania) {
+    return GOIANIA_VERTICAL_SIGNAL_RE.test(normalized);
+  }
+
   return (
-    VERTICAL_SIGNAL_RE.test(normalized) ||
-    (RESIDENTIAL_SIGNAL_RE.test(normalized) &&
+    LEGACY_VERTICAL_SIGNAL_RE.test(normalized) ||
+    (LEGACY_RESIDENTIAL_SIGNAL_RE.test(normalized) &&
       /\b(APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA)\b/.test(normalized))
   );
+}
+
+function hasCommercialSignal(address: string) {
+  return COMMERCIAL_SIGNAL_RE.test(normalizeMemoryKey(address));
 }
 
 export function buildCondoMemoryKeyPlan(address: string, city: string): CondoMemoryKeyPlan {
   const normalizedAddress = normalizeMemoryKey(address);
   const normalizedCity = normalizeMemoryKey(city);
   const segments = splitAddressSegments(address);
-  const vertical = hasVerticalSignal(normalizedAddress);
+  const isGoiania = GOIANIA_CITY_RE.test(normalizedCity) && !/\bAPARECIDA\b/.test(normalizedCity);
+  const vertical = hasVerticalSignal(normalizedAddress, isGoiania);
   const blocked = hasBlockedCadastralSignal(normalizedAddress);
-  const shouldAttempt = vertical && !blocked;
+  const blockedForAttempt = isGoiania
+    ? hasCommercialSignal(normalizedAddress) || hasBlockedSignalExceptQuadraLote(normalizedAddress)
+    : blocked;
+  const shouldAttempt = vertical && !blockedForAttempt;
 
   if (!shouldAttempt) {
     return {
