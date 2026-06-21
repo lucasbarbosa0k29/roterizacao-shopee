@@ -4399,19 +4399,19 @@ if (shouldAutoSaveAddressMemory) {
 
     source: trindadeLocalFirstUsedAsFinal
       ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
-      : memoryHit
-        ? "MEMORY"
-        : localFirstGoianiaUsedAsFinal
-          ? "LOCALFIRST_GOIANIA"
+      : localFirstGoianiaUsedAsFinal
+        ? "LOCALFIRST_GOIANIA"
+        : memoryHit
+          ? "MEMORY"
           : finalRankedKind === "discover"
             ? "HERE_DISCOVER"
             : "HERE_GEOCODE",
     matchType: trindadeLocalFirstUsedAsFinal
       ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
-      : memoryHit
-        ? "MEMORY"
-        : localFirstGoianiaUsedAsFinal
-          ? "LOCALFIRST_GOIANIA"
+      : localFirstGoianiaUsedAsFinal
+        ? "LOCALFIRST_GOIANIA"
+        : memoryHit
+          ? "MEMORY"
           : finalRankedKind === "discover"
             ? "HERE_DISCOVER"
             : "HERE_GEOCODE",
