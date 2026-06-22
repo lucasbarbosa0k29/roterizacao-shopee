@@ -2401,6 +2401,9 @@ async function processOne(
   let localFirstGoianiaCandidateLat: number | null = localFirstGoianiaCandidate?.lat ?? null;
   let localFirstGoianiaCandidateLng: number | null = localFirstGoianiaCandidate?.lng ?? null;
   let localFirstGoianiaCandidateStreet: string | null = localFirstGoianiaCandidate?.streetLabel ?? null;
+  let localFirstGoianiaFallbackStreetCompatibility:
+    | GoianiaLocalFirstShadow["fallbackStreetCompatibility"]
+    | null = localFirstGoianiaShadow.fallbackStreetCompatibility ?? null;
   let localFirstGoianiaWouldBypass = false;
   let localFirstGoianiaBypassReason: string | null = null;
   let localFirstGoianiaUsedAsFinal = false;
@@ -2416,11 +2419,18 @@ async function processOne(
     if (localFirstGoianiaShadow.matchType === "bairro_not_found") return "BAIRRO_NOT_FOUND";
     if (!localFirstGoianiaShadow.found || !localFirstGoianiaCandidate) return "NO_LOCAL_CANDIDATE";
     if (
+      localFirstGoianiaShadow.matchType === "partition_fallback_exact" &&
+      localFirstGoianiaFallbackStreetCompatibility === "STREET_MISMATCH"
+    ) {
+      return "NO_LOCAL_CANDIDATE";
+    }
+    if (
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
       localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot_canonical" &&
-      localFirstGoianiaShadow.matchType !== "compound_lot"
+      localFirstGoianiaShadow.matchType !== "compound_lot" &&
+      localFirstGoianiaShadow.matchType !== "partition_fallback_exact"
     ) {
       return "NO_LOCAL_CANDIDATE";
     }
@@ -4183,7 +4193,8 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
     (
       localFirstGoianiaShadow.matchType === "exact" ||
       localFirstGoianiaShadow.matchType === "exact_canonical" ||
-      localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical"
+      localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical" ||
+      localFirstGoianiaShadow.matchType === "partition_fallback_exact"
         ? 10
         : 0
     ) +

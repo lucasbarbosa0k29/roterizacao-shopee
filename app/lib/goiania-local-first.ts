@@ -11,6 +11,7 @@ export type GoianiaLocalFirstMatchType =
   | "exact_alphanumeric_canonical"
   | "compound_lot_canonical"
   | "compound_lot"
+  | "partition_fallback_exact"
   | "same_quadra"
   | "not_found"
   | "missing_parts"
@@ -34,6 +35,9 @@ export type GoianiaLocalFirstShadow = {
   localFirstWinnerChangedByStreet?: boolean;
   localFirstWinnerBeforeStreetLabel?: string | null;
   localFirstWinnerAfterStreetLabel?: string | null;
+  fallbackFrom?: string | null;
+  fallbackTo?: string | null;
+  fallbackStreetCompatibility?: GoianiaStreetComparison | null;
   candidate: {
     bairro: string;
     quadra: string;
@@ -77,6 +81,25 @@ const BAIRRO_PREFIXES = [
   "VILA",
   "VILLAGE",
 ];
+
+const GOIANIA_PARTITION_FALLBACKS: Record<string, string> = {
+  "JARDIM ATLANTICO": "ATLANTICO",
+  "RESIDENCIAL ITAIPU": "ITAIPU",
+  "PARQUE ANHANGUERA": "ANHANGUERA",
+  "PARQUE ANHANGUERA II": "ANHANGUERA_II",
+  "JARDIM CARAVELAS 1 ETAPA": "CARAVELAS_1_ETAPA",
+  "JARDIM CARAVELAS": "CARAVELAS",
+  "RESIDENCIAL SANTA FE": "SANTA_FE",
+  "SETOR GARAVELO": "GARAVELO",
+  "SETOR GARAVELO B": "GARAVELO",
+  "SETOR FAICALVILLE": "FAICALVILLE",
+  "SETOR ANDREIA": "ANDREIA",
+  "RESIDENCIAL BARCELONA": "BARCELONA",
+  "RESIDENCIAL ELI FORTE": "ELI_FORTE",
+  "FORTEVILLE EXTENSAO": "FORTE_VILLE_EXTENSAO",
+  "RESIDENCIAL FORTEVILLE EXTENSAO": "FORTE_VILLE_EXTENSAO",
+  "CONDOMINIO AMIN CAMARGO": "AMIM_CAMARGO",
+};
 
 function isShadowEnabled() {
   return process.env.ROTTA_GOIANIA_LOCAL_FIRST_SHADOW === "1";
@@ -200,6 +223,16 @@ function stripBairroPrefix(bairroKey: string) {
   return null;
 }
 
+function resolveGoianiaPartitionFallback(bairroKey: string) {
+  const normalized = normalizeKey(bairroKey);
+  const fallback = GOIANIA_PARTITION_FALLBACKS[normalized];
+  if (!fallback) return null;
+  return {
+    from: normalized,
+    to: normalizeKey(fallback),
+  };
+}
+
 function keyParts(key: string) {
   const [bairro = "", quadra = "", lote = ""] = String(key).split("|");
   return { bairro, quadra, lote };
@@ -282,11 +315,14 @@ function positiveShadowResult(args: {
     | "exact_canonical"
     | "exact_alphanumeric_canonical"
     | "compound_lot_canonical"
-    | "compound_lot";
+    | "compound_lot"
+    | "partition_fallback_exact";
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
   inputStreet?: string;
+  fallbackFrom?: string | null;
+  fallbackTo?: string | null;
 }): GoianiaLocalFirstShadow {
   const inputStreet = normalizeKey(args.inputStreet || "");
   const candidatesBeforeStreet = [...args.candidates].sort(compareCandidate);
@@ -326,6 +362,9 @@ function positiveShadowResult(args: {
     localFirstWinnerChangedByStreet: winnerChangedByStreet,
     localFirstWinnerBeforeStreetLabel: bestBeforeStreet?.r ? String(bestBeforeStreet.r) : null,
     localFirstWinnerAfterStreetLabel: best?.r ? String(best.r) : null,
+    fallbackFrom: args.fallbackFrom ?? null,
+    fallbackTo: args.fallbackTo ?? null,
+    fallbackStreetCompatibility: args.fallbackFrom ? bestScored?.streetCompatibility ?? null : null,
     candidate: best
       ? {
           bairro: String(best.b || ""),
@@ -528,6 +567,41 @@ export function lookupGoianiaLocalFirstShadow(args: {
     key,
     inputStreet: args.rua,
   });
+
+  const partitionFallback = originalResult.matchType === "bairro_not_found"
+    ? resolveGoianiaPartitionFallback(bairroKey)
+    : null;
+
+  if (partitionFallback) {
+    const fallbackResult = lookupGoianiaLocalFirstByKeys({
+      bairroKey: partitionFallback.to,
+      quadraKey,
+      loteKey,
+      rawLote: args.lote,
+      key: buildNormalizedKey(partitionFallback.to, quadraKey, loteKey),
+      inputStreet: args.rua,
+      exactReason: "goiania_partition_fallback_exact",
+      canonicalExactReason: "goiania_partition_fallback_exact",
+      compoundReason: "goiania_partition_fallback_exact",
+    });
+
+    if (
+      fallbackResult.matchType === "exact" ||
+      fallbackResult.matchType === "exact_canonical" ||
+      fallbackResult.matchType === "exact_alphanumeric_canonical" ||
+      fallbackResult.matchType === "compound_lot_canonical" ||
+      fallbackResult.matchType === "compound_lot"
+    ) {
+      return {
+        ...fallbackResult,
+        matchType: "partition_fallback_exact",
+        reason: "goiania_partition_fallback_exact",
+        fallbackFrom: partitionFallback.from,
+        fallbackTo: partitionFallback.to,
+        fallbackStreetCompatibility: fallbackResult.localFirstStreetCompatibility ?? null,
+      };
+    }
+  }
 
   if (
     originalResult.matchType === "exact" ||
