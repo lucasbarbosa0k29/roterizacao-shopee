@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
+import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
@@ -11,6 +12,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isAuthed = status === "authenticated";
   const isLoginPage = pathname === "/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isStandalone = useStandaloneDisplayMode();
 
   // Ã¢Å“â€¦ Deslogado: sem menu, tela inteira
   if (!isAuthed || isLoginPage) {
@@ -23,7 +25,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Ã¢Å“â€¦ Logado: layout flex (sidebar NÃƒÆ’O cobre conteÃƒÂºdo)
   return (
-    <div className="app-shell flex-col md:flex-row">
+    <div
+      className={`app-shell ${isStandalone ? "flex-col" : "flex-col md:flex-row"}`}
+      data-display-mode={isStandalone ? "standalone" : "browser"}
+    >
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
