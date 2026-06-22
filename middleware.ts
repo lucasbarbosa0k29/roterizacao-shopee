@@ -5,18 +5,26 @@ import { SUPER_ADMIN_EMAIL } from "@/app/lib/admin-roles";
 
 const PUBLIC_PATHS = [
   "/login",
+  "/terms",
+  "/privacy",
   "/manifest.webmanifest",
   "/robots.txt",
   "/sitemap.xml",
   "/.well-known/assetlinks.json",
 ];
+const PUBLIC_ROUTE_PREFIXES = ["/terms", "/privacy"];
 const ADMIN_PATHS = ["/admin"];
 const ADMIN_API_PREFIX = "/api/admin";
 const PUBLIC_FILE = /\.(png|jpg|jpeg|webp|svg|ico)$/i;
 
+function matchesPathOrSubpath(pathname: string, basePath: string) {
+  return pathname === basePath || pathname.startsWith(basePath + "/");
+}
+
 function isPublicPath(pathname: string) {
   return (
     PUBLIC_PATHS.includes(pathname) ||
+    PUBLIC_ROUTE_PREFIXES.some((path) => matchesPathOrSubpath(pathname, path)) ||
     pathname.startsWith("/api/auth") || // só NextAuth público
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
