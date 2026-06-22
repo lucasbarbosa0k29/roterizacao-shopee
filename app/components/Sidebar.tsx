@@ -493,8 +493,25 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </button>
           </div>
 
-          <div className="mt-3 px-2 text-[11px] text-white/42">
-            Rotta © 2026
+          <div className="mt-3 px-2 text-center text-[11px] font-medium text-white/42">
+            <div>© 2026 Rotta</div>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
+              <Link
+                href="/terms"
+                onClick={onClose}
+                className="rounded-lg px-1 py-0.5 transition hover:bg-white/[0.05] hover:text-white/70"
+              >
+                Termos de Uso
+              </Link>
+              <span aria-hidden="true">•</span>
+              <Link
+                href="/privacy"
+                onClick={onClose}
+                className="rounded-lg px-1 py-0.5 transition hover:bg-white/[0.05] hover:text-white/70"
+              >
+                Política de Privacidade
+              </Link>
+            </div>
           </div>
         </div>
       </aside>
