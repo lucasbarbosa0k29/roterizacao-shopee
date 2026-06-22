@@ -4112,7 +4112,7 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6">
+        <div className="w-full px-0 sm:px-4 md:px-6 py-2 md:py-6" data-rotta-home-shell>
       {view === "upload" && rows.length === 0 && (
   <form onSubmit={handleSubmit} className="w-full">
     <div className="max-w-5xl mx-auto px-2 sm:px-4 md:px-6 py-4 md:py-8">
@@ -4481,7 +4481,7 @@ useEffect(() => {
     </div>
   </div>
             </div>
-              <div className="md:hidden mt-3 space-y-3">
+              <div className="md:hidden mt-3 space-y-3" data-rotta-home-mobile-cards>
 {visibleGroupedRows.map((g) => {
                         const isGrouped = g.idxs.length > 1;
                         const baseIdx = getGroupBaseIdx(g.idxs);
@@ -4703,7 +4703,7 @@ useEffect(() => {
                       })}
             </div>
 
-             <div className="hidden md:block w-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.07)] mt-3 md:mt-4">
+             <div className="hidden md:block w-full overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_16px_44px_rgba(15,23,42,0.07)] mt-3 md:mt-4" data-rotta-home-desktop-table>
   <div className="flex items-center justify-between border-b border-slate-200/80 bg-slate-50/70 px-4 py-3">
     <div>
       <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -5868,7 +5868,7 @@ onContextMenu={(e) => {
         </div>
       </div>
 
-      <div className="md:hidden absolute inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+      <div className="md:hidden absolute inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]" data-rotta-home-map-mobile-actions>
         <div className="flex gap-2 rounded-[22px] border border-slate-200 bg-white/95 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur">
           <button
             type="button"
@@ -5882,7 +5882,7 @@ onContextMenu={(e) => {
         </div>
       </div>
 
-      <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-40 max-h-[36dvh] overflow-y-auto overscroll-contain rounded-[18px] border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur">
+      <div className="md:hidden absolute left-3 right-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-40 max-h-[36dvh] overflow-y-auto overscroll-contain rounded-[18px] border border-slate-200 bg-white/95 p-2 shadow-2xl backdrop-blur" data-rotta-home-map-mobile-capture>
           <div className="mb-1 text-[10px] font-semibold text-emerald-700">
             BUSCA E CAPTURA
           </div>
@@ -6099,7 +6099,7 @@ onContextMenu={(e) => {
         </div>
 
       {/* BOTÕES inferiores (se quiser manter como estava) */}
-      <div className="hidden md:flex absolute left-2 right-2 md:left-auto md:right-4 bottom-2 md:bottom-4 z-30 flex-col sm:flex-row items-stretch sm:items-center gap-2">
+      <div className="hidden md:flex absolute left-2 right-2 md:left-auto md:right-4 bottom-2 md:bottom-4 z-30 flex-col sm:flex-row items-stretch sm:items-center gap-2" data-rotta-home-map-desktop-actions>
         <button
           type="button"
           onClick={closeManualModal}

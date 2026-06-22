@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
@@ -13,6 +13,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === "/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isStandalone = useStandaloneDisplayMode();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("rotta-standalone-mobile", isStandalone);
+    root.dataset.displayMode = isStandalone ? "standalone" : "browser";
+
+    return () => {
+      root.classList.remove("rotta-standalone-mobile");
+      delete root.dataset.displayMode;
+    };
+  }, [isStandalone]);
 
   // Ã¢Å“â€¦ Deslogado: sem menu, tela inteira
   if (!isAuthed || isLoginPage) {

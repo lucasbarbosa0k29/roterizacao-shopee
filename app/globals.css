@@ -62,6 +62,26 @@ body {
   background: transparent;
 }
 
+html.rotta-standalone-mobile .app-shell {
+  flex-direction: column !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-desktop-table] {
+  display: none !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-mobile-cards] {
+  display: block !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-map-desktop-actions] {
+  display: none !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-map-mobile-actions] {
+  display: block !important;
+}
+
 .app-shell > aside.sidebar {
   flex: 0 0 280px;
 }
