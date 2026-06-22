@@ -300,8 +300,8 @@ function cleanAddressForHere(s: string) {
 
 function separateCompactQuadraLoteTokens(value: string) {
   return String(value || "")
-    .replace(/(\d)(QUADRA|QUAD|QDR|QD|Q)(?=\d)/gi, "$1 $2")
-    .replace(/(\d)(LT|LOTE|L)(?=\d)/gi, "$1 $2");
+    .replace(/(^|[^A-Z])(\d)(QUADRA|QUAD|QDR|QD|Q)(?![A-Z])/gi, "$1$2 $3")
+    .replace(/(^|[^A-Z])(\d)(LT|LOTE|LOT|L)(?![A-Z])/gi, "$1$2 $3");
 }
 
 function stripQuadraLoteFromStreet(q: string) {
@@ -745,7 +745,7 @@ function extractByRegex(raw: string) {
   let quadra = "";
   const qd = up.match(
     new RegExp(
-      String.raw`\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))`,
+      String.raw`\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (qd) quadra = String(qd[2] || "").trim();
@@ -753,7 +753,7 @@ function extractByRegex(raw: string) {
   let lote = "";
   const lt = up.match(
     new RegExp(
-      String.raw`\b(LT|LOTE|LOT|L\.)\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?(?=\s*(?:,|\.|$))`,
+      String.raw`\b(LT|LOTE|LOT|L\.)\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (lt) {
@@ -800,11 +800,37 @@ function normalizeQLValue(v: string, suffix = "") {
   return "";
 }
 
+const QUADRA_LOTE_CONTEXT_NOISE =
+  /\b(BLOCO|BL|APTO|APT|APARTAMENTO|CASA|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL)\b/;
+
+function hasBlockedQuadraLoteContext(text: string, start: number, end: number) {
+  const left = Math.max(0, start - 32);
+  const right = Math.min(text.length, end + 32);
+  return QUADRA_LOTE_CONTEXT_NOISE.test(text.slice(left, right));
+}
+
+function findFirstSafeMatch(text: string, pattern: RegExp) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const globalPattern = new RegExp(pattern.source, flags);
+
+  for (const match of text.matchAll(globalPattern)) {
+    const index = match.index ?? 0;
+    if (!hasBlockedQuadraLoteContext(text, index, index + match[0].length)) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
 const QUADRA_LOTE_VALUE_END =
-  String.raw`(?=\s*(?:,|\.|$|\b(?:LOTE|LOT|LT|L(?![A-Z]))\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO)\b))`;
+  String.raw`(?=\s*(?:,|\.|$|\b(?:LOTE|LOT|LT|L(?![A-Z])|QUADRA|QUAD|QDR|QD|Q)\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL)\b))`;
 
 const QUADRA_LOTE_TOKEN =
   String.raw`(?:[A-Z](?:\s*[-:]?\s*\d+[A-Z0-9\-]*)?|[A-Z]|\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
+
+const QUADRA_LOTE_NUMERIC_TOKEN =
+  String.raw`(?:\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
 
 function extractQuadraLoteSmart(raw: string) {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
@@ -822,11 +848,17 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 1) formatos explícitos: QUADRA/QD/Q + valor
   // pega: "QUADRA 40", "QD40", "Q. 40", "Q40", "Q-40"
-  const qMatch = up.match(
-    new RegExp(
-      String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
-    ),
-  );
+  const qMatch =
+    findFirstSafeMatch(
+      up,
+      new RegExp(
+        String.raw`\b(?:QUADRA|QUAD|QDR|QD)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      ),
+    ) ||
+    findFirstSafeMatch(
+      up,
+      new RegExp(String.raw`\bQ\.?\s*[:\-]?\s*(${QUADRA_LOTE_NUMERIC_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`),
+    );
   if (qMatch) {
     const normalizedQuadra = normalizeQLValue(qMatch[1], qMatch[2]);
     if (!(hasApartmentNoise && normalizedQuadra.length === 1) && (!quadra || normalizedQuadra.length > quadra.length)) {
@@ -836,11 +868,17 @@ function extractQuadraLoteSmart(raw: string) {
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
-  const lMatch = up.match(
-    new RegExp(
-      String.raw`\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
-    ),
-  );
+  const lMatch =
+    findFirstSafeMatch(
+      up,
+      new RegExp(
+        String.raw`\b(?:LOTE|LOT|LT)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      ),
+    ) ||
+    findFirstSafeMatch(
+      up,
+      new RegExp(String.raw`\bL(?![A-Z])\.?\s*[:\-]?\s*(${QUADRA_LOTE_NUMERIC_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`),
+    );
   if (lMatch) {
     const normalizedLote = normalizeQLValue(lMatch[1], lMatch[2]);
     if (!(hasApartmentNoise && normalizedLote.length === 1) && (!lote || normalizedLote.length > lote.length)) {
