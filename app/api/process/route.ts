@@ -2462,6 +2462,18 @@ async function processOne(
 // 3) GEOLOCALIZAÇÃO: ✅ prioriza MEMÓRIA GLOBAL; se não tiver, usa HERE
   let lat: number | null = memoryHit?.lat ?? approxMemoryHit?.lat ?? null;
   let lng: number | null = memoryHit?.lng ?? approxMemoryHit?.lng ?? null;
+  const exactTrustedMemoryCityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
+  const exactTrustedMemoryKind =
+    !!memoryHit &&
+    !approxMemoryHit &&
+    (
+      memoryHitKind === "exact" ||
+      memoryHitKind === "condo_physical" ||
+      memoryHitKind === "condo_name"
+    ) &&
+    !exactTrustedMemoryCityKey.includes("APARECIDA") &&
+    !exactTrustedMemoryCityKey.includes("TRINDADE");
+  const hasExactTrustedMemoryCoords = () => exactTrustedMemoryKind && lat != null && lng != null;
 
   // 🔒 variáveis que vão ser usadas mais abaixo (mesmo se pular HERE)
   let decisionReason: string = memoryHit
@@ -3713,7 +3725,14 @@ if (
   }
 
   // ✅ apt/prédio sem QD/LT só cai no HERE se não houver memória vertical segura de Goiânia
-  if (aptLike && !hasQL && lat != null && lng != null && !goianiaCondoVerticalExactMemoryHit) {
+  if (
+    aptLike &&
+    !hasQL &&
+    lat != null &&
+    lng != null &&
+    !goianiaCondoVerticalExactMemoryHit &&
+    !hasExactTrustedMemoryCoords()
+  ) {
     const hereAddress = bestItem?.address || {};
     const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, bestItem);
     const hereStreet = normalizeKey(
@@ -3807,6 +3826,25 @@ if (status === "OK") {
   if (missingCore) {
     status = "PARCIAL";
       decisionReason = "MISSING_CORE";
+    }
+  }
+
+  const exactTrustedMemoryBlockedByHardReason =
+    decisionReason === "QL_CONFLICT" ||
+    decisionReason === "HERE_SPREAD" ||
+    decisionReason === "BUILDING_NUMBER_MISMATCH" ||
+    decisionReason === "BUILDING_STREET_MISMATCH" ||
+    decisionReason === "BUILDING_CITY_MISMATCH";
+
+  if (
+    hasExactTrustedMemoryCoords() &&
+    !conflictQL &&
+    !hereUncertain &&
+    !exactTrustedMemoryBlockedByHardReason
+  ) {
+    status = "OK";
+    if (decisionReason !== "GOIANIA_CONDO_MEMORY_EXACT_HIT") {
+      decisionReason = "MEMORY_HIT";
     }
   }
 
