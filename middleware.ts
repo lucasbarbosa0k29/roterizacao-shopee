@@ -7,12 +7,13 @@ const PUBLIC_PATHS = [
   "/login",
   "/terms",
   "/privacy",
+  "/excluir-conta",
   "/manifest.webmanifest",
   "/robots.txt",
   "/sitemap.xml",
   "/.well-known/assetlinks.json",
 ];
-const PUBLIC_ROUTE_PREFIXES = ["/terms", "/privacy"];
+const PUBLIC_ROUTE_PREFIXES = ["/terms", "/privacy", "/excluir-conta"];
 const ADMIN_PATHS = ["/admin"];
 const ADMIN_API_PREFIX = "/api/admin";
 const PUBLIC_FILE = /\.(png|jpg|jpeg|webp|svg|ico)$/i;
