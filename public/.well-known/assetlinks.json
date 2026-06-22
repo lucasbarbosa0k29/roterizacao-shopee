@@ -7,7 +7,8 @@
       "namespace": "android_app",
       "package_name": "br.com.usarotta.twa",
       "sha256_cert_fingerprints": [
-        "52:9F:37:A5:27:67:C5:94:D8:EF:69:C9:D5:5F:A4:BA:77:06:3C:BE:62:60:D8:3E:77:0B:69:C5:84:89:EC:00"
+        "52:9F:37:A5:27:67:C5:94:D8:EF:69:C9:D5:5F:A4:BA:77:06:3C:BE:62:60:D8:3E:77:0B:69:C5:84:89:EC:00",
+        "6C:ED:31:81:AE:14:DE:FA:70:C8:FC:5B:FD:CA:53:18:0C:83:C7:70:0F:E6:D7:CD:28:24:E9:FD:24:B3:5D:F4"
       ]
     }
   }
