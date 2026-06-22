@@ -27,7 +27,7 @@ export default function ExcluirContaPage() {
           <div>
             <p>
               Para solicitar a exclusão, envie um e-mail para
-              suporte@usarotta.com.br informando:
+              suporte.usarotta@gmail.com informando:
             </p>
 
             <ul className="mt-4 list-disc space-y-2 pl-6">
