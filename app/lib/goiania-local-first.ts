@@ -12,6 +12,7 @@ export type GoianiaLocalFirstMatchType =
   | "compound_lot_canonical"
   | "compound_lot"
   | "partition_fallback_exact"
+  | "structural_alias_exact"
   | "same_quadra"
   | "not_found"
   | "missing_parts"
@@ -38,6 +39,10 @@ export type GoianiaLocalFirstShadow = {
   fallbackFrom?: string | null;
   fallbackTo?: string | null;
   fallbackStreetCompatibility?: GoianiaStreetComparison | null;
+  structuralAliasFrom?: string | null;
+  structuralAliasTo?: string | null;
+  structuralAliasStreetCompatibility?: GoianiaStreetComparison | null;
+  structuralAliasCandidatesCount?: number;
   candidate: {
     bairro: string;
     quadra: string;
@@ -99,6 +104,24 @@ const GOIANIA_PARTITION_FALLBACKS: Record<string, string> = {
   "FORTEVILLE EXTENSAO": "FORTE_VILLE_EXTENSAO",
   "RESIDENCIAL FORTEVILLE EXTENSAO": "FORTE_VILLE_EXTENSAO",
   "CONDOMINIO AMIN CAMARGO": "AMIM_CAMARGO",
+};
+
+const GOIANIA_STRUCTURAL_ALIAS_FALLBACKS: Record<string, string[]> = {
+  "CONJUNTO HABITACIONAL BALIZA": ["BALIZA"],
+  "VILA REZENDE": ["REZENDE"],
+  "BAIRRO SANTA RITA": ["SANTA_RITA"],
+  "VILA SANTA RITA 5 ETAPA": ["SANTA_RITA_5_ETAPA"],
+  "JARDINS MADRI": ["MADRI"],
+  "CONDOMINIO JARDINS MADRI": ["MADRI"],
+  "JARDIM CARAVELAS 1 ETAPA": ["CARAVELAS"],
+  "RESIDENCIAL ITAIPU GOIANIA": ["ITAIPU"],
+  "CONDOMINIO AMIN CAMARGO": ["AMIM_CAMARGO"],
+  "RESIDENCIAL SANTA FE": ["SANTA_FE_I"],
+  "JARDIM ATLANTICO": ["PRIVE_ATLANTICO"],
+  "SETOR ANDREIA": ["ANDREIA"],
+  "RESIDENCIAL ELI FORTE": ["ELI_FORTE_EXTENSAO"],
+  "FORTEVILLE EXTENSAO": ["FORTE_VILLE_EXTENSAO"],
+  "RESIDENCIAL FORTEVILLE EXTENSAO": ["FORTE_VILLE_EXTENSAO"],
 };
 
 function isShadowEnabled() {
@@ -233,6 +256,15 @@ function resolveGoianiaPartitionFallback(bairroKey: string) {
   };
 }
 
+function resolveGoianiaStructuralAliasFallbacks(bairroKey: string) {
+  const normalized = normalizeKey(bairroKey);
+  const fallbackTargets = GOIANIA_STRUCTURAL_ALIAS_FALLBACKS[normalized] || [];
+  return fallbackTargets.map((fallback) => ({
+    from: normalized,
+    to: normalizeKey(fallback),
+  }));
+}
+
 function keyParts(key: string) {
   const [bairro = "", quadra = "", lote = ""] = String(key).split("|");
   return { bairro, quadra, lote };
@@ -316,13 +348,17 @@ function positiveShadowResult(args: {
     | "exact_alphanumeric_canonical"
     | "compound_lot_canonical"
     | "compound_lot"
-    | "partition_fallback_exact";
+    | "partition_fallback_exact"
+    | "structural_alias_exact";
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
   inputStreet?: string;
   fallbackFrom?: string | null;
   fallbackTo?: string | null;
+  structuralAliasFrom?: string | null;
+  structuralAliasTo?: string | null;
+  structuralAliasCandidatesCount?: number;
 }): GoianiaLocalFirstShadow {
   const inputStreet = normalizeKey(args.inputStreet || "");
   const candidatesBeforeStreet = [...args.candidates].sort(compareCandidate);
@@ -365,6 +401,12 @@ function positiveShadowResult(args: {
     fallbackFrom: args.fallbackFrom ?? null,
     fallbackTo: args.fallbackTo ?? null,
     fallbackStreetCompatibility: args.fallbackFrom ? bestScored?.streetCompatibility ?? null : null,
+    structuralAliasFrom: args.structuralAliasFrom ?? null,
+    structuralAliasTo: args.structuralAliasTo ?? null,
+    structuralAliasStreetCompatibility: args.structuralAliasFrom
+      ? bestScored?.streetCompatibility ?? null
+      : null,
+    structuralAliasCandidatesCount: args.structuralAliasCandidatesCount ?? 0,
     candidate: best
       ? {
           bairro: String(best.b || ""),
@@ -383,10 +425,15 @@ function negativeShadowResult(args: {
   matchType: Exclude<
     GoianiaLocalFirstMatchType,
     "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot_canonical" | "compound_lot"
+    | "structural_alias_exact"
   >;
   reason: string;
   key: string | null;
   candidatesCount?: number;
+  structuralAliasFrom?: string | null;
+  structuralAliasTo?: string | null;
+  structuralAliasStreetCompatibility?: GoianiaStreetComparison | null;
+  structuralAliasCandidatesCount?: number;
 }): GoianiaLocalFirstShadow {
   return {
     attempted: true,
@@ -397,8 +444,98 @@ function negativeShadowResult(args: {
     candidatesCount: args.candidatesCount || 0,
     reason: args.reason,
     key: args.key,
+    structuralAliasFrom: args.structuralAliasFrom ?? null,
+    structuralAliasTo: args.structuralAliasTo ?? null,
+    structuralAliasStreetCompatibility: args.structuralAliasStreetCompatibility ?? null,
+    structuralAliasCandidatesCount: args.structuralAliasCandidatesCount ?? 0,
     candidate: null,
   };
+}
+
+function lookupGoianiaStructuralAliasFallback(args: {
+  fromBairroKey: string;
+  quadraKey: string;
+  loteKey: string;
+  inputStreet?: string;
+}): GoianiaLocalFirstShadow | null {
+  const aliases = resolveGoianiaStructuralAliasFallbacks(args.fromBairroKey);
+  if (!aliases.length) return null;
+
+  let bestDiagnostic: GoianiaLocalFirstShadow | null = null;
+
+  for (const alias of aliases) {
+    const partition = loadPartition(alias.to);
+    const index = partition?.index || null;
+    const key = buildNormalizedKey(alias.to, args.quadraKey, args.loteKey);
+    const candidates = index && Array.isArray(index[key]) ? index[key] : [];
+    const candidatesCount = candidates.length;
+
+    if (!candidatesCount) {
+      bestDiagnostic =
+        bestDiagnostic ||
+        negativeShadowResult({
+          matchType: "bairro_not_found",
+          reason: "goiania_structural_alias_no_exact_qd_lt",
+          key,
+          structuralAliasFrom: alias.from,
+          structuralAliasTo: alias.to,
+          structuralAliasCandidatesCount: 0,
+        });
+      continue;
+    }
+
+    const first = candidates[0];
+    const streetCompatibility =
+      args.inputStreet && first?.r ? compareGoianiaStreet(args.inputStreet, String(first.r)) : "STREET_UNKNOWN";
+    const hasSafeStreet =
+      streetCompatibility === "STREET_MATCH" || streetCompatibility === "STREET_PARTIAL_MATCH";
+    const hasValidCoords =
+      candidatesCount === 1 &&
+      Number.isFinite(first?.lat) &&
+      Number.isFinite(first?.lng);
+    const hasHighConfidence = first?.c === "HIGH";
+
+    if (candidatesCount === 1 && hasSafeStreet && hasValidCoords && hasHighConfidence) {
+      return positiveShadowResult({
+        matchType: "structural_alias_exact",
+        reason: "goiania_structural_alias_exact",
+        key,
+        candidates,
+        inputStreet: args.inputStreet,
+        structuralAliasFrom: alias.from,
+        structuralAliasTo: alias.to,
+        structuralAliasCandidatesCount: candidatesCount,
+      });
+    }
+
+    const reason =
+      candidatesCount !== 1
+        ? "goiania_structural_alias_multiple_candidates"
+        : streetCompatibility === "STREET_UNKNOWN"
+          ? "goiania_structural_alias_street_unknown"
+          : streetCompatibility === "STREET_MISMATCH"
+            ? "goiania_structural_alias_street_mismatch"
+            : !hasValidCoords
+              ? "goiania_structural_alias_invalid_coords"
+              : !hasHighConfidence
+                ? "goiania_structural_alias_not_high_confidence"
+                : "goiania_structural_alias_not_safe";
+
+    bestDiagnostic =
+      bestDiagnostic ||
+      negativeShadowResult({
+        matchType: "bairro_not_found",
+        reason,
+        key,
+        candidatesCount,
+        structuralAliasFrom: alias.from,
+        structuralAliasTo: alias.to,
+        structuralAliasStreetCompatibility: streetCompatibility,
+        structuralAliasCandidatesCount: candidatesCount,
+      });
+  }
+
+  return bestDiagnostic;
 }
 
 function lookupGoianiaLocalFirstByKeys(args: {
@@ -601,6 +738,17 @@ export function lookupGoianiaLocalFirstShadow(args: {
         fallbackStreetCompatibility: fallbackResult.localFirstStreetCompatibility ?? null,
       };
     }
+  }
+
+  if (originalResult.matchType === "bairro_not_found") {
+    const structuralAliasResult = lookupGoianiaStructuralAliasFallback({
+      fromBairroKey: bairroKey,
+      quadraKey,
+      loteKey,
+      inputStreet: args.rua,
+    });
+
+    if (structuralAliasResult) return structuralAliasResult;
   }
 
   if (

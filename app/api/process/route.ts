@@ -2404,6 +2404,9 @@ async function processOne(
   let localFirstGoianiaFallbackStreetCompatibility:
     | GoianiaLocalFirstShadow["fallbackStreetCompatibility"]
     | null = localFirstGoianiaShadow.fallbackStreetCompatibility ?? null;
+  let localFirstGoianiaStructuralAliasStreetCompatibility:
+    | GoianiaLocalFirstShadow["structuralAliasStreetCompatibility"]
+    | null = localFirstGoianiaShadow.structuralAliasStreetCompatibility ?? null;
   let localFirstGoianiaWouldBypass = false;
   let localFirstGoianiaBypassReason: string | null = null;
   let localFirstGoianiaUsedAsFinal = false;
@@ -2425,12 +2428,20 @@ async function processOne(
       return "NO_LOCAL_CANDIDATE";
     }
     if (
+      localFirstGoianiaShadow.matchType === "structural_alias_exact" &&
+      localFirstGoianiaStructuralAliasStreetCompatibility !== "STREET_MATCH" &&
+      localFirstGoianiaStructuralAliasStreetCompatibility !== "STREET_PARTIAL_MATCH"
+    ) {
+      return "NO_LOCAL_CANDIDATE";
+    }
+    if (
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
       localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot" &&
-      localFirstGoianiaShadow.matchType !== "partition_fallback_exact"
+      localFirstGoianiaShadow.matchType !== "partition_fallback_exact" &&
+      localFirstGoianiaShadow.matchType !== "structural_alias_exact"
     ) {
       return "NO_LOCAL_CANDIDATE";
     }
@@ -4194,7 +4205,8 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
       localFirstGoianiaShadow.matchType === "exact" ||
       localFirstGoianiaShadow.matchType === "exact_canonical" ||
       localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical" ||
-      localFirstGoianiaShadow.matchType === "partition_fallback_exact"
+      localFirstGoianiaShadow.matchType === "partition_fallback_exact" ||
+      localFirstGoianiaShadow.matchType === "structural_alias_exact"
         ? 10
         : 0
     ) +
@@ -4292,6 +4304,12 @@ if (shouldAutoSaveAddressMemory) {
         localFirstGoianiaCandidatesCount: localFirstGoianiaShadow.candidatesCount,
         localFirstGoianiaReason: localFirstGoianiaShadow.reason,
         localFirstGoianiaKey: localFirstGoianiaShadow.key,
+        structuralAliasFrom: localFirstGoianiaShadow.structuralAliasFrom ?? null,
+        structuralAliasTo: localFirstGoianiaShadow.structuralAliasTo ?? null,
+        structuralAliasStreetCompatibility:
+          localFirstGoianiaShadow.structuralAliasStreetCompatibility ?? null,
+        structuralAliasCandidatesCount:
+          localFirstGoianiaShadow.structuralAliasCandidatesCount ?? 0,
         localFirstGoianiaCandidateEligible,
         localFirstGoianiaCandidateScore,
         localFirstGoianiaWouldBeatFinal,
