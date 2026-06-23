@@ -47,13 +47,29 @@ export default function RootLayout({
         var root = d.documentElement;
         var url = new URL(w.location.href);
         var fromQuery = url.searchParams.get("source") === "twa";
-        var fromStorage = w.sessionStorage.getItem("rotta_twa") === "1";
         var fromStandalone = w.matchMedia("(display-mode: standalone)").matches;
-        var isTwa = fromQuery || fromStorage || fromStandalone;
+        var fromLocalTest =
+          fromQuery &&
+          (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+        var isTwa = fromStandalone || fromLocalTest;
 
-        if (!isTwa) return;
+        try {
+          w.sessionStorage.removeItem("rotta_twa");
+          w.localStorage.removeItem("rotta_twa");
+        } catch (storageError) {}
 
-        w.sessionStorage.setItem("rotta_twa", "1");
+        if (!isTwa) {
+          root.classList.remove("rotta-standalone-mobile");
+          root.dataset.displayMode = "browser";
+
+          if (fromQuery) {
+            url.searchParams.delete("source");
+            w.history.replaceState({}, "", url.pathname + url.search + url.hash);
+          }
+
+          return;
+        }
+
         root.classList.add("rotta-standalone-mobile");
         root.dataset.displayMode = "standalone";
 
