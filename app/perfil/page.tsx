@@ -12,6 +12,8 @@ type AccessSnapshot = {
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
   };
   routeCreditsBalance: number;
+  todayRouteUsage: number;
+  planRouteUsageToday: number;
   subscriptionCycleRemaining: number;
   subscriptionCycleAllowance: number;
   subscriptionCycleUsed: number;
@@ -22,6 +24,15 @@ type AccessSnapshot = {
   message: string | null;
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="rounded-[22px] bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
+    </article>
+  );
+}
 
 export default function PerfilPage() {
   const { data: session, status } = useSession();
@@ -59,7 +70,9 @@ export default function PerfilPage() {
           !res.ok && data && typeof data === "object"
             ? (data as { error?: string }).error ?? null
             : null;
+
         if (!alive) return;
+
         if (res.ok && data) {
           setAccess(data as AccessSnapshot);
           setLoadError(null);
@@ -103,9 +116,6 @@ export default function PerfilPage() {
     ? new Date(access.activeSubscription.expiresAt).toLocaleDateString("pt-BR")
     : "Sem vencimento";
 
-  const valueOrFallback = (value: number | null | undefined) =>
-    loading ? "Carregando..." : String(value ?? 0);
-
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-4 text-slate-900">
       <div className="mx-auto w-full max-w-[480px] space-y-4">
@@ -137,25 +147,38 @@ export default function PerfilPage() {
           </div>
         </section>
 
-        <section className="grid gap-3">
-          {[
-            ["Plano atual", subscriptionLabel],
-            ["Status", statusLabel],
-            ["Renovação / vencimento", expiryLabel],
-            ["Rotas disponíveis", valueOrFallback(access?.subscriptionCycleAllowance)],
-            ["Rotas restantes", valueOrFallback(access?.subscriptionCycleRemaining)],
-            ["Créditos avulsos", valueOrFallback(access?.routeCreditsBalance)],
-            ["Uso do ciclo", valueOrFallback(access?.subscriptionCycleUsed)],
-            ["Limite diário", loading ? "Carregando..." : String(access?.dailyRouteLimit ?? 0)],
-          ].map(([label, value]) => (
-            <article key={label} className="rounded-[22px] bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">{label}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{value}</p>
-            </article>
-          ))}
-        </section>
+        {loading ? (
+          <section className="grid gap-3">
+            {[
+              "Plano atual",
+              "Status",
+              "Renovação / vencimento",
+              "Rotas usadas hoje",
+              "Rotas usadas no ciclo",
+              "Rotas restantes",
+              "Créditos avulsos",
+              "Limite diário",
+            ].map((label) => (
+              <MetricCard key={label} label={label} value="Carregando..." />
+            ))}
+          </section>
+        ) : access ? (
+          <section className="grid gap-3">
+            <MetricCard label="Plano atual" value={subscriptionLabel} />
+            <MetricCard label="Status" value={statusLabel} />
+            <MetricCard label="Renovação / vencimento" value={expiryLabel} />
+            <MetricCard label="Rotas usadas hoje" value={String(access.todayRouteUsage)} />
+            <MetricCard
+              label="Rotas usadas no ciclo"
+              value={String(access.planRouteUsageToday ?? access.subscriptionCycleUsed)}
+            />
+            <MetricCard label="Rotas restantes" value={String(access.subscriptionCycleRemaining)} />
+            <MetricCard label="Créditos avulsos" value={String(access.routeCreditsBalance)} />
+            <MetricCard label="Limite diário" value={String(access.dailyRouteLimit ?? 0)} />
+          </section>
+        ) : null}
 
-        {!loading && !access && (
+        {!loading && !access && !loadError && (
           <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Não foi possível carregar os dados da conta. Os campos acima usam valores seguros.
           </section>
