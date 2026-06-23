@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
+import { TwaShell } from "./twa/TwaShell";
+import { HomeTwaMobile } from "./twa/HomeTwaMobile";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
@@ -25,7 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [isTwaMode]);
 
-  // Ã¢Å“â€¦ Deslogado: sem menu, tela inteira
+  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Deslogado: sem menu, tela inteira
   if (!isAuthed || isLoginPage) {
     return (
       <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
@@ -34,9 +36,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Ã¢Å“â€¦ Logado: layout flex (sidebar NÃƒÆ’O cobre conteÃƒÂºdo)
+  if (isTwaMode) {
+    return (
+      <TwaShell>
+        {pathname === "/" ? <HomeTwaMobile /> : children}
+      </TwaShell>
+    );
+  }
+
+  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Logado: layout flex (sidebar NÃƒÆ’Ã†â€™O cobre conteÃƒÆ’Ã‚Âºdo)
   return (
-    <div className={`app-shell ${isTwaMode ? "flex-col" : "flex-col md:flex-row"}`}>
+    <div className="app-shell flex-col md:flex-row">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -48,7 +58,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setIsSidebarOpen(true)}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10"
           >
-            <span>☰</span>
+            <span>â˜°</span>
             <span>Menu</span>
           </button>
         </div>
