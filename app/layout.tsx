@@ -39,6 +39,40 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const twaBootstrap = `
+    (function () {
+      try {
+        var w = window;
+        var d = document;
+        var root = d.documentElement;
+        var url = new URL(w.location.href);
+        var fromQuery = url.searchParams.get("source") === "twa";
+        var fromStorage = w.sessionStorage.getItem("rotta_twa") === "1";
+        var fromStandalone = w.matchMedia("(display-mode: standalone)").matches;
+        var isTwa = fromQuery || fromStorage || fromStandalone;
+
+        if (!isTwa) return;
+
+        w.sessionStorage.setItem("rotta_twa", "1");
+        root.classList.add("rotta-standalone-mobile");
+        root.dataset.displayMode = "standalone";
+
+        var viewport = d.querySelector('meta[name="viewport"]');
+        if (viewport) {
+          viewport.setAttribute(
+            "content",
+            "width=390, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+          );
+        }
+
+        if (fromQuery) {
+          url.searchParams.delete("source");
+          w.history.replaceState({}, "", url.pathname + url.search + url.hash);
+        }
+      } catch (error) {}
+    })();
+  `;
+
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
@@ -46,6 +80,9 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://js.api.here.com/v3/3.1/mapsjs-ui.css"
         />
+        <Script id="rotta-twa-bootstrap" strategy="beforeInteractive">
+          {twaBootstrap}
+        </Script>
       </head>
 
       <body
