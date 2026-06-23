@@ -12,18 +12,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isAuthed = status === "authenticated";
   const isLoginPage = pathname === "/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const isStandalone = useStandaloneDisplayMode();
+  const isTwaMode = useStandaloneDisplayMode();
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("rotta-standalone-mobile", isStandalone);
-    root.dataset.displayMode = isStandalone ? "standalone" : "browser";
+    root.classList.toggle("rotta-standalone-mobile", isTwaMode);
+    root.dataset.displayMode = isTwaMode ? "standalone" : "browser";
 
     return () => {
       root.classList.remove("rotta-standalone-mobile");
       delete root.dataset.displayMode;
     };
-  }, [isStandalone]);
+  }, [isTwaMode]);
 
   // Ã¢Å“â€¦ Deslogado: sem menu, tela inteira
   if (!isAuthed || isLoginPage) {
@@ -36,10 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Ã¢Å“â€¦ Logado: layout flex (sidebar NÃƒÆ’O cobre conteÃƒÂºdo)
   return (
-    <div
-      className={`app-shell ${isStandalone ? "flex-col" : "flex-col md:flex-row"}`}
-      data-display-mode={isStandalone ? "standalone" : "browser"}
-    >
+    <div className={`app-shell ${isTwaMode ? "flex-col" : "flex-col md:flex-row"}`}>
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
