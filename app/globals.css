@@ -66,8 +66,30 @@ html.rotta-standalone-mobile .app-shell {
   flex-direction: column !important;
 }
 
+html.rotta-standalone-mobile aside.sidebar {
+  position: fixed !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: min(86vw, 360px) !important;
+  max-width: min(86vw, 360px) !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  flex: 0 0 min(86vw, 360px) !important;
+  translate: -100% 0 !important;
+  transform: translateX(-100%) !important;
+}
+
+html.rotta-standalone-mobile aside.sidebar.translate-x-0 {
+  translate: 0 0 !important;
+  transform: translateX(0) !important;
+}
+
 html.rotta-standalone-mobile [data-rotta-home-desktop-table] {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 html.rotta-standalone-mobile [data-rotta-home-mobile-cards] {
@@ -80,6 +102,25 @@ html.rotta-standalone-mobile [data-rotta-home-map-desktop-actions] {
 
 html.rotta-standalone-mobile [data-rotta-home-map-mobile-actions] {
   display: block !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-map-mobile-capture] {
+  display: block !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-upload-panel] {
+  width: 100% !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-upload-actions] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-home-upload-actions] > * {
+  width: 100% !important;
+  min-width: 0 !important;
 }
 
 .app-shell > aside.sidebar {

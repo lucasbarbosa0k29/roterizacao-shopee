@@ -4141,9 +4141,13 @@ useEffect(() => {
 
       <div
         data-tour="upload-area"
+        data-rotta-home-upload-panel
         className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)] md:p-6"
       >
-        <div className="flex flex-col gap-3 md:flex-row md:gap-4">
+        <div
+          className="flex flex-col gap-3 md:flex-row md:gap-4"
+          data-rotta-home-upload-actions
+        >
           {/* INPUT PLANILHA */}
           <label
             className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-4 hover:border-[#1f5a6b] hover:bg-white md:p-5"
