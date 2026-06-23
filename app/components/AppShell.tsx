@@ -5,6 +5,24 @@ import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
+
+function MenuIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </svg>
+  );
+}
 import { TwaShell } from "./twa/TwaShell";
 import { HomeTwaMobile } from "./twa/HomeTwaMobile";
 
@@ -58,7 +76,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setIsSidebarOpen(true)}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10"
           >
-            <span>â˜°</span>
+            <MenuIcon />
             <span>Menu</span>
           </button>
         </div>
