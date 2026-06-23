@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { TwaAccountSheet } from "./TwaAccountSheet";
 
 const recentItems = [
   {
@@ -33,8 +34,11 @@ type AccessSnapshot = {
 export function HomeTwaMobile() {
   const { data: session, status } = useSession();
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const fullName = session?.user?.name?.trim() ?? "";
   const firstName = fullName ? fullName.split(/\s+/)[0] : "";
+  const secondName = fullName.split(/\s+/)[1] ?? "";
+  const displayName = [firstName, secondName].filter(Boolean).join(" ");
   const greeting = firstName ? `Olá, ${firstName}!` : "Olá!";
   const avatarInitial = firstName ? firstName[0].toUpperCase() : "R";
   const avatarImage = session?.user?.image ?? null;
@@ -90,7 +94,11 @@ export function HomeTwaMobile() {
     <section className="min-h-[100dvh] bg-[#f4f7f6] pb-8 text-slate-900">
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-4 px-4 pb-4 pt-4">
         <header className="flex items-start justify-between gap-4">
-          <Link href="/perfil" className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAccountOpen(true)}
+            className="flex min-w-0 items-center gap-3 text-left"
+          >
             <div className="flex h-11 w-11 overflow-hidden rounded-full bg-[#17313b] text-sm font-semibold text-white shadow-sm ring-1 ring-slate-200">
               {avatarImage ? (
                 <img
@@ -106,7 +114,7 @@ export function HomeTwaMobile() {
               <p className="text-sm font-semibold text-slate-900">{greeting}</p>
               <p className="text-xs text-slate-500">Roteirização inteligente para sua operação.</p>
             </div>
-          </Link>
+          </button>
         </header>
 
         {showSubscriptionAlert ? (
@@ -209,6 +217,12 @@ export function HomeTwaMobile() {
           </div>
         </section>
       </div>
+
+      <TwaAccountSheet
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        displayName={displayName || fullName || "Usuário"}
+      />
     </section>
   );
 }
