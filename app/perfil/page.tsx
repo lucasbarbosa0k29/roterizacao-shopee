@@ -24,15 +24,30 @@ type AccessSnapshot = {
 };
 
 export default function PerfilPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (status === "loading") {
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      setAccess(null);
+      setLoading(false);
+      setLoadError("Sessão expirada ou usuário não autenticado");
+      return;
+    }
+
     let alive = true;
 
     (async () => {
       try {
+        setLoading(true);
+        setLoadError(null);
+
         const res = await fetch("/api/access/me", {
           credentials: "include",
           cache: "no-store",
@@ -40,10 +55,25 @@ export default function PerfilPage() {
         });
 
         const data = await res.json().catch(() => null);
+        const errorBody =
+          !res.ok && data && typeof data === "object"
+            ? (data as { error?: string }).error ?? null
+            : null;
         if (!alive) return;
-        if (res.ok && data) setAccess(data as AccessSnapshot);
+        if (res.ok && data) {
+          setAccess(data as AccessSnapshot);
+          setLoadError(null);
+          return;
+        }
+
+        setAccess(null);
+        setLoadError(
+          `Erro ao carregar plano: HTTP ${res.status} - ${errorBody || res.statusText || "Resposta inválida"}`
+        );
       } catch {
-        // fallback seguro
+        if (!alive) return;
+        setAccess(null);
+        setLoadError("Erro ao carregar plano: falha de rede ou resposta inválida");
       } finally {
         if (alive) setLoading(false);
       }
@@ -52,7 +82,7 @@ export default function PerfilPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [status]);
 
   const name = session?.user?.name?.trim() || "Usuário";
   const email = session?.user?.email?.trim() || "Sem e-mail";
@@ -79,6 +109,22 @@ export default function PerfilPage() {
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-4 text-slate-900">
       <div className="mx-auto w-full max-w-[480px] space-y-4">
+        {status === "loading" ? (
+          <section className="rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Carregando sessão...
+          </section>
+        ) : status === "unauthenticated" ? (
+          <section className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Sessão expirada ou usuário não autenticado
+          </section>
+        ) : null}
+
+        {loadError && (
+          <section className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {loadError}
+          </section>
+        )}
+
         <section className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#17313b] text-sm font-semibold text-white">
