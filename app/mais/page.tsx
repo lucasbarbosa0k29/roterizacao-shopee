@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 type MenuItem = {
   label: string;
@@ -9,27 +9,22 @@ type MenuItem = {
   note?: string;
 };
 
-const items: MenuItem[] = [
+const baseItems: MenuItem[] = [
   { label: "Tutorial", href: "/tutorial" },
   { label: "Minha Assinatura", href: "/planos", note: "Renovar e comprar créditos" },
 ];
 
-export default function MaisPage() {
-  const handleSignOut = async () => {
-    const loginUrl =
-      typeof window !== "undefined" ? `${window.location.origin}/login` : "/login";
+const adminItems: MenuItem[] = [
+  { label: "Administração", href: "/admin", note: "Controles internos" },
+  { label: "Usuários", href: "/admin/users", note: "Gestão de contas" },
+  { label: "Assinaturas", href: "/admin/subscriptions", note: "Planos e créditos" },
+  { label: "Administradores", href: "/admin/administrators", note: "Permissões e auditoria" },
+];
 
-    try {
-      await signOut({
-        redirect: false,
-        callbackUrl: loginUrl,
-      });
-    } finally {
-      if (typeof window !== "undefined") {
-        window.location.assign(loginUrl);
-      }
-    }
-  };
+export default function MaisPage() {
+  const { data: session } = useSession();
+  const isAdmin = String((session?.user as { role?: string } | undefined)?.role || "").toUpperCase() === "ADMIN";
+  const items = isAdmin ? [...baseItems, ...adminItems] : baseItems;
 
   return (
     <main className="min-h-screen bg-[#f4f7f6] px-4 py-4 text-slate-900">
@@ -58,19 +53,6 @@ export default function MaisPage() {
               </span>
             </Link>
           ))}
-        </section>
-
-        <section className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="flex w-full items-center justify-between rounded-[18px] bg-[#17313b] px-4 py-3 text-left text-sm font-semibold text-white transition active:scale-[0.99]"
-          >
-            <span>Sair</span>
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
-              Encerrar sessão
-            </span>
-          </button>
         </section>
       </div>
     </main>
