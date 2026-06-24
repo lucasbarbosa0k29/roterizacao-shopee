@@ -2,7 +2,8 @@
 
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
 const highlights = [
   "Importação assistida de planilhas",
@@ -14,11 +15,18 @@ export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/importar-planilha";
-
+  const isTwaModeDetected = useStandaloneDisplayMode();
+  const [mounted, setMounted] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const showTwaLogin = mounted && isTwaModeDetected;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +50,73 @@ export default function LoginClient() {
     router.push(callbackUrl);
   }
 
+  if (showTwaLogin) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(30,64,75,0.55),transparent_34%),linear-gradient(160deg,#020b10_0%,#07161d_38%,#0c2a31_100%)] px-4 py-8 text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[url('/rottafundo.png')] bg-[length:1000px_auto] bg-right-bottom bg-no-repeat opacity-[0.12]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(45,212,191,0.16),transparent_22%),radial-gradient(circle_at_70%_82%,rgba(31,90,107,0.28),transparent_30%)]" />
+
+        <div className="relative z-10 mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
+          <div className="w-full rounded-[30px] border border-white/10 bg-[rgba(6,16,22,0.82)] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] border border-cyan-100/20 bg-slate-950 shadow-[0_0_34px_rgba(45,212,191,0.22)]">
+                <img src="/rotta-logo.png" alt="Rotta" className="h-full w-full object-contain" />
+              </div>
+              <h1 className="mt-4 text-3xl font-black tracking-tight text-white">Rotta</h1>
+              <p className="mt-2 text-sm leading-6 text-white/68">
+                Acesse sua conta para continuar a operação.
+              </p>
+            </div>
+
+            <form onSubmit={onSubmit} className="mt-8 space-y-4">
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                  placeholder="voce@empresa.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                  Senha
+                </label>
+                <input
+                  type="password"
+                  className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                  placeholder="Digite sua senha"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {err && (
+                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                  {err}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-2xl bg-[linear-gradient(135deg,#17313b_0%,#2a6c66_100%)] px-4 py-3.5 font-semibold text-white shadow-[0_18px_34px_rgba(23,49,59,0.34)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Entrando..." : "Entrar"}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-950 bg-[radial-gradient(circle_at_18%_12%,rgba(45,212,191,0.24),transparent_30%),radial-gradient(circle_at_82%_74%,rgba(31,90,107,0.34),transparent_34%),linear-gradient(135deg,#030a0e_0%,#07161d_42%,#102a32_100%)]">
       <div className="pointer-events-none absolute inset-0 bg-[url('/rottafundo.png')] bg-[length:1100px_auto] bg-right-bottom bg-no-repeat opacity-[0.24]" />
@@ -56,20 +131,14 @@ export default function LoginClient() {
             <div className="relative z-10 flex w-full flex-col justify-between gap-10">
               <div>
                 <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-[28px] border border-cyan-100/35 bg-slate-950 shadow-[0_0_38px_rgba(45,212,191,0.26),0_18px_30px_rgba(0,0,0,0.22)]">
-                  <img
-                    src="/rotta-logo.png"
-                    alt="Rotta"
-                    className="h-full w-full object-contain"
-                  />
+                  <img src="/rotta-logo.png" alt="Rotta" className="h-full w-full object-contain" />
                 </div>
 
                 <div className="mt-8 max-w-xl">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-100/62">
                     Console Operacional
                   </div>
-                  <h1 className="mt-4 text-5xl font-black tracking-tight text-white">
-                    Rotta
-                  </h1>
+                  <h1 className="mt-4 text-5xl font-black tracking-tight text-white">Rotta</h1>
                   <p className="mt-3 text-lg font-medium text-white/82">
                     Roteirização, conferência e exportação em um só fluxo.
                   </p>

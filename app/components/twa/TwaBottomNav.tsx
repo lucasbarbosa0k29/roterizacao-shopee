@@ -77,6 +77,7 @@ function iconMore() {
 
 type TwaBottomNavProps = {
   pathname: string;
+  isJobRoute: boolean;
 };
 
 function NavItem({
@@ -112,17 +113,33 @@ function NavItem({
   );
 }
 
-export function TwaBottomNav({ pathname }: TwaBottomNavProps) {
+export function TwaBottomNav({ pathname, isJobRoute }: TwaBottomNavProps) {
   const isHome = pathname === "/";
   const isHistorico = pathname === "/historico" || pathname.startsWith("/historico/");
-  const isPlanos = pathname === "/planos";
   const isMais = pathname === "/mais";
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto grid w-full max-w-[480px] grid-cols-4 px-2 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2">
         <NavItem href="/" label="Início" icon={iconHome()} active={isHome} />
-        <NavItem href="/planos" label="Planos" icon={iconAnalyses()} active={isPlanos} />
+        {isJobRoute ? (
+          <button
+            type="button"
+            onClick={() => {
+              const exportButton = document.querySelector<HTMLElement>('[data-tour="export-button"]');
+              exportButton?.click();
+            }}
+            className="flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium text-slate-500 transition-colors hover:text-[#17313b]"
+            aria-label="Exportar resultado"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+              {iconAnalyses()}
+            </span>
+            Exportar
+          </button>
+        ) : (
+          <NavItem href="/planos" label="Planos" icon={iconAnalyses()} active={pathname === "/planos"} />
+        )}
         <NavItem href="/historico" label="Histórico" icon={iconHistory()} active={isHistorico} />
         <NavItem href="/mais" label="Mais" icon={iconMore()} active={isMais} />
       </div>

@@ -132,6 +132,21 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     (!accessLoading &&
       access?.code !== "ACCESS_BLOCKED" &&
       (hasActivePlan || access?.canStartRoute === true || hasHistoryJob));
+  const handleSignOut = async () => {
+    const loginUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/login` : "/login";
+
+    try {
+      await signOut({
+        redirect: false,
+        callbackUrl: loginUrl,
+      });
+    } finally {
+      if (typeof window !== "undefined") {
+        window.location.assign(loginUrl);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isAuthed) {
@@ -481,7 +496,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             <button
               type="button"
               className="group mt-1.5 flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-white/86 transition hover:bg-white/[0.06]"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={handleSignOut}
             >
               <span className="flex items-center gap-3.5">
                 <span className={iconBox}>

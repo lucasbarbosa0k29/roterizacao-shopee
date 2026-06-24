@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
@@ -26,13 +26,15 @@ function MenuIcon() {
 import { TwaShell } from "./twa/TwaShell";
 import { HomeTwaMobile } from "./twa/HomeTwaMobile";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+function AppShellContent({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isAuthed = status === "authenticated";
   const isLoginPage = pathname === "/login";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isTwaMode = useStandaloneDisplayMode();
+  const hasJobParam = searchParams.get("job") !== null;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -57,7 +59,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isTwaMode) {
     return (
       <TwaShell>
-        {pathname === "/" ? <HomeTwaMobile /> : children}
+        {pathname === "/" && !hasJobParam ? (
+          <HomeTwaMobile />
+        ) : (
+          children
+        )}
       </TwaShell>
     );
   }
@@ -83,5 +89,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={children}>
+      <AppShellContent>{children}</AppShellContent>
+    </Suspense>
   );
 }

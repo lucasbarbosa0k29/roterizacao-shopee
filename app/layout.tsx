@@ -46,23 +46,40 @@ export default function RootLayout({
         var d = document;
         var root = d.documentElement;
         var url = new URL(w.location.href);
-        var fromQuery = url.searchParams.get("source") === "twa";
-        var fromStandalone = w.matchMedia("(display-mode: standalone)").matches;
-        var fromLocalTest =
-          fromQuery &&
-          (url.hostname === "localhost" || url.hostname === "127.0.0.1");
-        var isTwa = fromStandalone || fromLocalTest;
+        var isLocalhost =
+          url.hostname === "localhost" ||
+          url.hostname === "127.0.0.1" ||
+          url.hostname.indexOf("192.168.") === 0 ||
+          url.hostname.indexOf("10.") === 0 ||
+          /^(?:172\.(?:1[6-9]|2\d|3[0-1])\.)/.test(url.hostname);
+        var hasTwaSource = url.searchParams.get("source") === "twa";
+        var hasDevFlag = false;
+        try {
+          hasDevFlag = w.sessionStorage.getItem("rotta_twa_dev") === "1";
+        } catch (storageError) {}
+        var isStandalone = w.matchMedia("(display-mode: standalone)").matches;
+        var isTwa = isStandalone || (isLocalhost && (hasTwaSource || hasDevFlag));
 
         try {
           w.sessionStorage.removeItem("rotta_twa");
           w.localStorage.removeItem("rotta_twa");
+          if (!isLocalhost) {
+            w.sessionStorage.removeItem("rotta_twa_dev");
+            w.localStorage.removeItem("rotta_twa_dev");
+          }
         } catch (storageError) {}
 
         if (!isTwa) {
           root.classList.remove("rotta-standalone-mobile");
           root.dataset.displayMode = "browser";
 
-          if (fromQuery) {
+          if (hasTwaSource && isLocalhost) {
+            try {
+              w.sessionStorage.setItem("rotta_twa_dev", "1");
+            } catch (storageError) {}
+          }
+
+          if (hasTwaSource && !isLocalhost) {
             url.searchParams.delete("source");
             w.history.replaceState({}, "", url.pathname + url.search + url.hash);
           }
@@ -81,7 +98,13 @@ export default function RootLayout({
           );
         }
 
-        if (fromQuery) {
+        if (hasTwaSource && isLocalhost) {
+          try {
+            w.sessionStorage.setItem("rotta_twa_dev", "1");
+          } catch (storageError) {}
+        }
+
+        if (hasTwaSource && !isLocalhost) {
           url.searchParams.delete("source");
           w.history.replaceState({}, "", url.pathname + url.search + url.hash);
         }

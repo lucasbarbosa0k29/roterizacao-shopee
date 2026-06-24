@@ -4243,15 +4243,15 @@ useEffect(() => {
   <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(31,90,107,0.08),transparent_30%),linear-gradient(180deg,#fbfcfc_0%,#f5f8f8_100%)] p-4 md:p-6">
   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
     <div className="max-w-2xl">
-      <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-[34px] lg:text-[38px]">
+      <h2 data-rotta-results-title className="text-3xl font-black tracking-tight text-slate-950 md:text-[34px] lg:text-[38px]">
         Resultado operacional
       </h2>
-      <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[15px]">
+      <div data-rotta-results-subtitle className="mt-2 text-sm leading-6 text-slate-600 md:text-[15px]">
         Revise, valide e organize as paradas processadas.
       </div>
     </div>
 
-  <div className="flex flex-wrap items-center gap-2.5 xl:max-w-[640px] xl:justify-end">
+  <div data-rotta-results-top-actions className="flex flex-wrap items-center gap-2.5 xl:max-w-[640px] xl:justify-end">
     <button
       type="button"
       data-tour="auto-group-button"
@@ -4421,7 +4421,84 @@ useEffect(() => {
       </div>
     </div>
   </div>
-  <div className="mt-4 rounded-[22px] border border-slate-200 bg-white shadow-sm">
+  <div
+    data-rotta-twa-actions-after-map
+    className="mt-4 hidden gap-2.5"
+  >
+    <button
+      type="button"
+      onClick={() => setIsOverviewMapOpen(true)}
+      disabled={overviewMapPoints.length === 0}
+      data-tour="open-map-button"
+      data-rotta-map-action
+      className={`inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border bg-white px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
+        overviewMapPoints.length === 0
+          ? "cursor-not-allowed border-slate-200 text-slate-400"
+          : "border-emerald-200 text-emerald-700 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50"
+      }`}
+      title={
+        overviewMapPoints.length === 0
+          ? "Nenhuma parada com coordenadas para exibir"
+          : "Abrir mapa com todas as paradas"
+      }
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9 18 3.5 20.5v-14L9 4m0 14 6 2.5m-6-2.5V4m6 16.5 5.5-2.5v-14L15 6.5m0 14V6.5M15 6.5 9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 10.5c2.4 0 4.3 1.5 5.2 3.5-.9 2-2.8 3.5-5.2 3.5S7.7 16 6.8 14c.9-2 2.8-3.5 5.2-3.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <circle cx="12" cy="14" r="1.5" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+      Revisar no mapa
+    </button>
+
+    <div data-rotta-results-actions className="grid grid-cols-2 gap-2.5">
+      <button
+        type="button"
+        data-tour="auto-group-button"
+        onClick={() => {
+  if (autoGrouped) {
+    setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
+    clearGroupItemExclusionsByPrefix("auto_");
+  }
+  setAutoGrouped((v) => !v);
+}}
+        className={`inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold leading-tight shadow-sm transition ${
+          autoGrouped
+            ? "border-emerald-200 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
+            : "border-slate-200 text-slate-700 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+        }`}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0">
+          <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        <span className="text-left">Agrupar Paradas</span>
+      </button>
+
+      <button
+        type="button"
+        data-tour="condo-group-button"
+        onClick={() => {
+          if (condoGrouped) {
+            setCondoBreakIds(new Set());
+            clearGroupItemExclusionsByPrefix("condo_");
+          }
+          setCondoGrouped((v) => !v);
+        }}
+        className={`inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold leading-tight shadow-sm transition ${
+          condoGrouped
+            ? "border-emerald-200 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
+            : "border-slate-200 text-slate-700 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+        }`}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0">
+          <path d="M5 21V7l7-4 7 4v14" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          <path d="M9 21v-6h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="max-w-[10ch] text-left">Agrupar Condomínios</span>
+      </button>
+    </div>
+  </div>
+  <div data-rotta-source-card className="mt-4 rounded-[22px] border border-slate-200 bg-white shadow-sm">
     <div className="grid gap-0 divide-y divide-slate-100 md:grid-cols-3 md:divide-x md:divide-y-0">
       <div className="flex min-w-0 items-center gap-3 px-4 py-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-600">

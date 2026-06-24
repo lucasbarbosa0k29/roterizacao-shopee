@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { TwaBottomNav } from "./TwaBottomNav";
 
 type TwaShellProps = {
@@ -10,13 +10,15 @@ type TwaShellProps = {
 
 export function TwaShell({ children }: TwaShellProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isJobRoute = pathname === "/" && searchParams.get("job") !== null;
 
   return (
     <div className="min-h-screen bg-[#f7faf9] text-slate-900">
       <main className="mx-auto w-full max-w-[480px] px-4 pb-[calc(env(safe-area-inset-bottom)+92px)] pt-4">
         {children}
       </main>
-      <TwaBottomNav pathname={pathname} />
+      <TwaBottomNav pathname={pathname} isJobRoute={isJobRoute} />
     </div>
   );
 }

@@ -123,6 +123,64 @@ html.rotta-standalone-mobile [data-rotta-home-upload-actions] > * {
   min-width: 0 !important;
 }
 
+html.rotta-standalone-mobile [data-rotta-results-title],
+html.rotta-standalone-mobile [data-rotta-results-subtitle],
+html.rotta-standalone-mobile [data-rotta-results-top-actions],
+html.rotta-standalone-mobile [data-rotta-source-card],
+html.rotta-standalone-mobile [data-tour="new-import-button"],
+html.rotta-standalone-mobile [data-tour="export-button"] {
+  display: none !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-actions-after-map] {
+  display: flex !important;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-actions-after-map] [data-rotta-results-actions] {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-actions-after-map] [data-rotta-results-actions] > * {
+  width: 100%;
+  min-width: 0;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-historico] {
+  max-width: 480px;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-historico-header],
+html.rotta-standalone-mobile [data-rotta-twa-historico-controls],
+html.rotta-standalone-mobile [data-rotta-twa-historico-list] > article {
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+html.rotta-standalone-mobile [data-rotta-historico-search],
+html.rotta-standalone-mobile [data-rotta-historico-filter] {
+  display: none !important;
+}
+
+html.rotta-standalone-mobile [data-rotta-historico-controls] {
+  justify-content: flex-end;
+}
+
+html.rotta-standalone-mobile [data-rotta-historico-summary] {
+  margin-top: 0.75rem;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-mais] {
+  max-width: 480px;
+}
+
+html.rotta-standalone-mobile [data-rotta-twa-mais] section,
+html.rotta-standalone-mobile [data-rotta-twa-mais] article {
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
 .app-shell > aside.sidebar {
   flex: 0 0 280px;
 }

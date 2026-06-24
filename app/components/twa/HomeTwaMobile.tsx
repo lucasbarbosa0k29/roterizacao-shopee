@@ -1,27 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TwaAccountSheet } from "./TwaAccountSheet";
-
-const recentItems = [
-  {
-    title: "Planilha abril-roteiros.xlsx",
-    status: "Análise concluída",
-    meta: "Atualizado há 12 min",
-  },
-  {
-    title: "Entrega centro norte",
-    status: "Em revisão",
-    meta: "Atualizado há 1 hora",
-  },
-  {
-    title: "Coleta expressa zona sul",
-    status: "Pronto para exportar",
-    meta: "Atualizado ontem",
-  },
-];
+import { RouteUploadBox } from "../upload/RouteUploadBox";
+import { useRouteImportFlow } from "../../lib/useRouteImportFlow";
+import { listHistoryDb, type DbHistoryListItem } from "../../lib/history-db";
 
 type AccessSnapshot = {
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
@@ -31,10 +17,63 @@ type AccessSnapshot = {
   message: string | null;
 };
 
+type RecentJob = DbHistoryListItem & {
+  status?: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+};
+
+function statusLabel(status: RecentJob["status"]) {
+  if (status === "PROCESSING") return "Processando";
+  if (status === "PENDING") return "Em revisão";
+  if (status === "DONE") return "Análise concluída";
+  return "Pronto para exportar";
+}
+
+function relativeLabel(savedAt: number) {
+  const diffMs = Date.now() - savedAt;
+  const diffMin = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMin < 1) return "Agora mesmo";
+  if (diffMin < 60) return `Há ${diffMin} min`;
+  const diffHours = Math.round(diffMin / 60);
+  if (diffHours < 24) return `Há ${diffHours} h`;
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays === 1) return "Ontem";
+  return `Há ${diffDays} dias`;
+}
+
+async function loadRecentJobs(): Promise<RecentJob[]> {
+  const items = await listHistoryDb();
+  const enriched = await Promise.all(
+    items.slice(0, 3).map(async (item) => {
+      try {
+        const res = await fetch(`/api/history/${encodeURIComponent(item.id)}?mode=progress`, {
+          credentials: "include",
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        });
+        if (!res.ok) return item;
+        const body = await res.json().catch(() => null);
+        const job = body?.job;
+        return {
+          ...item,
+          status: job?.status,
+        };
+      } catch {
+        return item;
+      }
+    })
+  );
+
+  return enriched;
+}
+
 export function HomeTwaMobile() {
+  const router = useRouter();
+  const uploadRef = useRef<HTMLDivElement | null>(null);
   const { data: session, status } = useSession();
   const [access, setAccess] = useState<AccessSnapshot | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
   const fullName = session?.user?.name?.trim() ?? "";
   const firstName = fullName ? fullName.split(/\s+/)[0] : "";
   const secondName = fullName.split(/\s+/)[1] ?? "";
@@ -42,6 +81,22 @@ export function HomeTwaMobile() {
   const greeting = firstName ? `Olá, ${firstName}!` : "Olá!";
   const avatarInitial = firstName ? firstName[0].toUpperCase() : "R";
   const avatarImage = session?.user?.image ?? null;
+  const {
+    file,
+    setFile,
+    loading,
+    jobProgress,
+    handleFileChange,
+    handleSubmit,
+  } = useRouteImportFlow({
+    access,
+    deferJobUrlUpdate: true,
+    onImportSuccess: ({ jobId }) => {
+      if (jobId) {
+        router.push(`/?job=${encodeURIComponent(jobId)}`);
+      }
+    },
+  });
   const showSubscriptionAlert =
     access !== null &&
     (access.code === "NO_ACTIVE_SUBSCRIPTION" ||
@@ -89,6 +144,40 @@ export function HomeTwaMobile() {
       alive = false;
     };
   }, [status]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const refreshRecent = async () => {
+      try {
+        setRecentLoading(true);
+        const items = await loadRecentJobs();
+        if (alive) setRecentJobs(items);
+      } catch {
+        if (alive) setRecentJobs([]);
+      } finally {
+        if (alive) setRecentLoading(false);
+      }
+    };
+
+    void refreshRecent();
+
+    const onHistoryChange = () => {
+      void refreshRecent();
+    };
+
+    window.addEventListener("history-db-changed", onHistoryChange);
+    return () => {
+      alive = false;
+      window.removeEventListener("history-db-changed", onHistoryChange);
+    };
+  }, []);
+
+  const recentEmpty = useMemo(() => !recentLoading && recentJobs.length === 0, [recentLoading, recentJobs.length]);
+
+  function openFromHistory(id: string) {
+    router.push(`/?job=${encodeURIComponent(id)}`);
+  }
 
   return (
     <section className="min-h-[100dvh] bg-[#f4f7f6] pb-8 text-slate-900">
@@ -150,71 +239,81 @@ export function HomeTwaMobile() {
             </p>
           </div>
 
-          <div className="space-y-4 px-4 py-4">
-            <label className="block cursor-not-allowed rounded-[22px] border border-dashed border-[#8cc7bc] bg-[linear-gradient(180deg,#f9fcfb_0%,#eef6f4_100%)] p-4 transition">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-lg text-[#17313b] ring-1 ring-slate-200">
-                  +
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">Área de upload</p>
-                  <p className="mt-1 text-sm leading-5 text-slate-600">
-                    Selecione uma planilha operacional para iniciar a análise.
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">Temporariamente visual nesta etapa.</p>
-                </div>
-              </div>
-            </label>
-
-            <button
-              type="button"
-              className="flex h-12 w-full items-center justify-center rounded-xl bg-[#17313b] text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
-            >
-              Iniciar Análise
-            </button>
+          <div ref={uploadRef} className="space-y-4 px-4 py-4">
+            <RouteUploadBox
+              variant="twa"
+              file={file}
+              loading={loading}
+              access={access}
+              jobProgress={jobProgress}
+              setFile={setFile}
+              handleFileChange={handleFileChange}
+              handleSubmit={handleSubmit}
+            />
           </div>
         </section>
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">Recente</h2>
-            <span className="text-xs text-slate-500">3 itens</span>
+            <Link href="/historico" className="text-xs text-slate-500">
+              Ver todas
+            </Link>
           </div>
 
-          <div className="space-y-3">
-            {recentItems.map((item) => (
-              <article
-                key={item.title}
-                className="rounded-[18px] bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <div className="flex h-11 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef4f2] text-[11px] font-semibold text-[#17313b] ring-1 ring-slate-200">
-                      XLSX
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
-                      <p className="mt-1 text-xs text-slate-500">{item.meta}</p>
-                    </div>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                    {item.status}
-                  </span>
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-full px-2 py-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Mais opções"
+          {recentLoading ? (
+            <div className="rounded-[18px] bg-white px-4 py-4 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+              Carregando recentes...
+            </div>
+          ) : recentEmpty ? (
+            <div className="rounded-[18px] bg-white px-4 py-4 text-sm text-slate-600 shadow-sm ring-1 ring-slate-200">
+              Nenhum histórico encontrado ainda.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentJobs.map((item) => {
+                const savedAtDate = new Date(item.savedAt);
+
+                return (
+                  <article
+                    key={item.id}
+                    className="rounded-[18px] bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200"
                   >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                      <circle cx="12" cy="5" r="1.7" />
-                      <circle cx="12" cy="12" r="1.7" />
-                      <circle cx="12" cy="19" r="1.7" />
-                    </svg>
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+                    <button
+                      type="button"
+                      onClick={() => openFromHistory(item.id)}
+                      className="flex w-full items-start justify-between gap-3 text-left"
+                    >
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <div className="flex h-11 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef4f2] text-[11px] font-semibold text-[#17313b] ring-1 ring-slate-200">
+                          XLSX
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-900">{item.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {savedAtDate.toLocaleDateString("pt-BR")} · {relativeLabel(item.savedAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                        {statusLabel(item.status)}
+                      </span>
+                    </button>
+
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openFromHistory(item.id)}
+                        className="text-xs font-semibold text-[#0f4f64]"
+                      >
+                        Abrir
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
 
