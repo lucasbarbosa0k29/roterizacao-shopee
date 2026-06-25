@@ -94,6 +94,39 @@ function normalizeStreetComparable(value: string | null | undefined) {
   return normalizeText(value).replace(/^(R|RUA|AV|AVENIDA)\s+/, "");
 }
 
+function normalizeCodedStreet(value: string | null | undefined) {
+  const normalized = normalizeText(value).replace(
+    /^(R|RUA|AV|AVENIDA|AL|ALAMEDA|TR|TRAVESSA|TV|VIA|ROD|RODOVIA|ESTRADA)\s+/,
+    "",
+  );
+  const match = normalized.match(/^([A-Z]{1,6})\s*-?\s*0*([0-9]+)([A-Z]?)$/);
+  if (!match) return null;
+
+  const [, prefix, number, suffix] = match;
+  return {
+    prefix,
+    number: String(Number(number)),
+    suffix,
+    ignoredStreetType: normalized !== normalizeText(value),
+    normalizedZeroPadding: /^0+[0-9]+$/.test(number),
+  };
+}
+
+function areCodedStreetsEquivalent(a: string | null | undefined, b: string | null | undefined) {
+  const left = normalizeCodedStreet(a);
+  const right = normalizeCodedStreet(b);
+  if (!left || !right) return null;
+
+  return {
+    equivalent:
+      left.prefix === right.prefix &&
+      left.number === right.number &&
+      left.suffix === right.suffix,
+    ignoredStreetType: left.ignoredStreetType || right.ignoredStreetType,
+    normalizedZeroPadding: left.normalizedZeroPadding || right.normalizedZeroPadding,
+  };
+}
+
 function pushUnique(values: string[], value: string) {
   const normalized = normalizeText(value);
   if (!normalized || values.some((existing) => normalizeText(existing) === normalized)) {
@@ -400,7 +433,22 @@ export function buildLocalFirstAliasCandidatePack(
         normalizeStreetComparable(result.candidate.streetLabel) !==
           normalizeStreetComparable(ruaVariant)
       ) {
-        pairRiskFlags.push("LOCAL_STREET_DIFFERS_FROM_INPUT");
+        const codedStreetMatch = areCodedStreetsEquivalent(
+          result.candidate.streetLabel,
+          ruaVariant,
+        );
+        if (codedStreetMatch?.equivalent) {
+          pairSignals.push("CODED_STREET_EQUIVALENT");
+          pairSignals.push("CODED_STREET_CODE_MATCH");
+          if (codedStreetMatch.normalizedZeroPadding) {
+            pairSignals.push("CODED_STREET_ZERO_PAD_NORMALIZED");
+          }
+          if (codedStreetMatch.ignoredStreetType) {
+            pairSignals.push("STREET_TYPE_IGNORED_FOR_CODE");
+          }
+        } else {
+          pairRiskFlags.push("LOCAL_STREET_DIFFERS_FROM_INPUT");
+        }
       }
       if (sourceIsGenericCerradoBairro) {
         pairRiskFlags.push("GENERIC_CERRADO_BAIRRO");
