@@ -4,7 +4,8 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
-import { WHATSAPP_SUPPORT_URL } from "../lib/whatsapp-support";
+
+const WHATSAPP_SUPPORT_URL = "https://wa.me/5562963441134";
 
 const highlights = [
   "Importação assistida de planilhas",
