@@ -39,7 +39,7 @@ export function RouteUploadBox({
         </div>
         {jobProgress?.status && (
           <div className="mt-3 text-xs text-slate-500">
-            {jobProgress.status === "PENDING" ? "Importa??o iniciada" : "Processamento em andamento"}
+            {jobProgress.status === "PENDING" ? "Importação iniciada" : "Processamento em andamento"}
           </div>
         )}
         {jobProgress?.errorMessage && (
@@ -61,9 +61,8 @@ export function RouteUploadBox({
             className="flex flex-col gap-3 md:flex-row md:gap-4"
             data-rotta-home-upload-actions
           >
-            {/* INPUT PLANILHA */}
             <label
-              className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] transition p-4 hover:border-[#1f5a6b] hover:bg-white md:p-5"
+              className="flex-1 cursor-pointer rounded-[24px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] p-4 transition hover:border-[#1f5a6b] hover:bg-white md:p-5"
               onClick={(e) => {
                 if (access?.canStartRoute !== false) return;
                 e.preventDefault();
@@ -95,7 +94,6 @@ export function RouteUploadBox({
               </div>
             </label>
 
-            {/* BOTÃO BUSCAR */}
             <button
               type="submit"
               disabled={loading}
@@ -175,42 +173,17 @@ export function RouteUploadBox({
             </div>
           </label>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-12 w-full items-center justify-center rounded-xl bg-[#17313b] text-sm font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-50"
-          >
-            {loading ? "Processando..." : "Iniciar Análise"}
-          </button>
+          {!loading ? (
+            <button
+              type="submit"
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-[#17313b] text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
+            >
+              Iniciar Análise
+            </button>
+          ) : null}
         </div>
 
-        {loading && !jobProgress && (
-          <p className="mt-4 text-sm text-slate-500">Processando...</p>
-        )}
-
-        {loading && jobProgress && (
-          <div className="mt-4 rounded-[18px] border border-[#cde3dd] bg-[#f4fbf8] px-4 py-4 text-sm text-slate-800">
-            <div className="font-semibold">
-              {jobProgress.status === "PENDING" ? "Importação iniciada" : "Processando planilha"}
-            </div>
-            <div className="mt-1">
-              Progresso: {jobProgress.processedStops}/{jobProgress.totalStops}
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-              <div
-                className="h-full rounded-full bg-[#17313b] transition-all"
-                style={{
-                  width: `${jobProgress.totalStops ? (jobProgress.processedStops / jobProgress.totalStops) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            {jobProgress.errorMessage && (
-              <p className="mt-3 text-xs text-rose-600">
-                Erro: {jobProgress.errorMessage}
-              </p>
-            )}
-          </div>
-        )}
+        {loading ? <ProcessingStatus /> : null}
       </div>
     </form>
   );
