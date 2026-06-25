@@ -6,6 +6,11 @@ import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
+import type {
+  LocalFirstCandidateValidationInput,
+  LocalFirstCandidateValidationResult,
+  LocalFirstStreetMatchType,
+} from "@/app/lib/local-first-validation-types";
 
 type Feature = {
   type: "Feature";
@@ -818,4 +823,185 @@ export function findAparecidaLocalLotCandidate(args: {
   });
 
   return candidates[0];
+}
+
+function compareAparecidaStreetForValidation(
+  expected: string,
+  actual: string,
+): LocalFirstStreetMatchType {
+  const left = normalizeText(expected);
+  const right = normalizeText(actual);
+
+  if (!left || !right) return "STREET_UNKNOWN";
+  if (left === right) return "STREET_MATCH";
+  if (left.includes(right) || right.includes(left)) {
+    return "STREET_UNKNOWN";
+  }
+
+  const leftTokens = new Set(left.split(/\s+/).filter(Boolean));
+  const rightTokens = right.split(/\s+/).filter(Boolean);
+  const hasSharedToken = rightTokens.some((token) => leftTokens.has(token));
+
+  return hasSharedToken ? "STREET_UNKNOWN" : "STREET_MISMATCH";
+}
+
+export function resolveAparecidaLocalFirstCandidate(
+  args: LocalFirstCandidateValidationInput,
+): LocalFirstCandidateValidationResult {
+  const inputHadRua = !!String(args.rua || "").trim();
+
+  if (args.city !== "APARECIDA") {
+    return {
+      attempted: false,
+      found: false,
+      validationStatus: "FAILED",
+      reason: "city_not_aparecida",
+      failureReason: "city_not_aparecida",
+      city: "APARECIDA",
+      matchType: "city_not_aparecida",
+      streetMatchType: null,
+      candidateCount: 0,
+      candidateUnique: false,
+      candidate: null,
+      diagnostics: {
+        inputCity: args.city,
+        inputHadRua,
+      },
+    };
+  }
+
+  const bairro = String(args.bairro || "").trim();
+  const quadra = String(args.quadra || "").trim();
+  const lote = String(args.lote || "").trim();
+
+  if (!bairro || !quadra || !lote) {
+    return {
+      attempted: true,
+      found: false,
+      validationStatus: "FAILED",
+      reason: "missing_bairro_quadra_or_lote",
+      failureReason: "missing_bairro_quadra_or_lote",
+      city: "APARECIDA",
+      matchType: "missing_parts",
+      streetMatchType: null,
+      candidateCount: 0,
+      candidateUnique: false,
+      candidate: null,
+      diagnostics: {
+        inputHadRua,
+        hasBairro: !!bairro,
+        hasQuadra: !!quadra,
+        hasLote: !!lote,
+      },
+    };
+  }
+
+  const candidate = findAparecidaLocalLotCandidate({
+    bairro,
+    planilhaBairro: bairro,
+    quadra,
+    lote,
+    rua: args.rua ?? undefined,
+    cidade: "Aparecida de Goiânia",
+  });
+
+  if (!candidate) {
+    return {
+      attempted: true,
+      found: false,
+      validationStatus: "FAILED",
+      reason: "aparecida_qd_lt_not_found",
+      failureReason: "aparecida_qd_lt_not_found",
+      city: "APARECIDA",
+      matchType: "not_found",
+      streetMatchType: null,
+      candidateCount: 0,
+      candidateUnique: false,
+      candidate: null,
+      diagnostics: {
+        inputHadRua,
+      },
+    };
+  }
+
+  const bairroCompatible = areAparecidaBairrosCompatible(bairro, candidate.bairro);
+  const weakBairroCompatibility =
+    candidate.localAliasAccepted === true ||
+    candidate.bairroDivergenteLocalForte === true ||
+    candidate.bairroPriority === "alias";
+
+  let streetMatchType: LocalFirstStreetMatchType | null = null;
+  let localStreet: { streetFullName: string; nearDist: number | null } | null = null;
+
+  if (inputHadRua) {
+    localStreet = findAparecidaLocalStreetCandidate({
+      bairro: candidate.bairro,
+      quadra: candidate.quadra,
+      lote: candidate.lote,
+    });
+
+    const localStreetFullName = String(localStreet?.streetFullName || "").trim();
+    streetMatchType = localStreetFullName
+      ? compareAparecidaStreetForValidation(args.rua || "", localStreetFullName)
+      : "STREET_UNKNOWN";
+  }
+
+  let validationStatus: LocalFirstCandidateValidationResult["validationStatus"] =
+    "VALIDATED";
+  let failureReason: string | null = null;
+  let reason = "aparecida_validated";
+
+  if (candidate.canFinalizeLocalFirst === false) {
+    validationStatus = "FAILED";
+    reason = "aparecida_cannot_finalize_local_first";
+    failureReason = reason;
+  } else if (!bairroCompatible) {
+    validationStatus = "FAILED";
+    reason = "aparecida_bairro_mismatch";
+    failureReason = reason;
+  } else if (inputHadRua && streetMatchType === "STREET_MISMATCH") {
+    validationStatus = "FAILED";
+    reason = "aparecida_street_mismatch";
+    failureReason = reason;
+  } else if (inputHadRua && !localStreet) {
+    validationStatus = "NEEDS_REVIEW";
+    reason = "aparecida_street_not_found";
+    failureReason = reason;
+  } else if (inputHadRua && streetMatchType !== "STREET_MATCH") {
+    validationStatus = "NEEDS_REVIEW";
+    reason = "aparecida_street_needs_review";
+    failureReason = reason;
+  } else if (weakBairroCompatibility) {
+    validationStatus = "NEEDS_REVIEW";
+    reason = "aparecida_bairro_needs_review";
+    failureReason = reason;
+  }
+
+  return {
+    attempted: true,
+    found: true,
+    validationStatus,
+    reason,
+    failureReason,
+    city: "APARECIDA",
+    matchType: candidate.bairroPriority ?? null,
+    streetMatchType,
+    candidateCount: 1,
+    candidateUnique: true,
+    candidate: {
+      bairro: candidate.bairro,
+      quadra: candidate.quadra,
+      lote: candidate.lote,
+      streetLabel: localStreet?.streetFullName ?? null,
+    },
+    diagnostics: {
+      inputHadRua,
+      bairroCompatible,
+      canFinalizeLocalFirst: candidate.canFinalizeLocalFirst ?? null,
+      localAliasAccepted: candidate.localAliasAccepted ?? false,
+      bairroDivergenteLocalForte: candidate.bairroDivergenteLocalForte ?? false,
+      bairroPriority: candidate.bairroPriority ?? null,
+      localStreetNearDist: localStreet?.nearDist ?? null,
+    },
+  };
 }

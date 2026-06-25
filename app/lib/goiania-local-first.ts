@@ -4,6 +4,11 @@ import {
   compareGoianiaStreet,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
+import type {
+  LocalFirstCandidateValidationInput,
+  LocalFirstCandidateValidationResult,
+  LocalFirstStreetMatchType,
+} from "@/app/lib/local-first-validation-types";
 
 export type GoianiaLocalFirstMatchType =
   | "exact"
@@ -660,15 +665,13 @@ function lookupGoianiaLocalFirstByKeys(args: {
   });
 }
 
-export function lookupGoianiaLocalFirstShadow(args: {
+function resolveGoianiaLocalFirstCore(args: {
   city: string;
   bairro: string;
   quadra: string;
   lote: string;
   rua?: string;
 }): GoianiaLocalFirstShadow {
-  if (!isGoianiaLocalFirstEnabled()) return disabledShadow();
-
   if (!isGoianiaCity(args.city)) {
     return {
       attempted: false,
@@ -787,4 +790,148 @@ export function lookupGoianiaLocalFirstShadow(args: {
   }
 
   return originalResult;
+}
+
+function isGoianiaPositiveMatchType(matchType: GoianiaLocalFirstMatchType) {
+  return (
+    matchType === "exact" ||
+    matchType === "exact_canonical" ||
+    matchType === "exact_alphanumeric_canonical" ||
+    matchType === "compound_lot_canonical" ||
+    matchType === "compound_lot" ||
+    matchType === "partition_fallback_exact" ||
+    matchType === "structural_alias_exact"
+  );
+}
+
+function toLocalFirstStreetMatchType(
+  compatibility: GoianiaStreetComparison | null | undefined,
+): LocalFirstStreetMatchType | null {
+  return compatibility ?? null;
+}
+
+function mapGoianiaLocalFirstValidation(
+  result: GoianiaLocalFirstShadow,
+  args: {
+    inputHadRua: boolean;
+  },
+): LocalFirstCandidateValidationResult {
+  const streetMatchType = toLocalFirstStreetMatchType(
+    result.localFirstStreetCompatibility ??
+      result.fallbackStreetCompatibility ??
+      result.structuralAliasStreetCompatibility ??
+      null,
+  );
+  const candidateUnique = result.candidatesCount === 1;
+  const hasCandidate = result.found && !!result.candidate;
+  const hasPositiveMatch = isGoianiaPositiveMatchType(result.matchType);
+
+  let validationStatus: LocalFirstCandidateValidationResult["validationStatus"] =
+    "FAILED";
+  let reason = result.reason;
+  let failureReason: string | null = result.reason;
+
+  if (hasCandidate && hasPositiveMatch) {
+    if (streetMatchType === "STREET_MISMATCH") {
+      validationStatus = "FAILED";
+      reason = "goiania_street_mismatch";
+      failureReason = "goiania_street_mismatch";
+    } else if (!candidateUnique) {
+      validationStatus = "NEEDS_REVIEW";
+      reason = "goiania_multiple_candidates";
+      failureReason = "goiania_multiple_candidates";
+    } else if (!args.inputHadRua) {
+      validationStatus = "NEEDS_REVIEW";
+      reason = "goiania_street_required";
+      failureReason = "goiania_street_required";
+    } else if (streetMatchType === null) {
+      validationStatus = "NEEDS_REVIEW";
+      reason = "goiania_street_not_checked";
+      failureReason = "goiania_street_not_checked";
+    } else if (
+      streetMatchType === "STREET_PARTIAL_MATCH" ||
+      streetMatchType === "STREET_UNKNOWN"
+    ) {
+      validationStatus = "NEEDS_REVIEW";
+      reason = "goiania_street_needs_review";
+      failureReason = "goiania_street_needs_review";
+    } else {
+      validationStatus = "VALIDATED";
+      reason = "goiania_validated";
+      failureReason = null;
+    }
+  }
+
+  return {
+    attempted: result.attempted,
+    found: result.found,
+    validationStatus,
+    reason,
+    failureReason,
+    city: "GOIANIA",
+    matchType: result.matchType,
+    streetMatchType,
+    candidateCount: result.candidatesCount,
+    candidateUnique,
+    candidate: result.candidate
+      ? {
+          bairro: result.candidate.bairro,
+          quadra: result.candidate.quadra,
+          lote: result.candidate.lote,
+          streetLabel: result.candidate.streetLabel,
+        }
+      : null,
+    diagnostics: {
+      confidence: result.confidence,
+      key: result.key,
+      localFirstStreetScoreAdjustment:
+        result.localFirstStreetScoreAdjustment ?? null,
+      localFirstScoreBeforeStreet: result.localFirstScoreBeforeStreet ?? null,
+      localFirstScoreAfterStreet: result.localFirstScoreAfterStreet ?? null,
+      localFirstStreetAdjustedCandidatesCount:
+        result.localFirstStreetAdjustedCandidatesCount ?? null,
+      localFirstWinnerChangedByStreet:
+        result.localFirstWinnerChangedByStreet ?? null,
+      localFirstWinnerBeforeStreetLabel:
+        result.localFirstWinnerBeforeStreetLabel ?? null,
+      localFirstWinnerAfterStreetLabel:
+        result.localFirstWinnerAfterStreetLabel ?? null,
+      fallbackFrom: result.fallbackFrom ?? null,
+      fallbackTo: result.fallbackTo ?? null,
+      structuralAliasFrom: result.structuralAliasFrom ?? null,
+      structuralAliasTo: result.structuralAliasTo ?? null,
+      structuralAliasCandidatesCount:
+        result.structuralAliasCandidatesCount ?? null,
+      inputHadRua: args.inputHadRua,
+      streetRequired: true,
+    },
+  };
+}
+
+export function lookupGoianiaLocalFirstShadow(args: {
+  city: string;
+  bairro: string;
+  quadra: string;
+  lote: string;
+  rua?: string;
+}): GoianiaLocalFirstShadow {
+  if (!isGoianiaLocalFirstEnabled()) return disabledShadow();
+  return resolveGoianiaLocalFirstCore(args);
+}
+
+export function resolveGoianiaLocalFirstCandidate(
+  args: LocalFirstCandidateValidationInput,
+): LocalFirstCandidateValidationResult {
+  const inputHadRua = !!String(args.rua || "").trim();
+
+  return mapGoianiaLocalFirstValidation(
+    resolveGoianiaLocalFirstCore({
+      city: args.city,
+      bairro: args.bairro,
+      quadra: args.quadra,
+      lote: args.lote,
+      rua: args.rua ?? undefined,
+    }),
+    { inputHadRua },
+  );
 }

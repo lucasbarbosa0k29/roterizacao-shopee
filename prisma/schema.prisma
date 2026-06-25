@@ -105,6 +105,32 @@ enum ApiUsagePeriodType {
   DAY
 }
 
+enum LocalFirstAliasType {
+  BAIRRO
+  RUA
+  BAIRRO_RUA
+}
+
+enum LocalFirstAliasStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum LocalFirstAliasSource {
+  AI
+  MANUAL
+  SYSTEM
+}
+
+enum LocalFirstAliasValidationStatus {
+  NOT_VALIDATED
+  VALIDATED
+  FAILED
+  NEEDS_REVIEW
+}
+
 model ImportJob {
   id String @id @default(cuid())
 
@@ -291,6 +317,48 @@ model AddressMemory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([createdAt])
+}
+
+model LocalFirstAlias {
+  id String @id @default(cuid())
+
+  city         String
+  aliasType    LocalFirstAliasType
+  sourceBairro String
+  sourceRua    String              @default("")
+
+  targetBairro String?
+  targetRua    String?
+
+  status LocalFirstAliasStatus @default(PENDING)
+  source LocalFirstAliasSource @default(AI)
+
+  confidence Float @default(0)
+  usageCount Int   @default(0)
+
+  cooldownUntil DateTime?
+  lastUsedAt    DateTime?
+  lastAttemptAt DateTime?
+
+  lastValidationStatus LocalFirstAliasValidationStatus @default(NOT_VALIDATED)
+  lastValidationReason String?                         @db.Text
+  lastFailureReason    String?                         @db.Text
+  lastAiReason         String?                         @db.Text
+
+  reviewedAt DateTime?
+  notes      String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([city, aliasType, sourceBairro, sourceRua])
+  @@index([city, status])
+  @@index([city, aliasType, status])
+  @@index([sourceBairro])
+  @@index([sourceBairro, sourceRua])
+  @@index([cooldownUntil])
+  @@index([lastUsedAt])
   @@index([createdAt])
 }
 

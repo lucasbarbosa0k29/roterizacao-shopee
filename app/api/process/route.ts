@@ -56,6 +56,12 @@ import {
   normalizeGoianiaStreetName,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
+import {
+  createLocalFirstAliasShadowState,
+  isLocalFirstAliasShadowEnabled,
+  runLocalFirstAliasShadow,
+  type LocalFirstAliasShadowState,
+} from "@/app/lib/local-first-alias-shadow";
 
 
 export const runtime = "nodejs";
@@ -69,6 +75,10 @@ const GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB = 5;
 type GoogleCommercialFallbackRunState = {
   jobId: string;
   googleCommercialFallbackCalls: number;
+};
+
+type ProcessRunState = GoogleCommercialFallbackRunState & {
+  localFirstAliasShadow: LocalFirstAliasShadowState;
 };
 
 type Normalized = {
@@ -2147,7 +2157,7 @@ async function processOne(
   row: InputRow,
   baseOrigin: string,
   debugMemory = false,
-  runState?: GoogleCommercialFallbackRunState,
+  runState?: ProcessRunState,
 ) {
   const addressRaw = String(row?.original || "").trim(); // <-- FIEL AO EXCEL
   const bairroIn = row?.bairro ? String(row.bairro) : "";
@@ -2509,6 +2519,27 @@ async function processOne(
   localFirstGoianiaBypassReason = resolveGoianiaLocalFirstBypassReason();
   localFirstGoianiaWouldBypass = localFirstGoianiaBypassReason === "WOULD_BYPASS";
   localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
+  if (isLocalFirstAliasShadowEnabled() && runState && !localFirstGoianiaWouldBypass) {
+    runState.localFirstAliasShadow.shadowTasks.push(
+      runLocalFirstAliasShadow({
+        state: runState.localFirstAliasShadow,
+        city: cityForDecision,
+        sourceBairro: normalized.bairro || bairroIn,
+        sourceRua: normalized.rua,
+        quadra: normalized.quadra,
+        lote: normalized.lote,
+        failureReason:
+          localFirstGoianiaBypassReason || localFirstGoianiaShadow.reason,
+        rowSequence: row?.sequence ?? null,
+      }).catch((error) => {
+        console.warn("[ALIAS_SHADOW_ERROR]", {
+          city: "GOIANIA",
+          sequence: row?.sequence ?? "",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }),
+    );
+  }
   const goianiaVerticalCondoCityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
   const goianiaVerticalCondoDetected =
     goianiaVerticalCondoCityKey.includes("GOIANIA") &&
@@ -2792,6 +2823,37 @@ async function processOne(
         });
       }
     }
+  }
+
+  const aparecidaLocalFirstStrong =
+    localLotUsedAsFinal &&
+    localLotStrongMatch &&
+    !localLotBlockedByBairro &&
+    localLotCanFinalizeLocalFirst;
+
+  if (isLocalFirstAliasShadowEnabled() && runState && isAparecida && !aparecidaLocalFirstStrong) {
+    runState.localFirstAliasShadow.shadowTasks.push(
+      runLocalFirstAliasShadow({
+        state: runState.localFirstAliasShadow,
+        city: cityForDecision,
+        sourceBairro: normalized.bairro || bairroIn,
+        sourceRua: normalized.rua,
+        quadra: normalized.quadra,
+        lote: normalized.lote,
+        failureReason: localLotBlockedByBairro
+          ? "APARECIDA_BLOCKED_LOCAL_FIRST_PAIR"
+          : localLotCandidateFound
+            ? "APARECIDA_LOCAL_FIRST_NEEDS_REVIEW"
+            : "APARECIDA_LOCAL_FIRST_NOT_FOUND",
+        rowSequence: row?.sequence ?? null,
+      }).catch((error) => {
+        console.warn("[ALIAS_SHADOW_ERROR]", {
+          city: "APARECIDA",
+          sequence: row?.sequence ?? "",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }),
+    );
   }
 
   if (!memoryHit && !approxMemoryHit && !localFirstBypassHere) {
@@ -5050,12 +5112,11 @@ export async function POST(req: Request) {
     }
 
     const baseOrigin = new URL(req.url).origin;
-    const runState: GoogleCommercialFallbackRunState | undefined = GOOGLE_COMMERCIAL_FALLBACK_ENABLED
-      ? {
-          jobId,
-          googleCommercialFallbackCalls: 0,
-        }
-      : undefined;
+    const runState: ProcessRunState = {
+      jobId,
+      googleCommercialFallbackCalls: 0,
+      localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
+    };
 
     const concurrency = 5;
     const results: any[] = new Array(rowsIn.length);
@@ -5113,6 +5174,7 @@ export async function POST(req: Request) {
     }
 
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    await Promise.allSettled(runState.localFirstAliasShadow.shadowTasks);
 
     let resultPath: string | null = null;
 
