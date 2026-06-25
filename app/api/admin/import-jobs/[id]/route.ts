@@ -46,11 +46,9 @@ export async function GET(req: Request, ctx: any) {
           processedStops: true,
           errorMessage: true,
           createdAt: true,
+          updatedAt: true,
           finishedAt: true,
-          resultPath: true,
-          resultJson: true,
           resultSavedAt: true,
-          user: { select: { name: true, email: true, role: true } },
         }
       : {
           id: true,
@@ -74,22 +72,27 @@ export async function GET(req: Request, ctx: any) {
     return NextResponse.json({ job });
   }
 
-  let resultPayload = job.resultJson;
+  const fullJob = job as typeof job & {
+    resultPath: string | null;
+    resultJson: unknown;
+  };
 
-  if (job.resultPath && isManagedJobResultPath(job.resultPath)) {
+  let resultPayload = fullJob.resultJson;
+
+  if (fullJob.resultPath && isManagedJobResultPath(fullJob.resultPath)) {
     try {
-      resultPayload = await loadJobResult(job.resultPath);
+      resultPayload = await loadJobResult(fullJob.resultPath);
     } catch (error) {
       console.error("Failed to load admin job result file:", error);
 
-      if (!job.resultJson) {
+      if (!fullJob.resultJson) {
         return NextResponse.json(
           { error: "Failed to load stored result file" },
           { status: 500 },
         );
       }
     }
-  } else if (job.resultPath) {
+  } else if (fullJob.resultPath) {
     console.warn("Admin job result path ignored as invalid/legacy:", job.id);
   }
 

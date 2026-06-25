@@ -139,12 +139,10 @@ export async function GET(
             status: true,
             totalStops: true,
             processedStops: true,
-            resultPath: true,
-            resultJson: true,
-            workspaceJson: true,
             resultSavedAt: true,
             createdAt: true,
             updatedAt: true,
+            finishedAt: true,
             errorMessage: true,
           }
         : {
@@ -171,16 +169,22 @@ export async function GET(
       return NextResponse.json({ ok: true, job });
     }
 
-    let storedResultJson = job.resultJson;
+    const fullJob = job as typeof job & {
+      resultPath: string | null;
+      resultJson: unknown;
+      workspaceJson: unknown;
+    };
 
-    if (job.resultPath && isManagedJobResultPath(job.resultPath)) {
+    let storedResultJson = fullJob.resultJson;
+
+    if (fullJob.resultPath && isManagedJobResultPath(fullJob.resultPath)) {
       try {
-        storedResultJson = await loadJobResult(job.resultPath);
+        storedResultJson = await loadJobResult(fullJob.resultPath);
       } catch (error) {
         console.error("Erro ao carregar arquivo do job:", error);
-        storedResultJson = job.resultJson;
+        storedResultJson = fullJob.resultJson;
       }
-    } else if (job.resultPath) {
+    } else if (fullJob.resultPath) {
       console.warn("Job result path ignorado por ser inválido/legado:", job.id);
     }
 
@@ -191,7 +195,7 @@ export async function GET(
       normalized = buildEmptyResultEnvelope();
     }
 
-    const workspace = normalizeWorkspaceJson(job.workspaceJson, storedResultJson);
+    const workspace = normalizeWorkspaceJson(fullJob.workspaceJson, storedResultJson);
 
     return NextResponse.json({
       ok: true,
