@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
-const WHATSAPP_SUPPORT_URL = "https://wa.me/5562963441134";
+const WHATSAPP_SUPPORT_URL = "https://wa.me/5562996344134";
 
 const highlights = [
   "Importação assistida de planilhas",
