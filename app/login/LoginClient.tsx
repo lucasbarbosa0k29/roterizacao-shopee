@@ -4,12 +4,23 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
+import { WHATSAPP_SUPPORT_URL } from "../lib/whatsapp-support";
 
 const highlights = [
   "Importação assistida de planilhas",
   "Conferência visual por mapa",
   "Exportação final para o Circuit",
 ];
+
+function WhatsAppIcon() {
+  return (
+    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dcf8d7] text-[#147d4f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="currentColor">
+        <path d="M19.05 4.93A9.92 9.92 0 0 0 12.01 2C6.49 2 2 6.49 2 12.01c0 1.76.46 3.48 1.33 4.99L2 22l5.15-1.29a10 10 0 0 0 4.86 1.25h.01c5.52 0 10.01-4.49 10.01-10.01 0-2.68-1.04-5.2-2.98-7.02Zm-7.04 15.39h-.01a8.3 8.3 0 0 1-4.24-1.16l-.3-.17-3.06.77.82-2.98-.2-.31a8.3 8.3 0 0 1-1.28-4.44c0-4.57 3.72-8.29 8.3-8.29 2.21 0 4.29.86 5.85 2.43a8.22 8.22 0 0 1 2.43 5.86c0 4.57-3.72 8.29-8.31 8.29Zm4.55-6.19c-.25-.12-1.47-.73-1.7-.82-.23-.08-.39-.12-.56.12-.17.25-.66.82-.81.98-.15.17-.3.19-.56.06a6.63 6.63 0 0 1-1.96-1.2 7.38 7.38 0 0 1-1.36-1.69c-.14-.25-.01-.38.11-.5.11-.11.25-.3.38-.45.12-.15.17-.25.26-.42.08-.17.04-.32-.02-.45-.06-.12-.56-1.35-.77-1.85-.2-.49-.4-.42-.56-.43h-.48c-.16 0-.42.06-.64.3-.22.25-.85.84-.85 2.05 0 1.2.87 2.36.99 2.52.12.17 1.72 2.62 4.17 3.67.58.25 1.03.4 1.38.52.58.18 1.1.15 1.52.09.46-.07 1.47-.6 1.67-1.18.21-.59.21-1.09.15-1.18-.06-.1-.23-.17-.48-.3Z" />
+      </svg>
+    </span>
+  );
+}
 
 export default function LoginClient() {
   const router = useRouter();
@@ -111,6 +122,20 @@ export default function LoginClient() {
                 {loading ? "Entrando..." : "Entrar"}
               </button>
             </form>
+
+            <a
+              href={WHATSAPP_SUPPORT_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left"
+            >
+              <WhatsAppIcon />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900">
+                  Precisa de ajuda para criar sua conta? Entre em contato pelo WhatsApp.
+                </div>
+              </div>
+            </a>
           </div>
         </div>
       </div>
@@ -222,6 +247,20 @@ export default function LoginClient() {
                     {loading ? "Entrando..." : "Entrar"}
                   </button>
                 </form>
+
+                <a
+                  href={WHATSAPP_SUPPORT_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left"
+                >
+                  <WhatsAppIcon />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      Precisa de ajuda para criar sua conta? Entre em contato pelo WhatsApp.
+                    </div>
+                  </div>
+                </a>
 
                 <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-xs leading-6 text-slate-500">
                   Acesso seguro ao painel operacional da sua roteirização.
