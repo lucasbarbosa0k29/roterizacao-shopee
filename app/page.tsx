@@ -168,6 +168,7 @@ type AccessSnapshot = {
   subscriptionCycleRemaining: number;
   subscriptionCycleAccrued: number;
   routeCreditsBalance: number;
+  canUseApp?: boolean;
   canStartRoute: boolean;
   allowanceSource: "ADMIN" | "FREE" | "SUBSCRIPTION_DAILY" | "EXTRA_CREDIT" | "NONE";
   dailyRouteLimit: number | null;
@@ -923,9 +924,10 @@ const jobId = searchParams.get("job");
    !!access &&
    access.code !== "ACCESS_BLOCKED" &&
    (access.isAdmin ||
-     access.canStartRoute ||
-     hasHistoryJob === true ||
-    hasPendingRoute === true);
+      access.canUseApp === true ||
+      access.canStartRoute ||
+      hasHistoryJob === true ||
+     hasPendingRoute === true);
 useEffect(() => {
   if (typeof window === "undefined") return;
   setPendingRouteDismissedJobId(readPendingRouteDismissedJobId());
@@ -4008,6 +4010,7 @@ useEffect(() => {
     if (
       access?.code === "ACCESS_BLOCKED" ||
       (access &&
+        access.canUseApp !== true &&
         !access.canStartRoute &&
         hasHistoryJob === false &&
         hasPendingRoute === false)
@@ -4061,6 +4064,7 @@ useEffect(() => {
       !jobId &&
       (access?.code === "ACCESS_BLOCKED" ||
         (access &&
+          access.canUseApp !== true &&
           !access.canStartRoute &&
           hasHistoryJob === false &&
           hasPendingRoute === false))

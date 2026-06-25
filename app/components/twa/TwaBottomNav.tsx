@@ -7,9 +7,11 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 type AccessSnapshot = {
+  isAdmin?: boolean;
   activeSubscription: null | {
     code: "FREE" | "BASIC" | "PRO";
   };
+  canUseApp?: boolean;
   canStartRoute: boolean;
   code: "OK" | "ACCESS_BLOCKED" | "NO_ACTIVE_SUBSCRIPTION" | "NO_ROUTE_CREDITS";
 };
@@ -164,7 +166,10 @@ export function TwaBottomNav({ pathname, isJobRoute }: TwaBottomNavProps) {
   }, [isAuthed]);
 
   const canUseExistingSystem = useMemo(
-    () => access?.canStartRoute === true || access?.activeSubscription != null,
+    () =>
+      access?.isAdmin === true ||
+      access?.canUseApp === true ||
+      access?.activeSubscription != null,
     [access]
   );
   const disableNonPlanTabs = isAuthed && !canUseExistingSystem;

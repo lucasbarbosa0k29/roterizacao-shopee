@@ -11,6 +11,7 @@ type AccessCode =
   | "NO_ROUTE_CREDITS";
 
 type AccessControlDb = Prisma.TransactionClient | typeof prisma;
+const WORKSPACE_ACCESS_HOURS = 24;
 
 export type UserAccessSnapshot = {
   userId: string;
@@ -36,6 +37,13 @@ export type UserAccessSnapshot = {
   subscriptionCycleRemaining: number;
   subscriptionCycleAccrued: number;
   routeCreditsBalance: number;
+  canUseApp: boolean;
+  activeWorkspaceAccess: null | {
+    id: string;
+    status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+    resultSavedAt: string | null;
+    updatedAt: string;
+  };
   canStartRoute: boolean;
   allowanceSource: AllowanceSource;
   dailyRouteLimit: number | null;
@@ -208,6 +216,44 @@ async function getActiveSubscription(userId: string) {
   return getActiveSubscriptionFromDb(prisma, userId);
 }
 
+async function getActiveWorkspaceAccessFromDb(db: AccessControlDb, userId: string) {
+  const cutoff = new Date(Date.now() - WORKSPACE_ACCESS_HOURS * 60 * 60 * 1000);
+
+  return db.importJob.findFirst({
+    where: {
+      userId,
+      OR: [
+        {
+          status: { in: ["PENDING", "PROCESSING"] },
+          updatedAt: { gte: cutoff },
+        },
+        {
+          status: "DONE",
+          resultSavedAt: { gte: cutoff },
+        },
+      ],
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      status: true,
+      resultSavedAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+function serializeActiveWorkspaceAccess(
+  job: NonNullable<Awaited<ReturnType<typeof getActiveWorkspaceAccessFromDb>>>
+) {
+  return {
+    id: job.id,
+    status: job.status,
+    resultSavedAt: job.resultSavedAt?.toISOString() ?? null,
+    updatedAt: job.updatedAt.toISOString(),
+  };
+}
+
 function serializeActiveSubscription(activeSubscription: NonNullable<Awaited<ReturnType<typeof getActiveSubscription>>>) {
   return {
     id: activeSubscription.id,
@@ -256,6 +302,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: 0,
       subscriptionCycleAccrued: 0,
       routeCreditsBalance: await getRouteCreditBalance(user.id),
+      canUseApp: true,
+      activeWorkspaceAccess: null,
       canStartRoute: true,
       allowanceSource: "ADMIN",
       dailyRouteLimit: null,
@@ -266,13 +314,28 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
   }
 
   const usageDayKey = getSaoPauloDayKey();
-  const [activeSubscription, todayRouteUsage, routeCreditsBalance, dailySubscriptionUsage] =
+  const [
+    activeSubscription,
+    todayRouteUsage,
+    routeCreditsBalance,
+    dailySubscriptionUsage,
+    activeWorkspaceAccess,
+  ] =
     await Promise.all([
       getActiveSubscription(user.id),
       getTodayRouteUsage(user.id),
       getRouteCreditBalance(user.id),
       getDailySubscriptionUsageFromDb(prisma, user.id, usageDayKey),
+      getActiveWorkspaceAccessFromDb(prisma, user.id),
     ]);
+  const serializedWorkspaceAccess = activeWorkspaceAccess
+    ? serializeActiveWorkspaceAccess(activeWorkspaceAccess)
+    : null;
+  const hasActiveSubscription = !!activeSubscription;
+  const hasRouteCredit = routeCreditsBalance > 0;
+  const canUseApp =
+    !isBlocked &&
+    (hasActiveSubscription || hasRouteCredit || !!serializedWorkspaceAccess);
   const subscriptionCycle = activeSubscription
     ? await getSubscriptionCycleAllowanceFromDb(prisma, activeSubscription)
     : {
@@ -309,6 +372,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
       subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
+      canUseApp: false,
+      activeWorkspaceAccess: serializedWorkspaceAccess,
       canStartRoute: false,
       allowanceSource: "NONE",
       dailyRouteLimit: activeSubscription?.plan.dailyRouteLimit ?? null,
@@ -333,6 +398,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: 0,
       subscriptionCycleAccrued: 0,
       routeCreditsBalance,
+      canUseApp,
+      activeWorkspaceAccess: serializedWorkspaceAccess,
       canStartRoute: false,
       allowanceSource: "NONE",
       dailyRouteLimit: null,
@@ -357,6 +424,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: 0,
       subscriptionCycleAccrued: 0,
       routeCreditsBalance,
+      canUseApp: true,
+      activeWorkspaceAccess: serializedWorkspaceAccess,
       canStartRoute: true,
       allowanceSource: "EXTRA_CREDIT",
       dailyRouteLimit: null,
@@ -389,6 +458,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
       subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
+      canUseApp: true,
+      activeWorkspaceAccess: serializedWorkspaceAccess,
       canStartRoute: true,
       allowanceSource: isFree ? "FREE" : "SUBSCRIPTION_DAILY",
       dailyRouteLimit: isFree ? null : subscription.plan.dailyRouteLimit,
@@ -413,6 +484,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
       subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
       routeCreditsBalance,
+      canUseApp: true,
+      activeWorkspaceAccess: serializedWorkspaceAccess,
       canStartRoute: true,
       allowanceSource: "EXTRA_CREDIT",
       dailyRouteLimit: subscription.plan.dailyRouteLimit,
@@ -436,6 +509,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
     subscriptionCycleRemaining: subscriptionCycle.cycleRemaining,
     subscriptionCycleAccrued: subscriptionCycle.cycleAccrued,
     routeCreditsBalance,
+    canUseApp: true,
+    activeWorkspaceAccess: serializedWorkspaceAccess,
     canStartRoute: false,
     allowanceSource: "NONE",
     dailyRouteLimit: subscription.plan.dailyRouteLimit,
