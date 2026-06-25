@@ -6,12 +6,41 @@ import {
 import { prisma } from "@/app/lib/prisma";
 
 const HERE_DISCOVER_SERVICE = "HERE_DISCOVER";
-const RESERVE_RETRIES = 4;
+const RESERVE_RETRIES = 5;
+const RESERVE_RETRY_BACKOFF_MS = [100, 250, 500, 1000];
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
+let discoverReserveQueue: Promise<void> = Promise.resolve();
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function enqueueDiscoverReserve<T>(operation: () => Promise<T>): Promise<T> {
+  console.info("[DISCOVER_RESERVE_QUEUED]");
+
+  const run = discoverReserveQueue.catch(() => {}).then(async () => {
+    console.info("[DISCOVER_RESERVE_START]");
+
+    try {
+      const result = await operation();
+      console.info("[DISCOVER_RESERVE_SUCCESS]", result);
+      return result;
+    } catch (error: any) {
+      console.warn("[DISCOVER_RESERVE_FAILED]", {
+        code: error?.code,
+        message: error?.message || String(error),
+      });
+      throw error;
+    }
+  });
+
+  discoverReserveQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return run;
 }
 
 export type DiscoverBudgetDecision = {
@@ -300,6 +329,12 @@ export async function getDiscoverBudgetDecision(
 export async function reserveDiscoverUsage(
   now = new Date(),
 ): Promise<DiscoverBudgetDecision> {
+  return enqueueDiscoverReserve(() => reserveDiscoverUsageLocked(now));
+}
+
+async function reserveDiscoverUsageLocked(
+  now = new Date(),
+): Promise<DiscoverBudgetDecision> {
   const monthKey = getCurrentMonthKey(now);
   const dayKey = getCurrentDayKey(now);
   const monthlyBootstrap = getEnvInt("HERE_DISCOVER_CURRENT_USAGE", 0);
@@ -392,7 +427,22 @@ export async function reserveDiscoverUsage(
       );
     } catch (error: any) {
       if (error?.code === "P2034" && attempt + 1 < RESERVE_RETRIES) {
-        await sleep(25 * (attempt + 1) + Math.floor(Math.random() * 25));
+        const baseDelay =
+          RESERVE_RETRY_BACKOFF_MS[attempt] ??
+          RESERVE_RETRY_BACKOFF_MS[RESERVE_RETRY_BACKOFF_MS.length - 1] ??
+          1000;
+        const jitter = Math.floor(Math.random() * Math.max(100, Math.floor(baseDelay / 2)));
+        const delayMs = baseDelay + jitter;
+
+        console.warn("[DISCOVER_RESERVE_RETRY]", {
+          attempt: attempt + 1,
+          nextAttempt: attempt + 2,
+          delayMs,
+          code: error.code,
+          message: error?.message || String(error),
+        });
+
+        await sleep(delayMs);
         continue;
       }
 
