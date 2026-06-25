@@ -77,6 +77,8 @@ const BAIRRO_PREFIXES = [
   "VILLAGE",
 ];
 
+const GOIANIA_JARDINS_CERRADO_NUMBERS = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]);
+
 function normalizeText(value: string | null | undefined) {
   if (!value) return "";
   return String(value)
@@ -88,6 +90,10 @@ function normalizeText(value: string | null | undefined) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeStreetComparable(value: string | null | undefined) {
+  return normalizeText(value).replace(/^(R|RUA|AV|AVENIDA)\s+/, "");
+}
+
 function pushUnique(values: string[], value: string) {
   const normalized = normalizeText(value);
   if (!normalized || values.some((existing) => normalizeText(existing) === normalized)) {
@@ -96,7 +102,62 @@ function pushUnique(values: string[], value: string) {
   values.push(value.trim());
 }
 
-function buildBairroVariants(bairro: string) {
+function normalizeCerradoNumber(value: string) {
+  if (!/^\d+$/.test(value)) return value;
+  return String(Number(value));
+}
+
+function splitLettersAndNumbers(value: string) {
+  return normalizeText(value).replace(/([A-Z])([0-9])/g, "$1 $2");
+}
+
+function isGenericCerradoBairro(bairro: string) {
+  const normalized = splitLettersAndNumbers(bairro);
+  return /^CERRADO\s+\d+$/.test(normalized);
+}
+
+function isWeakStreetInput(rua: string) {
+  const normalized = normalizeText(rua);
+  return normalized === "R" || normalized === "RUA";
+}
+
+function loteLooksLikeBuildingToken(lote: string) {
+  const normalized = normalizeText(lote).replace(/\s+/g, "");
+  if (!normalized) return false;
+  if (/AP|APT|APTO|BL|BLC|BLOCO|COND|CASA|CS|SOB|LOTE/.test(normalized)) return true;
+  return /^\d+[A-Z]{2,}/.test(normalized) || /^[A-Z]\d+[A-Z]{2,}/.test(normalized);
+}
+
+function buildGoianiaJardinsCerradoBairroVariants(bairro: string) {
+  const variants: string[] = [];
+  const normalized = splitLettersAndNumbers(bairro)
+    .replace(/\bJD\b/g, "JARDIM")
+    .replace(/\bRESID\b/g, "RESIDENCIAL")
+    .replace(/\bRES\b/g, "RESIDENCIAL")
+    .replace(/\bJARDIM\b/g, "JARDINS")
+    .replace(/\bCERRADO\s*0+(\d+)\b/g, "CERRADO $1")
+    .trim();
+
+  if (!/\bCERRADO\b/.test(normalized)) return variants;
+
+  const match = normalized.match(/\bCERRADO\s+(\d+)\b/);
+  if (!match) return variants;
+
+  const number = normalizeCerradoNumber(match[1]);
+  if (!GOIANIA_JARDINS_CERRADO_NUMBERS.has(number)) return variants;
+
+  const hasJardinsSignal =
+    /\bJARDINS?\b/.test(normalized) ||
+    /\bRESIDENCIAL\b/.test(normalized) ||
+    /^CERRADO\s+\d+$/.test(normalized);
+
+  if (!hasJardinsSignal) return variants;
+
+  pushUnique(variants, `Jardins do Cerrado ${number}`);
+  return variants;
+}
+
+function buildBairroVariants(bairro: string, city: LocalFirstValidationCity) {
   const variants: string[] = [];
   const normalized = normalizeText(bairro);
   pushUnique(variants, bairro);
@@ -106,7 +167,35 @@ function buildBairroVariants(bairro: string) {
     pushUnique(variants, normalized.slice(prefix.length + 1));
   }
 
+  if (city === "GOIANIA") {
+    for (const variant of buildGoianiaJardinsCerradoBairroVariants(bairro)) {
+      pushUnique(variants, variant);
+    }
+  }
+
   return variants;
+}
+
+function buildGoianiaJcStreetVariants(rua: string) {
+  const variants: string[] = [];
+  const normalized = normalizeText(rua);
+  const match = normalized.match(/^(?:(RUA|R)\s*)?JC\s*0*([0-9]{3})([A-Z]?)$/);
+  if (!match) return variants;
+
+  const [, streetType, number, suffix] = match;
+  const code = `JC-${number}${suffix || ""}`;
+  if (streetType === "R") {
+    pushUnique(variants, `R ${code}`);
+  } else {
+    pushUnique(variants, `Rua ${code}`);
+  }
+  pushUnique(variants, `R ${code}`);
+  pushUnique(variants, `Rua ${code}`);
+  return variants;
+}
+
+function isJcStreetVariant(value: string) {
+  return /\bJC\s*-?\s*[0-9]{3}[A-Z]?\b/i.test(value);
 }
 
 function buildRuaVariants(rua: string) {
@@ -128,6 +217,10 @@ function buildRuaVariants(rua: string) {
 
   if (normalized.startsWith("R ")) {
     pushUnique(variants, `RUA ${normalized.slice(2)}`);
+  }
+
+  for (const variant of buildGoianiaJcStreetVariants(rua)) {
+    pushUnique(variants, variant);
   }
 
   return variants;
@@ -241,11 +334,36 @@ export function buildLocalFirstAliasCandidatePack(
     return emptyPack(input, "MISSING_REQUIRED_INPUT");
   }
 
+  if (isWeakStreetInput(rua)) {
+    return emptyPack(input, "PACK_WEAK", {
+      riskFlags: ["PARSER_STREET_WEAK"],
+    });
+  }
+
+  if (loteLooksLikeBuildingToken(lote)) {
+    return emptyPack(input, "PACK_WEAK", {
+      riskFlags: ["LOTE_HAS_BUILDING_TOKEN"],
+    });
+  }
+
   diagnostics.signals.push("QD_LT_PRESENT");
   if (input.failureReason) diagnostics.signals.push(`FAILURE_${normalizeText(input.failureReason)}`);
 
-  const bairroVariants = buildBairroVariants(bairro);
+  const bairroVariants = buildBairroVariants(bairro, input.city);
   const ruaVariants = buildRuaVariants(rua);
+  const sourceIsGenericCerradoBairro = input.city === "GOIANIA" && isGenericCerradoBairro(bairro);
+
+  if (sourceIsGenericCerradoBairro) {
+    diagnostics.riskFlags.push("GENERIC_CERRADO_BAIRRO");
+  }
+  if (bairroVariants.some((variant) => normalizeText(variant).startsWith("JARDINS DO CERRADO "))) {
+    diagnostics.signals.push("GOIANIA_JARDINS_CERRADO_VARIANT");
+  }
+  if (ruaVariants.some(isJcStreetVariant)) {
+    diagnostics.signals.push("JC_STREET_HYPHEN_VARIANT");
+    diagnostics.signals.push("JC_STREET_CODE_NORMALIZED");
+  }
+
   const bairroCandidates: LocalFirstAliasCandidate[] = [];
   const ruaCandidates: LocalFirstAliasCandidate[] = [];
   const candidatePairs: LocalFirstAliasCandidatePair[] = [];
@@ -277,11 +395,36 @@ export function buildLocalFirstAliasCandidatePack(
       if (result.validationStatus === "NEEDS_REVIEW") pairRiskFlags.push("NEEDS_REVIEW");
       if (!result.candidateUnique) pairRiskFlags.push("MULTIPLE_QD_LT_CANDIDATES");
       if (result.streetMatchType !== "STREET_MATCH") pairRiskFlags.push("STREET_NOT_STRONG");
+      if (
+        result.candidate?.streetLabel &&
+        normalizeStreetComparable(result.candidate.streetLabel) !==
+          normalizeStreetComparable(ruaVariant)
+      ) {
+        pairRiskFlags.push("LOCAL_STREET_DIFFERS_FROM_INPUT");
+      }
+      if (sourceIsGenericCerradoBairro) {
+        pairRiskFlags.push("GENERIC_CERRADO_BAIRRO");
+        pairRiskFlags.push("CERRADO_VARIANT_WEAK");
+      }
       if (normalizeText(bairroVariant) !== normalizeText(bairro)) {
         pairSignals.push("BAIRRO_TEXT_VARIANT");
+        if (normalizeText(bairroVariant).startsWith("JARDINS DO CERRADO ")) {
+          pairSignals.push("GOIANIA_JARDINS_CERRADO_VARIANT");
+          pairSignals.push("CERRADO_CANONICAL_BAIRRO");
+        }
+        if (/\b0+[0-9]\b/.test(normalizeText(bairro)) || /[A-Z][0-9]/.test(normalizeText(bairro))) {
+          pairSignals.push("BAIRRO_NUMBER_NORMALIZED");
+        }
+        if (BAIRRO_PREFIXES.some((prefix) => normalizeText(bairro).startsWith(`${prefix} `))) {
+          pairSignals.push("BAIRRO_PREFIX_REMOVED");
+        }
       }
       if (normalizeText(ruaVariant) !== normalizeText(rua)) {
         pairSignals.push("RUA_TEXT_VARIANT");
+        if (isJcStreetVariant(ruaVariant)) {
+          pairSignals.push("JC_STREET_HYPHEN_VARIANT");
+          pairSignals.push("JC_STREET_CODE_NORMALIZED");
+        }
       }
 
       const bairroCandidate = mergeCandidate(
@@ -349,6 +492,14 @@ export function buildLocalFirstAliasCandidatePack(
 
   if (equivalentTopPairs.length > 1) {
     diagnostics.riskFlags.push("MULTIPLE_SIMILAR_PAIRS");
+    const cerradoTopBairros = new Set(
+      equivalentTopPairs
+        .map((pair) => normalizeText(pair.bairroName))
+        .filter((name) => name.startsWith("JARDINS DO CERRADO ")),
+    );
+    if (cerradoTopBairros.size > 1) {
+      diagnostics.riskFlags.push("MULTIPLE_CERRADO_PARTITIONS");
+    }
   }
 
   const hasValidatedStrongPair =
