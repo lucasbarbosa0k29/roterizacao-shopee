@@ -918,6 +918,8 @@ function HomeInner() {
   const isApplyingRemoteWorkspaceRef = useRef(false);
   const [notesEditorIdx, setNotesEditorIdx] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
+  const [jobBootstrapLoading, setJobBootstrapLoading] = useState(false);
+  const [jobBootstrapError, setJobBootstrapError] = useState<string | null>(null);
 const searchParams = useSearchParams();
 const jobId = searchParams.get("job");
  const canUseExistingSystem =
@@ -1077,55 +1079,48 @@ useEffect(() => {
   const shouldShowPendingRouteBanner =
     !!pendingRouteJob && !jobId && canUseExistingSystem && !isPendingRouteDismissed;
 useEffect(() => {
-  /*
+  if (!jobId) {
+    setJobBootstrapLoading(false);
+    setJobBootstrapError(null);
+    return;
+  }
+
+  let alive = true;
+  setJobBootstrapLoading(true);
+  setJobBootstrapError(null);
 
   (async () => {
     try {
-      const res = await fetch(`/api/history/${encodeURIComponent(jobId)}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const job = await fetchHistoryJob(jobId, "full");
+      if (!alive) return;
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data?.error || "Erro ao abrir histórico.");
-        return;
-      }
-
-      const job = data?.job;
-      const resultPayload = job?.resultJson;
-      const workspacePayload = job?.workspaceJson ?? resultPayload;
-
-      // aceita: array direto OU objeto { rows, ... }
-      const loadedRows = Array.isArray(resultPayload) ? resultPayload : resultPayload?.rows;
-
-      if (!Array.isArray(loadedRows) || loadedRows.length === 0) {
-        alert("Histórico sem rows salvos (resultJson vazio).");
-        return;
-      }
-
+      setHistoryId(job.id);
+      writePendingRouteJobId(job.id);
       setFile(null);
-      setRows(loadedRows);
+      setHistoryName(job?.originalName || "Planilha");
 
-// ✅ restaura estados salvos do histórico (payload envelope)
-      const p = workspacePayload && typeof workspacePayload === "object" ? workspacePayload : null;
+      if (!applyJobProgress(job)) {
+        return;
+      }
 
-      applyWorkspaceSnapshot(p, {
-        preserveEphemeral: false,
-        nextName: job?.originalName || "Planilha",
-      });
-
-// ✅ restaura view corretamente
-
-// ✅ restaura nome salvo
-
-setHistoryId(job.id);
+      if (!hydrateDoneJob(job)) {
+        const message = "Histórico sem rows salvos (resultJson vazio).";
+        setJobBootstrapError(message);
+        console.error(message);
+      }
     } catch (e) {
+      if (!alive) return;
+      const message = e instanceof Error ? e.message : "Erro ao abrir histórico.";
+      setJobBootstrapError(message);
       console.error(e);
-      alert("Erro ao abrir histórico.");
+    } finally {
+      if (alive) setJobBootstrapLoading(false);
     }
   })();
-  */
+
+  return () => {
+    alive = false;
+  };
 }, [jobId]);
   // grupos manuais
   const [manualGroups, setManualGroups] = useState<Record<string, number[]>>({});
@@ -4030,6 +4025,28 @@ useEffect(() => {
 
     // ===== UI =====
     if (!mounted) return null;
+    if (jobId && jobBootstrapLoading) {
+      return (
+        <main className="min-h-screen bg-[#f4f7f6]">
+          <div className="mx-auto flex min-h-screen w-full max-w-[480px] flex-col justify-center px-4">
+            <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#1f5a6b]">
+                Roteirização
+              </div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                Carregando resultado...
+              </div>
+              <div className="mt-1 text-sm text-slate-600">
+                Estamos montando sua rota.
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full w-1/3 rounded-full bg-[#0f766e] motion-safe:animate-[route-indeterminate_1.25s_ease-in-out_infinite]" />
+              </div>
+            </div>
+          </div>
+        </main>
+      );
+    }
     if (
       accessLoading ||
       (access &&
@@ -4082,6 +4099,13 @@ useEffect(() => {
 
     return (
       <main className="min-h-screen bg-transparent">
+        {jobBootstrapError && (
+          <div className="mx-auto w-full max-w-5xl px-4 pt-4">
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+              {jobBootstrapError}
+            </div>
+          </div>
+        )}
         {shouldShowPendingRouteBanner && pendingRouteJob && (
           <div className="mx-auto w-full max-w-5xl px-4 pt-4">
             <div className="flex flex-col gap-3 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm md:flex-row md:items-center md:justify-between">

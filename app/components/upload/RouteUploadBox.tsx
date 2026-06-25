@@ -27,6 +27,28 @@ export function RouteUploadBox({
 }: RouteUploadBoxProps) {
   const router = useRouter();
 
+  function ProcessingStatus() {
+    return (
+      <div className="mt-4 rounded-[22px] border border-[#cde3dd] bg-[#f4fbf8] px-4 py-4 text-sm text-slate-800">
+        <div className="font-semibold">Processando planilha...</div>
+        <div className="mt-1 text-slate-600">Estamos montando sua rota.</div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+          <div className="relative h-full w-full overflow-hidden rounded-full bg-[#cde3dd]">
+            <div className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-[#0f766e] motion-safe:animate-[route-indeterminate_1.25s_ease-in-out_infinite]" />
+          </div>
+        </div>
+        {jobProgress?.status && (
+          <div className="mt-3 text-xs text-slate-500">
+            {jobProgress.status === "PENDING" ? "Importa??o iniciada" : "Processamento em andamento"}
+          </div>
+        )}
+        {jobProgress?.errorMessage && (
+          <div className="mt-2 text-red-700">Erro: {jobProgress.errorMessage}</div>
+        )}
+      </div>
+    );
+  }
+
   if (variant === "web") {
     return (
       <form onSubmit={handleSubmit} className="w-full">

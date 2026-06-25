@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -295,7 +295,16 @@ export function TwaAccountSheet({ open, onClose, displayName }: TwaAccountSheetP
                 <>
                   <section className="border-b border-slate-200 pb-1.5">
                     <p className="text-[12px] leading-4 text-slate-700">
-                      Plano ativo até <span className="font-semibold text-[#0f6b66]">{expiresLabel}</span>
+                      {access?.activeSubscription ? (
+                        <>
+                          Plano ativo até{" "}
+                          <span className="font-semibold text-[#0f6b66]">{expiresLabel}</span>
+                        </>
+                      ) : (
+                        <>
+                          Plano ativo: <span className="font-semibold text-[#0f6b66]">Sem plano</span>
+                        </>
+                      )}
                     </p>
                   </section>
 

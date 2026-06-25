@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +15,11 @@ type AccessSnapshot = {
   isBlocked: boolean;
   blockReason: string | null;
   message: string | null;
+  activeSubscription: null | {
+    code: "FREE" | "BASIC" | "PRO";
+    expiresAt: string | null;
+    status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  };
 };
 
 type RecentJob = DbHistoryListItem & {
@@ -103,6 +108,11 @@ export function HomeTwaMobile() {
       access.code === "ACCESS_BLOCKED" ||
       access.code === "NO_ROUTE_CREDITS" ||
       access.canStartRoute === false);
+  const hasActiveSubscription = Boolean(
+    access?.activeSubscription && access.activeSubscription.code !== "FREE"
+  );
+  const dailyLimitReached =
+    hasActiveSubscription && access?.code === "NO_ROUTE_CREDITS" && access?.canStartRoute === false;
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -132,6 +142,7 @@ export function HomeTwaMobile() {
           isBlocked: Boolean(data.isBlocked),
           blockReason: data.blockReason ?? null,
           message: data.message ?? null,
+          activeSubscription: data.activeSubscription ?? null,
         });
       } catch {
         if (alive) {
@@ -208,11 +219,15 @@ export function HomeTwaMobile() {
 
         {showSubscriptionAlert ? (
           <section className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950 shadow-sm">
-            <h2 className="text-sm font-semibold">Assinatura necessária</h2>
+            <h2 className="text-sm font-semibold">
+              {dailyLimitReached ? "Limite diário atingido" : "Assinatura necessária"}
+            </h2>
             <p className="mt-1 text-sm leading-5 text-amber-900">
-              Ative um plano para continuar processando planilhas.
+              {dailyLimitReached
+                ? "Você utilizou todas as rotas disponíveis do seu plano hoje. Adquira uma rota avulsa para continuar processando planilhas imediatamente ou aguarde a renovação da sua cota diária."
+                : "Ative um plano para continuar processando planilhas."}
             </p>
-            {access.blockReason || access.message ? (
+            {!dailyLimitReached && (access.blockReason || access.message) ? (
               <p className="mt-2 text-xs leading-5 text-amber-800">
                 {access.blockReason || access.message}
               </p>
@@ -221,7 +236,7 @@ export function HomeTwaMobile() {
               href="/planos"
               className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-[#17313b] px-4 text-sm font-semibold text-white shadow-sm transition active:scale-[0.99]"
             >
-              Ver planos
+              {dailyLimitReached ? "Comprar rota avulsa" : "Ver planos"}
             </Link>
           </section>
         ) : null}
