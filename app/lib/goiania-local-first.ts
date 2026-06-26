@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import {
   compareGoianiaStreet,
+  normalizeGoianiaStreetName,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
 import { logMemory } from "@/app/lib/memory-observability";
@@ -73,6 +74,7 @@ export type GoianiaLocalFirstShadow = {
   rankingV21BairroPenalty?: number | null;
   rankingV21SelectedBecauseBairro?: boolean;
   rankingV21BlockedBecauseBairroConflict?: boolean;
+  rankingV2PartitionScan?: RankingV2PartitionScanDiagnostics;
   candidate: {
     bairro: string;
     quadra: string;
@@ -100,6 +102,19 @@ type Partition = {
   index?: Record<string, LocalFirstCandidate[]>;
 };
 
+type StreetToPartitionsIndex = {
+  streets?: Record<string, string[]>;
+};
+
+type RankingV2PartitionScanDiagnostics = {
+  mode: "bairro" | "bairro_street_intersection" | "street" | "wide" | "none";
+  scannedPartitions: number;
+  bairroCandidatesCount: number;
+  streetCandidatesCount: number;
+  intersectionCount: number;
+  limited: boolean;
+};
+
 type RankingV2Candidate = {
   partitionKey: string;
   key: string;
@@ -114,6 +129,7 @@ type RankingV2Candidate = {
 const PARTITION_DIR = process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR
   ? path.resolve(process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR)
   : path.join(process.cwd(), "app", "data", "goiania_local_first_by_bairro_v4");
+const STREET_TO_PARTITIONS_PATH = path.join(process.cwd(), "app", "data", "goiania-street-to-partitions.json");
 const partitionCache = new Map<string, Partition | null>();
 const PARTITION_CACHE_MAX_ENTRIES = 40;
 const GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP = readPositiveIntegerEnv(
@@ -121,6 +137,7 @@ const GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP = readPositiveIntegerEnv(
   80,
 );
 const allPartitionKeysCache: { value?: string[] } = {};
+const streetToPartitionsCache: { value?: StreetToPartitionsIndex } = {};
 const BAIRRO_PREFIXES = [
   "CONJUNTO",
   "RESIDENCIAL",
@@ -137,6 +154,19 @@ function getAllPartitionKeysCount() {
   return Array.isArray(allPartitionKeysCache.value)
     ? (allPartitionKeysCache.value as string[]).length
     : 0;
+}
+
+function loadStreetToPartitionsIndex() {
+  if (streetToPartitionsCache.value) return streetToPartitionsCache.value;
+  if (!fs.existsSync(STREET_TO_PARTITIONS_PATH)) {
+    streetToPartitionsCache.value = { streets: {} };
+    return streetToPartitionsCache.value;
+  }
+
+  streetToPartitionsCache.value = JSON.parse(
+    fs.readFileSync(STREET_TO_PARTITIONS_PATH, "utf8").replace(/^\uFEFF/, ""),
+  ) as StreetToPartitionsIndex;
+  return streetToPartitionsCache.value;
 }
 
 function readPositiveIntegerEnv(name: string, fallback: number) {
@@ -563,13 +593,26 @@ function buildGoianiaRankingV2CandidatePartitionKeys(inputBairroKey: string, all
   return candidates.filter((partitionKey) => allPartitionKeysSet.has(partitionKey));
 }
 
+function buildGoianiaRankingV2StreetPartitionKeys(inputStreet: string, allPartitionKeys: string[]) {
+  const streetKey = normalizeGoianiaStreetName(inputStreet);
+  if (!streetKey) return [];
+
+  const allPartitionKeysSet = new Set(allPartitionKeys);
+  const streets = loadStreetToPartitionsIndex().streets || {};
+  const candidates = Array.isArray(streets[streetKey]) ? streets[streetKey] : [];
+  return candidates.filter((partitionKey) => allPartitionKeysSet.has(partitionKey));
+}
+
 function limitGoianiaRankingV2PartitionScan(args: {
   inputBairroKey: string;
   partitionKeys: string[];
-  scanMode: "candidate" | "wide";
+  scanMode: RankingV2PartitionScanDiagnostics["mode"];
 }) {
   if (args.partitionKeys.length <= GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP) {
-    return args.partitionKeys;
+    return {
+      partitionKeys: args.partitionKeys,
+      limited: false,
+    };
   }
 
   logMemory("GOIANIA_LOCALFIRST_PARTITION_SCAN_LIMITED", {
@@ -584,29 +627,65 @@ function limitGoianiaRankingV2PartitionScan(args: {
     },
   });
 
-  return args.partitionKeys.slice(0, GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP);
+  return {
+    partitionKeys: args.partitionKeys.slice(0, GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP),
+    limited: true,
+  };
 }
 
-function buildGoianiaRankingV2PartitionKeys(inputBairroKey: string) {
+function buildGoianiaRankingV2PartitionKeys(args: {
+  inputBairroKey: string;
+  inputStreet?: string;
+}) {
   const allPartitionKeys = loadAllPartitionKeys();
   const candidatePartitionKeys = buildGoianiaRankingV2CandidatePartitionKeys(
-    inputBairroKey,
+    args.inputBairroKey,
     allPartitionKeys,
   );
-  const hasUsefulBairro = !!normalizeKey(inputBairroKey);
-  const useWideScan =
-    !hasUsefulBairro ||
-    candidatePartitionKeys.length === 0 ||
-    isGoianiaLocalFirstWideScanEnabled();
-  const partitionKeys = useWideScan
-    ? [...new Set([...candidatePartitionKeys, ...allPartitionKeys])]
-    : candidatePartitionKeys;
+  const streetPartitionKeys = buildGoianiaRankingV2StreetPartitionKeys(
+    args.inputStreet || "",
+    allPartitionKeys,
+  );
+  const hasUsefulBairro = !!normalizeKey(args.inputBairroKey);
+  const hasUsefulStreet = streetPartitionKeys.length > 0;
+  const streetPartitionSet = new Set(streetPartitionKeys);
+  const intersection = candidatePartitionKeys.filter((partitionKey) => streetPartitionSet.has(partitionKey));
+  let partitionKeys: string[] = [];
+  let scanMode: RankingV2PartitionScanDiagnostics["mode"] = "none";
 
-  return limitGoianiaRankingV2PartitionScan({
-    inputBairroKey,
+  if (hasUsefulBairro && hasUsefulStreet) {
+    partitionKeys = intersection.length ? intersection : candidatePartitionKeys;
+    scanMode = intersection.length ? "bairro_street_intersection" : "bairro";
+  } else if (hasUsefulBairro) {
+    partitionKeys = candidatePartitionKeys;
+    scanMode = "bairro";
+  } else if (hasUsefulStreet) {
+    partitionKeys = streetPartitionKeys.slice(0, 20);
+    scanMode = "street";
+  }
+
+  if (isGoianiaLocalFirstWideScanEnabled()) {
+    partitionKeys = [...new Set([...partitionKeys, ...allPartitionKeys])];
+    scanMode = "wide";
+  }
+
+  const limited = limitGoianiaRankingV2PartitionScan({
+    inputBairroKey: args.inputBairroKey,
     partitionKeys,
-    scanMode: useWideScan ? "wide" : "candidate",
+    scanMode,
   });
+
+  return {
+    partitionKeys: limited.partitionKeys,
+    diagnostics: {
+      mode: scanMode,
+      scannedPartitions: limited.partitionKeys.length,
+      bairroCandidatesCount: candidatePartitionKeys.length,
+      streetCandidatesCount: streetPartitionKeys.length,
+      intersectionCount: intersection.length,
+      limited: limited.limited,
+    },
+  };
 }
 
 function emptyRankingV2Diagnostic(args: {
@@ -625,6 +704,7 @@ function emptyRankingV2Diagnostic(args: {
   rankingV21BairroPenalty?: number | null;
   rankingV21SelectedBecauseBairro?: boolean;
   rankingV21BlockedBecauseBairroConflict?: boolean;
+  partitionScan?: RankingV2PartitionScanDiagnostics;
 }): GoianiaLocalFirstShadow {
   return {
     ...negativeShadowResult({
@@ -649,6 +729,7 @@ function emptyRankingV2Diagnostic(args: {
     rankingV21BairroPenalty: args.rankingV21BairroPenalty ?? null,
     rankingV21SelectedBecauseBairro: args.rankingV21SelectedBecauseBairro ?? false,
     rankingV21BlockedBecauseBairroConflict: args.rankingV21BlockedBecauseBairroConflict ?? false,
+    rankingV2PartitionScan: args.partitionScan,
   };
 }
 
@@ -1242,8 +1323,20 @@ function lookupGoianiaRankingV2(args: {
   }> = [];
   let sawStreetMismatch = false;
   let sawStreetUnknown = false;
+  const partitionScan = buildGoianiaRankingV2PartitionKeys({
+    inputBairroKey: args.inputBairroKey,
+    inputStreet,
+  });
 
-  for (const partitionKey of buildGoianiaRankingV2PartitionKeys(args.inputBairroKey)) {
+  if (!partitionScan.partitionKeys.length) {
+    return emptyRankingV2Diagnostic({
+      reason: "goiania_ranking_v2_no_partition_scope",
+      key: args.key,
+      partitionScan: partitionScan.diagnostics,
+    });
+  }
+
+  for (const partitionKey of partitionScan.partitionKeys) {
     const partition = loadPartition(partitionKey);
     const index = partition?.index || null;
     if (!index) continue;
@@ -1295,6 +1388,7 @@ function lookupGoianiaRankingV2(args: {
           ? "goiania_ranking_v2_no_street_match"
           : "goiania_ranking_v2_no_candidate",
       key: args.key,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1388,6 +1482,7 @@ function lookupGoianiaRankingV2(args: {
       reason: "goiania_ranking_v2_no_candidate",
       key: args.key,
       candidatesCount: scoredCandidates.length,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1405,6 +1500,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
       rankingV21BlockedBecauseBairroConflict: true,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1432,6 +1528,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroCompatible: false,
       rankingV21BairroPenalty: topScoredCandidate.bairroPenalty,
       rankingV21BlockedBecauseBairroConflict: true,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1455,6 +1552,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
       rankingV21BlockedBecauseBairroConflict: hasMultipleEvidencePartitions,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1472,6 +1570,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroPreference: hasSafeBairroCandidate,
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1489,6 +1588,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroPreference: hasSafeBairroCandidate,
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1506,6 +1606,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroPreference: hasSafeBairroCandidate,
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1523,6 +1624,7 @@ function lookupGoianiaRankingV2(args: {
       rankingV21BairroPreference: hasSafeBairroCandidate,
       rankingV21BairroCompatible: winner.bairroCompatible,
       rankingV21BairroPenalty: winner.bairroPenalty,
+      partitionScan: partitionScan.diagnostics,
     });
   }
 
@@ -1556,6 +1658,7 @@ function lookupGoianiaRankingV2(args: {
     rankingV21BairroPenalty: winner.bairroPenalty,
     rankingV21SelectedBecauseBairro: winnerSelectedBecauseBairro,
     rankingV21BlockedBecauseBairroConflict: false,
+    rankingV2PartitionScan: partitionScan.diagnostics,
     candidate: {
       bairro: String(winner.candidate.b || ""),
       quadra: String(winner.candidate.q || ""),
@@ -1594,7 +1697,26 @@ function resolveGoianiaLocalFirstCore(args: {
   const loteKey = normalizeKey(args.lote);
   const key = buildKey(args.bairro, args.quadra, args.lote);
 
-  if (!bairroKey || !quadraKey || !loteKey) {
+  if (!quadraKey || !loteKey) {
+    return negativeShadowResult({
+      matchType: "missing_parts",
+      reason: "missing_bairro_quadra_or_lote",
+      key,
+    });
+  }
+
+  if (!bairroKey) {
+    if (compact(args.rua || "")) {
+      return lookupGoianiaRankingV2({
+        inputBairroKey: "",
+        quadraKey,
+        loteKey,
+        rawLote: args.lote,
+        inputStreet: args.rua,
+        key,
+      });
+    }
+
     return negativeShadowResult({
       matchType: "missing_parts",
       reason: "missing_bairro_quadra_or_lote",
@@ -1866,6 +1988,7 @@ function mapGoianiaLocalFirstValidation(
         result.rankingV21SelectedBecauseBairro ?? false,
       rankingV21BlockedBecauseBairroConflict:
         result.rankingV21BlockedBecauseBairroConflict ?? false,
+      rankingV2PartitionScan: result.rankingV2PartitionScan ?? null,
       inputHadRua: args.inputHadRua,
       streetRequired: true,
     },
