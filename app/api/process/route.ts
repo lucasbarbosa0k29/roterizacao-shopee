@@ -96,6 +96,10 @@ type Normalized = {
   parserRule?: string | null;
   parserSource?: string | null;
   parserConfidence?: "HIGH" | "LOW" | null;
+  bairroParserCleaned?: boolean;
+  bairroParserExtractedQdLt?: boolean;
+  bairroBeforeParser?: string | null;
+  bairroAfterParser?: string | null;
 };
 
 type InputRow = {
@@ -259,6 +263,10 @@ type MemoryDebugRow = {
   urbanPatternReplacedQuery?: string | null;
   urbanPatternRealQueryIndex?: number | null;
   urbanPatternBecameBestGeocodeQuery?: boolean;
+  bairroParserCleaned?: boolean;
+  bairroParserExtractedQdLt?: boolean;
+  bairroBeforeParser?: string | null;
+  bairroAfterParser?: string | null;
 };
 
 type RankedHereEntry = {
@@ -323,14 +331,14 @@ function separateCompactQuadraLoteTokens(value: string) {
 
 function stripQuadraLoteFromStreet(q: string) {
   let t = separateCompactQuadraLoteTokens(q);
-  t = t.replace(/\b(?:QDR|QUAD)\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
+  t = t.replace(/\b(?:QDRA|QDA|QDR|QUAD)\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(/\bQ\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(/\bL\.?\s*[-:]?\s*\d+[A-Z]?\b/gi, " ");
   t = t.replace(
-    /\b(QUADRA|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
+    /\b(QUADRA|QUAD|QDRA|QDA|QDR|QD|Q\.)\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LOT|LTS|LTT|LTE|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?)?/gi,
     " ",
   );
-  t = t.replace(/\b(LOTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
+  t = t.replace(/\b(LOTE|LOT|LTS|LTT|LTE|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+[A-Z])?\b/gi, " ");
   t = t.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/\s{2,}/g, " ").trim();
   return t;
 }
@@ -742,7 +750,7 @@ function extractByRegex(raw: string) {
 
   let rua = "";
   const ruaMatch = up.match(
-    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+?)(?=\s*(?:,|$|\b(?:QDR\.?\s*\d|QUAD\.?\s*\d|QD|QUADRA|Q\.|LT|LOTE|L\.)\b))/,
+    /\b(RUA|AVENIDA|AV\.|AV|ALAMEDA|TRAVESSA|TV\.|TV|VIELA|VIA|R\.|R)\s+([A-Z0-9\-\s\.]+?)(?=\s*(?:,|$|\b(?:QDRA\.?\s*\d|QDA\.?\s*\d|QDR\.?\s*\d|QUAD\.?\s*\d|QD|QUADRA|Q\.|LTS|LTT|LTE|LT|LOTE|L\.)\b))/,
   );
   if (ruaMatch) {
     rua = `${ruaMatch[1]} ${ruaMatch[2]}`.replace(/\s{2,}/g, " ").trim();
@@ -762,7 +770,7 @@ function extractByRegex(raw: string) {
   let quadra = "";
   const qd = up.match(
     new RegExp(
-      String.raw`\b(QDR|QD|QUADRA|QUAD|Q\.)\.?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      String.raw`\b(QDRA|QDA|QDR|QD|QUADRA|QUAD|Q\.)\.?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (qd) quadra = String(qd[2] || "").trim();
@@ -770,7 +778,7 @@ function extractByRegex(raw: string) {
   let lote = "";
   const lt = up.match(
     new RegExp(
-      String.raw`\b(LT|LOTE|LOT|L\.)\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+      String.raw`\b(LTS|LTT|LTE|LT|LOTE|LOT|L\.)\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
     ),
   );
   if (lt) {
@@ -841,13 +849,16 @@ function findFirstSafeMatch(text: string, pattern: RegExp) {
 }
 
 const QUADRA_LOTE_VALUE_END =
-  String.raw`(?=\s*(?:,|\.|$|\b(?:LTS|LTT|LTE|LOTE|LOT|LT|L(?![A-Z])|QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL|PORTAO|PORTÃO|ESQUINA|FUNDO|FUNDOS)\b))`;
+  String.raw`(?=\s*(?:,|\.|$|\b(?:LTS|LTT|LTE|LOTE|LOT|LT|L(?![A-Z])|QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|CONDOMÍNIO|EDIFICIO|COMERCIAL|PORTAO|PORTÃO|ESQUINA|FUNDO|FUNDOS|SOBRADO)\b))`;
 
 const QUADRA_LOTE_TOKEN =
   String.raw`(?:[A-Z](?:\s*[-:]?\s*\d+[A-Z0-9\-]*)?|[A-Z]|\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
 
 const QUADRA_LOTE_NUMERIC_TOKEN =
   String.raw`(?:\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
+
+const GOIANIA_QD_LT_COMPLEMENT_MARKER =
+  String.raw`(?:CASA|CS|AP|APTO|APARTAMENTO|BLOCO|BL|PORTAO|PORTÃO|FUNDOS|FUNDO|ESQUINA|SOBRADO|SALA|TORRE|CONDOMINIO|CONDOMÍNIO)`;
 
 type QuadraLoteSmartOptions = {
   allowGoianiaSafeVariants?: boolean;
@@ -875,6 +886,44 @@ function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
   };
 }
 
+function cleanGoianiaBairroText(value: string) {
+  return String(value || "")
+    .normalize("NFC")
+    .replace(/[;,]+/g, " ")
+    .replace(/\s*[-–—]\s*$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function stripGoianiaQdLtAndComplementFromBairro(value: string) {
+  let text = separateCompactQuadraLoteTokens(value);
+  text = text.replace(
+    new RegExp(
+      String.raw`\b(?:QUADRA|QUAD|QDRA|QDR|QDA|QD|QR|GD|GDR|Q)\.?\s*[-:]?\s*[A-Z0-9\-]+(?:\s+(?:LOTE|LTS|LTT|LTE|LOT|LT|L(?![A-Z]))\.?\s*[-:]?\s*[A-Z0-9\-]+)?\b.*$`,
+      "i",
+    ),
+    " ",
+  );
+  text = text.replace(
+    new RegExp(String.raw`\b${GOIANIA_QD_LT_COMPLEMENT_MARKER}\b\s*[-:]?\s*[\w\/\-.]*.*$`, "i"),
+    " ",
+  );
+  return cleanGoianiaBairroText(text);
+}
+
+function normalizeGoianiaBairroParser(raw: string, extracted: QuadraLoteSmartResult) {
+  const before = String(raw || "").trim();
+  const after = stripGoianiaQdLtAndComplementFromBairro(before);
+
+  return {
+    bairro: after,
+    bairroParserCleaned: !!before && normalizeKey(before) !== normalizeKey(after),
+    bairroParserExtractedQdLt: !!extracted.quadra && !!extracted.lote,
+    bairroBeforeParser: before || null,
+    bairroAfterParser: after || null,
+  };
+}
+
 function normalizeCompoundLoteValue(value: string, suffix = "") {
   const raw = String(value || "").trim();
   if (!/[\/]/.test(raw)) return normalizeQLValue(raw, suffix);
@@ -887,7 +936,7 @@ function normalizeCompoundLoteValue(value: string, suffix = "") {
   return parts.length >= 2 ? parts.join("/") : normalizeQLValue(raw, suffix);
 }
 
-function extractGoianiaSafeQuadraLotePair(up: string) {
+function extractGoianiaSafeQuadraLotePair(up: string): QuadraLoteSmartResult {
   const separator = String.raw`[\s._,\-:]*`;
   const quadraMarker = String.raw`(?:QUADRA|QUAD|QDRA|QDR|QDA|QD|QR|GD|GDR|Q)`;
   const loteMarker = String.raw`(?:LOTE|LTS|LTT|LTE|LOT|LT|L(?![A-Z]))`;
@@ -936,7 +985,6 @@ function hasUnsafeInferredQdLtContext(up: string) {
   if (/\b(?:RUA|R)\s+[A-Z0-9\s]+,\s*\d+\b/.test(up) && !/\b(QD|QDA|QDRA|QUADRA|QDR|Q|LT|LTE|LOTE|L)\b/.test(up)) {
     return true;
   }
-
   return false;
 }
 
@@ -946,11 +994,19 @@ function extractInferredGoianiaQuadraLote(up: string): QuadraLoteSmartResult {
   const patterns: Array<{ pattern: RegExp; label: string }> = [
     {
       label: "qd_marker_number_space_number",
-      pattern: /\b(?:QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\s*0*(\d{1,4}[A-Z]?)\s+0*(\d{1,4}[A-Z]?)\b/,
+      pattern: /\b(?:QDRA|QDA|QUADRA|QUAD|QDR|QD|QR|GD|GDR|Q)\s*0*(\d{1,4}[A-Z]?)\s+0*(\d{1,4}[A-Z]?)\b/,
     },
     {
       label: "number_lote_marker_number",
       pattern: /\b0*(\d{1,4}[A-Z]?)\s+(?:LTS|LTT|LTE|LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*(\d{1,4}[A-Z]?)\b/,
+    },
+    {
+      label: "number_slash_number",
+      pattern: /\b0*(\d{1,4}[A-Z]?)\s*\/\s*0*(\d{1,4}[A-Z]?)\b/,
+    },
+    {
+      label: "number_dash_number",
+      pattern: /\b0*(\d{1,4}[A-Z]?)\s*-\s*0*(\d{1,4}[A-Z]?)\b/,
     },
   ];
 
@@ -972,7 +1028,10 @@ function extractInferredGoianiaQuadraLote(up: string): QuadraLoteSmartResult {
   return emptyQuadraLoteSmartResult();
 }
 
-function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {}) {
+function extractQuadraLoteSmart(
+  raw: string,
+  options: QuadraLoteSmartOptions = {},
+): QuadraLoteSmartResult {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
   const hasApartmentNoise = /\b(BLOCO|BL|APTO|APT|APARTAMENTO)\b/.test(up);
 
@@ -1035,7 +1094,7 @@ function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {
 
   // 3) grudado tipo "QD40LT27" ou "Q40L27"
   if (!quadra || !lote) {
-    const glued = up.match(/\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\s*(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\b/);
+    const glued = up.match(/\b(?:QUADRA|QUAD|QDRA|QDR|QDA|QD|QR|GD|GDR|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\s*(?:LOTE|LTS|LTT|LTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\b/);
     if (glued) {
       if (!quadra) quadra = normalizeQLValue(glued[1]);
       if (!lote) lote = normalizeQLValue(glued[2], glued[3]);
@@ -1044,7 +1103,7 @@ function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {
 
   // 4) ordem invertida: "L27 Q40"
   if (!quadra || !lote) {
-    const inv = up.match(/\b(?:LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\s*(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\b/);
+    const inv = up.match(/\b(?:LOTE|LTS|LTT|LTE|LOT|LT|L(?![A-Z]))\.?\s*0*([0-9][A-Z0-9]{0,5})(?:\s+([A-Z]))?\s*(?:QUADRA|QUAD|QDRA|QDR|QDA|QD|QR|GD|GDR|Q)\.?\s*0*([0-9][A-Z0-9]{0,5})\b/);
     if (inv) {
       if (!lote) lote = normalizeQLValue(inv[1], inv[2]);
       if (!quadra) quadra = normalizeQLValue(inv[3]);
@@ -2457,7 +2516,7 @@ async function processOne(
   const bairroSmartQL =
     isGoianiaForGeminiSkip && !smartQL.quadra && !smartQL.lote
       ? extractQuadraLoteSmart(bairroIn, { allowGoianiaSafeVariants: true })
-      : { quadra: "", lote: "" };
+      : emptyQuadraLoteSmartResult();
   const skipGeminiForStrongExactMemory =
     isGoianiaForGeminiSkip &&
     memoryHitKind === "exact" &&
@@ -2479,18 +2538,42 @@ async function processOne(
   // 1.1) fallback regex se Gemini falhar
  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
 
-  const smartParserSource = smartQL.quadra && smartQL.lote ? smartQL : bairroSmartQL;
+  const obsSmartQL =
+    isGoianiaForGeminiSkip &&
+    !smartQL.quadra &&
+    !smartQL.lote &&
+    !bairroSmartQL.quadra &&
+    !bairroSmartQL.lote
+      ? extractQuadraLoteSmart(g.normalized.observacao || "", { allowGoianiaSafeVariants: true })
+      : emptyQuadraLoteSmartResult();
+  const bairroParser = isGoianiaForGeminiSkip
+    ? normalizeGoianiaBairroParser(bairroIn, bairroSmartQL)
+    : {
+        bairro: "",
+        bairroParserCleaned: false,
+        bairroParserExtractedQdLt: false,
+        bairroBeforeParser: bairroIn || null,
+        bairroAfterParser: bairroIn || null,
+      };
+  const smartParserSource =
+    smartQL.quadra && smartQL.lote
+      ? { ...smartQL, parserSource: "address" }
+      : bairroSmartQL.quadra && bairroSmartQL.lote
+        ? { ...bairroSmartQL, parserSource: "bairro" }
+        : obsSmartQL.quadra && obsSmartQL.lote
+          ? { ...obsSmartQL, parserSource: "observacao" }
+          : emptyQuadraLoteSmartResult();
   const invalidGoianiaParserValue = (value: string) =>
     isGoianiaForGeminiSkip && /^(?:OTE|LTE|LT|L|LOTE|E)$/i.test(String(value || "").trim());
 
   const finalQuadra = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.quadra) ? "" : g.normalized.quadra || "",
-    smartQL.quadra || bairroSmartQL.quadra || "",
+    smartQL.quadra || bairroSmartQL.quadra || obsSmartQL.quadra || "",
     rx.quadra || "",
   ).trim();
   const finalLote = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
-    smartQL.lote || bairroSmartQL.lote || "",
+    smartQL.lote || bairroSmartQL.lote || obsSmartQL.lote || "",
     rx.lote || "",
   ).trim();
 
@@ -2531,6 +2614,11 @@ async function processOne(
         !g.normalized.quadra && !smartQL.quadra && !!bairroSmartQL.quadra,
       bairroSmartQLFilledLote:
         !g.normalized.lote && !smartQL.lote && !!bairroSmartQL.lote,
+      obsSmartQLFilledQuadra:
+        !g.normalized.quadra && !smartQL.quadra && !bairroSmartQL.quadra && !!obsSmartQL.quadra,
+      obsSmartQLFilledLote:
+        !g.normalized.lote && !smartQL.lote && !bairroSmartQL.lote && !!obsSmartQL.lote,
+      bairroParserCleaned: bairroParser.bairroParserCleaned,
     });
   }
 
@@ -2550,7 +2638,9 @@ async function processOne(
     rua: finalRua,
     quadra: finalQuadra,
     lote: finalLote,
-    bairro: chooseAparecidaBairro(g.normalized.bairro || "", bairroIn || ""),
+    bairro: isGoianiaForGeminiSkip
+      ? bairroParser.bairro || cleanGoianiaBairroText(g.normalized.bairro || bairroIn || "")
+      : chooseAparecidaBairro(g.normalized.bairro || "", bairroIn || ""),
     cidade: (g.normalized.cidade || cityIn || "").trim(),
     cep: normalizeCep((g.normalized.cep || cepIn || "").trim()),
     estado: (g.normalized.estado || "GO").trim() || "GO",
@@ -2561,6 +2651,10 @@ async function processOne(
     parserRule: finalParserDebug.parserRule,
     parserSource: finalParserDebug.parserSource,
     parserConfidence: finalParserDebug.parserConfidence as "HIGH" | "LOW" | null,
+    bairroParserCleaned: bairroParser.bairroParserCleaned,
+    bairroParserExtractedQdLt: bairroParser.bairroParserExtractedQdLt,
+    bairroBeforeParser: bairroParser.bairroBeforeParser,
+    bairroAfterParser: bairroParser.bairroAfterParser,
   };
 
   const isRuaFraca = isWeakStreetForMemoryHint(normalized.rua);
@@ -4680,6 +4774,10 @@ if (shouldAutoSaveAddressMemory) {
         parserRule: normalized.parserRule ?? null,
         parserSource: normalized.parserSource ?? null,
         parserConfidence: normalized.parserConfidence ?? null,
+        bairroParserCleaned: !!normalized.bairroParserCleaned,
+        bairroParserExtractedQdLt: !!normalized.bairroParserExtractedQdLt,
+        bairroBeforeParser: normalized.bairroBeforeParser ?? null,
+        bairroAfterParser: normalized.bairroAfterParser ?? null,
         goianiaLocalFirstStreetCompatibility,
         goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
         goianiaLocalFirstCandidateStreetNormalized,
@@ -5088,6 +5186,10 @@ if (shouldAutoSaveAddressMemory) {
     localLotUsedAsFinal,
     localLotBlockedByBairro,
     ...goianiaLocalFirstDiagnostics,
+    bairroParserCleaned: !!normalized.bairroParserCleaned,
+    bairroParserExtractedQdLt: !!normalized.bairroParserExtractedQdLt,
+    bairroBeforeParser: normalized.bairroBeforeParser ?? null,
+    bairroAfterParser: normalized.bairroAfterParser ?? null,
     urbanPatternDetected,
     urbanPatternType,
     urbanPatternQuery,
