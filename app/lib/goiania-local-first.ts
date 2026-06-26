@@ -4,6 +4,7 @@ import {
   compareGoianiaStreet,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
+import { logMemory } from "@/app/lib/memory-observability";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -126,6 +127,12 @@ const BAIRRO_PREFIXES = [
   "VILA",
   "VILLAGE",
 ];
+
+function getAllPartitionKeysCount() {
+  return Array.isArray(allPartitionKeysCache.value)
+    ? (allPartitionKeysCache.value as string[]).length
+    : 0;
+}
 
 const GOIANIA_PARTITION_FALLBACKS: Record<string, string> = {
   "JARDIM ATLANTICO": "ATLANTICO",
@@ -394,8 +401,26 @@ function loadPartition(bairroKey: string) {
     return null;
   }
 
+  logMemory("goiania-local-first:before-load-partition", {
+    route: "goiania-local-first",
+    bairroKey,
+    filePath,
+    cacheSizes: {
+      partitionCache: partitionCache.size,
+      allPartitionKeys: getAllPartitionKeysCount(),
+    },
+  });
   const parsed = JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as Partition;
   partitionCache.set(bairroKey, parsed);
+  logMemory("goiania-local-first:after-load-partition", {
+    route: "goiania-local-first",
+    bairroKey,
+    filePath,
+    cacheSizes: {
+      partitionCache: partitionCache.size,
+      allPartitionKeys: getAllPartitionKeysCount(),
+    },
+  });
   return parsed;
 }
 
@@ -406,12 +431,29 @@ function loadAllPartitionKeys() {
     return allPartitionKeysCache.value;
   }
 
+  logMemory("goiania-local-first:before-load-partition-keys", {
+    route: "goiania-local-first",
+    partitionDir: PARTITION_DIR,
+    cacheSizes: {
+      partitionCache: partitionCache.size,
+      allPartitionKeys: getAllPartitionKeysCount(),
+    },
+  });
   allPartitionKeysCache.value = fs
     .readdirSync(PARTITION_DIR)
     .filter((fileName) => fileName.endsWith(".json"))
     .map((fileName) => normalizeKey(path.basename(fileName, ".json").replace(/_/g, " ")))
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
+
+  logMemory("goiania-local-first:after-load-partition-keys", {
+    route: "goiania-local-first",
+    partitionDir: PARTITION_DIR,
+    cacheSizes: {
+      partitionCache: partitionCache.size,
+      allPartitionKeys: getAllPartitionKeysCount(),
+    },
+  });
 
   return allPartitionKeysCache.value;
 }

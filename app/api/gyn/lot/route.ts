@@ -7,6 +7,7 @@ import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
+import { logMemory } from "@/app/lib/memory-observability";
 
 export const runtime = "nodejs";
 
@@ -97,6 +98,13 @@ function loadGoiania() {
     return cached;
   }
 
+  logMemory("gyn-lot:before-load", {
+    route: "/api/gyn/lot",
+    filePath,
+    cacheSizes: {
+      gynLotCache: gynLotCache.size,
+    },
+  });
   const raw = fs.readFileSync(filePath, "utf8");
   let geo = JSON.parse(raw) as FeatureCollection;
 
@@ -126,6 +134,15 @@ function loadGoiania() {
   cached.tree = tree;
   cached.filePath = filePath;
   cached.missing = false;
+
+  logMemory("gyn-lot:after-load", {
+    route: "/api/gyn/lot",
+    filePath,
+    cacheSizes: {
+      gynLotCache: gynLotCache.size,
+      features: geo.features.length,
+    },
+  });
 
   return cached;
 }

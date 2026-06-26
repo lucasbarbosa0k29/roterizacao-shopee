@@ -12,6 +12,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { Prisma } from "@prisma/client";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
+import { logMemory } from "@/app/lib/memory-observability";
 
 function normalizeResultJson(resultJson: any) {
   if (!resultJson) return null;
@@ -130,6 +131,13 @@ export async function GET(
     const url = new URL(req.url);
     const progressOnly = url.searchParams.get("mode") === "progress";
 
+    logMemory("history:id:before-db", {
+      route: "/api/history/[id]",
+      jobId: safeId,
+      processed: null,
+      rows: null,
+    });
+
     const job = await prisma.importJob.findFirst({
       where: { id: safeId, userId },
       select: progressOnly
@@ -165,6 +173,13 @@ export async function GET(
       return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
     }
 
+    logMemory("history:id:after-db", {
+      route: "/api/history/[id]",
+      jobId: safeId,
+      processed: job?.processedStops ?? null,
+      rows: job?.totalStops ?? null,
+    });
+
     if (progressOnly) {
       return NextResponse.json({ ok: true, job });
     }
@@ -178,8 +193,22 @@ export async function GET(
     let storedResultJson = fullJob.resultJson;
 
     if (fullJob.resultPath && isManagedJobResultPath(fullJob.resultPath)) {
+      logMemory("history:id:before-load-file", {
+        route: "/api/history/[id]",
+        jobId: safeId,
+        processed: fullJob.processedStops ?? null,
+        rows: fullJob.totalStops ?? null,
+        resultPath: fullJob.resultPath,
+      });
       try {
         storedResultJson = await loadJobResult(fullJob.resultPath);
+        logMemory("history:id:after-load-file", {
+          route: "/api/history/[id]",
+          jobId: safeId,
+          processed: fullJob.processedStops ?? null,
+          rows: fullJob.totalStops ?? null,
+          resultPath: fullJob.resultPath,
+        });
       } catch (error) {
         console.error("Erro ao carregar arquivo do job:", error);
         storedResultJson = fullJob.resultJson;

@@ -6,6 +6,7 @@ import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
+import { logMemory } from "@/app/lib/memory-observability";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -372,6 +373,15 @@ function loadAparecidaDataset() {
   }
 
   try {
+    logMemory("aparecida:before-load-dataset", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        datasetLoaded: !!dataset.geo && !!dataset.tree,
+        centroidsLoaded: !!centroids.records && !!centroids.index,
+        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+      },
+    });
     const parsed = (() => {
       const raw = fs.readFileSync(filePath, "utf8");
       if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
@@ -423,6 +433,17 @@ function loadAparecidaDataset() {
     dataset.filePath = filePath;
     dataset.missing = false;
 
+    logMemory("aparecida:after-load-dataset", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        datasetLoaded: !!dataset.geo && !!dataset.tree,
+        features: geo.features.length,
+        centroidsLoaded: !!centroids.records && !!centroids.index,
+        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+      },
+    });
+
     return dataset;
   } catch (error) {
     return disableDataset("LOAD_FAILED", error);
@@ -440,6 +461,15 @@ function loadAparecidaCentroids() {
   }
 
   try {
+    logMemory("aparecida:before-load-centroids", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        centroidsLoaded: !!centroids.records && !!centroids.index,
+        datasetLoaded: !!dataset.geo && !!dataset.tree,
+        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+      },
+    });
     const records = (() => {
       const raw = fs.readFileSync(filePath, "utf8");
       if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
@@ -473,6 +503,15 @@ function loadAparecidaCentroids() {
 
     centroids.records = records;
     centroids.index = index;
+    logMemory("aparecida:after-load-centroids", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        centroidsLoaded: !!centroids.records && !!centroids.index,
+        records: records.length,
+        indexKeys: index.size,
+      },
+    });
     return centroids;
   } catch (error) {
     return disableCentroids("LOAD_FAILED", error);
@@ -498,6 +537,14 @@ function loadAparecidaStreetCentroids() {
   }
 
   try {
+    logMemory("aparecida:before-load-street-centroids", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        centroidsLoaded: !!centroids.records && !!centroids.index,
+        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+      },
+    });
     const records = (() => {
       const raw = fs.readFileSync(filePath, "utf8");
       if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
@@ -523,6 +570,15 @@ function loadAparecidaStreetCentroids() {
 
     streetCentroids.records = records;
     streetCentroids.index = index;
+    logMemory("aparecida:after-load-street-centroids", {
+      route: "aparecida-local-lots",
+      filePath,
+      cacheSizes: {
+        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+        records: records.length,
+        indexKeys: index.size,
+      },
+    });
     return streetCentroids;
   } catch (error) {
     return disableStreetCentroids("LOAD_FAILED", error);

@@ -62,6 +62,7 @@ import {
   runLocalFirstAliasShadow,
   type LocalFirstAliasShadowState,
 } from "@/app/lib/local-first-alias-shadow";
+import { logMemory } from "@/app/lib/memory-observability";
 
 
 export const runtime = "nodejs";
@@ -5716,6 +5717,17 @@ export async function POST(req: Request) {
       localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
     };
 
+    logMemory("process:job:start", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: rowsIn.length,
+      processed: 0,
+      cacheSizes: {
+        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
+        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
+      },
+    });
+
     const concurrency = 5;
     const results: any[] = new Array(rowsIn.length);
     let index = 0;
@@ -5749,6 +5761,19 @@ export async function POST(req: Request) {
         } finally {
           completedCount += 1;
 
+          if (completedCount % 20 === 0 || completedCount === rowsIn.length) {
+            logMemory("process:rows:progress", {
+              route: "/api/process",
+              jobId: jobId || null,
+              rows: rowsIn.length,
+              processed: completedCount,
+              cacheSizes: {
+                shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
+                seenKeys: runState.localFirstAliasShadow.seenKeys.size,
+              },
+            });
+          }
+
           if (jobId) {
             const shouldFlushProgress =
               completedCount - lastPersistedCount >= PROGRESS_BATCH_SIZE ||
@@ -5771,14 +5796,47 @@ export async function POST(req: Request) {
       }
     }
 
+    logMemory("process:before-workers", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: rowsIn.length,
+      processed: completedCount,
+      cacheSizes: {
+        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
+        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
+      },
+    });
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     await Promise.allSettled(runState.localFirstAliasShadow.shadowTasks);
+    logMemory("process:after-workers", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: rowsIn.length,
+      processed: completedCount,
+      cacheSizes: {
+        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
+        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
+      },
+    });
 
     let resultPath: string | null = null;
 
    // ✅ no final, marca DONE e salva resultado completo
 if (jobId) {
+  logMemory("process:before-save-result", {
+    route: "/api/process",
+    jobId,
+    rows: results.length,
+    processed: completedCount,
+  });
   resultPath = await saveJobResult(jobId, results);
+  logMemory("process:after-save-result", {
+    route: "/api/process",
+    jobId,
+    rows: results.length,
+    processed: completedCount,
+    resultPath,
+  });
   await prisma.importJob.update({
     where: { id: jobId },
     data: {
@@ -5854,6 +5912,16 @@ if (jobId) {
       console.info("[MEMORY_BATCH_SUMMARY]", debugMemorySummary);
     }
 
+    logMemory("process:before-response", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: results.length,
+      processed: completedCount,
+      cacheSizes: {
+        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
+        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
+      },
+    });
     return NextResponse.json({
       total: results.length,
       rows: results,

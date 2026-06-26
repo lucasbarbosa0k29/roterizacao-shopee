@@ -6,6 +6,7 @@ import {
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getToken } from "next-auth/jwt";
+import { logMemory } from "@/app/lib/memory-observability";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,13 @@ export async function GET(req: Request, ctx: any) {
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   const url = new URL(req.url);
   const progressOnly = url.searchParams.get("mode") === "progress";
+
+  logMemory("admin:import-job:before-db", {
+    route: "/api/admin/import-jobs/[id]",
+    jobId: id,
+    processed: null,
+    rows: null,
+  });
 
   const job = await prisma.importJob.findUnique({
     where: { id },
@@ -66,6 +74,13 @@ export async function GET(req: Request, ctx: any) {
         },
   });
 
+  logMemory("admin:import-job:after-db", {
+    route: "/api/admin/import-jobs/[id]",
+    jobId: id,
+    processed: job?.processedStops ?? null,
+    rows: job?.totalStops ?? null,
+  });
+
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (progressOnly) {
@@ -80,8 +95,22 @@ export async function GET(req: Request, ctx: any) {
   let resultPayload = fullJob.resultJson;
 
   if (fullJob.resultPath && isManagedJobResultPath(fullJob.resultPath)) {
+    logMemory("admin:import-job:before-load-file", {
+      route: "/api/admin/import-jobs/[id]",
+      jobId: id,
+      processed: fullJob.processedStops ?? null,
+      rows: fullJob.totalStops ?? null,
+      resultPath: fullJob.resultPath,
+    });
     try {
       resultPayload = await loadJobResult(fullJob.resultPath);
+      logMemory("admin:import-job:after-load-file", {
+        route: "/api/admin/import-jobs/[id]",
+        jobId: id,
+        processed: fullJob.processedStops ?? null,
+        rows: fullJob.totalStops ?? null,
+        resultPath: fullJob.resultPath,
+      });
     } catch (error) {
       console.error("Failed to load admin job result file:", error);
 
