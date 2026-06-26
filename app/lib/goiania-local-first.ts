@@ -115,6 +115,7 @@ const PARTITION_DIR = process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR
   ? path.resolve(process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR)
   : path.join(process.cwd(), "app", "data", "goiania_local_first_by_bairro_v4");
 const partitionCache = new Map<string, Partition | null>();
+const PARTITION_CACHE_MAX_ENTRIES = 40;
 const allPartitionKeysCache: { value?: string[] } = {};
 const BAIRRO_PREFIXES = [
   "CONJUNTO",
@@ -132,6 +133,34 @@ function getAllPartitionKeysCount() {
   return Array.isArray(allPartitionKeysCache.value)
     ? (allPartitionKeysCache.value as string[]).length
     : 0;
+}
+
+function getCachedPartition(bairroKey: string) {
+  if (!partitionCache.has(bairroKey)) {
+    return { hit: false, partition: null };
+  }
+
+  const partition = partitionCache.get(bairroKey) || null;
+  partitionCache.delete(bairroKey);
+  partitionCache.set(bairroKey, partition);
+  return { hit: true, partition };
+}
+
+function rememberPartition(bairroKey: string, partition: Partition | null) {
+  if (partitionCache.has(bairroKey)) {
+    partitionCache.delete(bairroKey);
+  }
+
+  partitionCache.set(bairroKey, partition);
+  evictLeastRecentlyUsedPartitions();
+}
+
+function evictLeastRecentlyUsedPartitions() {
+  while (partitionCache.size > PARTITION_CACHE_MAX_ENTRIES) {
+    const oldestKey = partitionCache.keys().next().value;
+    if (!oldestKey) return;
+    partitionCache.delete(oldestKey);
+  }
 }
 
 const GOIANIA_PARTITION_FALLBACKS: Record<string, string> = {
@@ -391,13 +420,14 @@ function disabledShadow(): GoianiaLocalFirstShadow {
 }
 
 function loadPartition(bairroKey: string) {
-  if (partitionCache.has(bairroKey)) return partitionCache.get(bairroKey) || null;
+  const cached = getCachedPartition(bairroKey);
+  if (cached.hit) return cached.partition;
 
   const fileName = `${normalizeFileKey(bairroKey) || "SEM_BAIRRO"}.json`;
   const filePath = path.join(PARTITION_DIR, fileName);
 
   if (!fs.existsSync(filePath)) {
-    partitionCache.set(bairroKey, null);
+    rememberPartition(bairroKey, null);
     return null;
   }
 
@@ -411,7 +441,7 @@ function loadPartition(bairroKey: string) {
     },
   });
   const parsed = JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as Partition;
-  partitionCache.set(bairroKey, parsed);
+  rememberPartition(bairroKey, parsed);
   logMemory("goiania-local-first:after-load-partition", {
     route: "goiania-local-first",
     bairroKey,
