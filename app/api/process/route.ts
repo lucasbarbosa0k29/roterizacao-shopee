@@ -2753,6 +2753,9 @@ async function processOne(
   let localFirstGoianiaStructuralAliasStreetCompatibility:
     | GoianiaLocalFirstShadow["structuralAliasStreetCompatibility"]
     | null = localFirstGoianiaShadow.structuralAliasStreetCompatibility ?? null;
+  let localFirstGoianiaAliasBairroStreetCompatibility:
+    | GoianiaLocalFirstShadow["aliasBairroStreetCompatibility"]
+    | null = localFirstGoianiaShadow.aliasBairroStreetCompatibility ?? null;
   let localFirstGoianiaWouldBypass = false;
   let localFirstGoianiaBypassReason: string | null = null;
   let localFirstGoianiaUsedAsFinal = false;
@@ -2781,6 +2784,13 @@ async function processOne(
       return "NO_LOCAL_CANDIDATE";
     }
     if (
+      localFirstGoianiaShadow.matchType === "alias_bairro_exact" &&
+      localFirstGoianiaAliasBairroStreetCompatibility !== "STREET_MATCH" &&
+      localFirstGoianiaAliasBairroStreetCompatibility !== "STREET_PARTIAL_MATCH"
+    ) {
+      return "NO_LOCAL_CANDIDATE";
+    }
+    if (
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
       localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
@@ -2788,6 +2798,7 @@ async function processOne(
       localFirstGoianiaShadow.matchType !== "compound_lot" &&
       localFirstGoianiaShadow.matchType !== "partition_fallback_exact" &&
       localFirstGoianiaShadow.matchType !== "structural_alias_exact" &&
+      localFirstGoianiaShadow.matchType !== "alias_bairro_exact" &&
       localFirstGoianiaShadow.matchType !== "ranking_v2_exact"
     ) {
       return "NO_LOCAL_CANDIDATE";
@@ -4639,6 +4650,7 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
       localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical" ||
       localFirstGoianiaShadow.matchType === "partition_fallback_exact" ||
       localFirstGoianiaShadow.matchType === "structural_alias_exact" ||
+      localFirstGoianiaShadow.matchType === "alias_bairro_exact" ||
       localFirstGoianiaShadow.matchType === "ranking_v2_exact"
         ? 10
         : 0
@@ -4743,6 +4755,15 @@ if (shouldAutoSaveAddressMemory) {
           localFirstGoianiaShadow.structuralAliasStreetCompatibility ?? null,
         structuralAliasCandidatesCount:
           localFirstGoianiaShadow.structuralAliasCandidatesCount ?? 0,
+        aliasBairroApplied: !!localFirstGoianiaShadow.aliasBairroApplied,
+        aliasBairroFrom: localFirstGoianiaShadow.aliasBairroFrom ?? null,
+        aliasBairroTo: localFirstGoianiaShadow.aliasBairroTo ?? null,
+        aliasBairroStreetCompatibility:
+          localFirstGoianiaShadow.aliasBairroStreetCompatibility ?? null,
+        aliasBairroUniqueCandidate:
+          localFirstGoianiaShadow.aliasBairroUniqueCandidate ?? null,
+        aliasBairroCandidatesCount:
+          localFirstGoianiaShadow.aliasBairroCandidatesCount ?? 0,
         localFirstGoianiaCandidateEligible,
         localFirstGoianiaCandidateScore,
         localFirstGoianiaWouldBeatFinal,

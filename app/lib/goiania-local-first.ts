@@ -18,6 +18,7 @@ export type GoianiaLocalFirstMatchType =
   | "compound_lot"
   | "partition_fallback_exact"
   | "structural_alias_exact"
+  | "alias_bairro_exact"
   | "ranking_v2_exact"
   | "same_quadra"
   | "not_found"
@@ -49,6 +50,12 @@ export type GoianiaLocalFirstShadow = {
   structuralAliasTo?: string | null;
   structuralAliasStreetCompatibility?: GoianiaStreetComparison | null;
   structuralAliasCandidatesCount?: number;
+  aliasBairroApplied?: boolean;
+  aliasBairroFrom?: string | null;
+  aliasBairroTo?: string | null;
+  aliasBairroStreetCompatibility?: GoianiaStreetComparison | null;
+  aliasBairroUniqueCandidate?: boolean;
+  aliasBairroCandidatesCount?: number;
   rankingV2Attempted?: boolean;
   rankingV2CandidatesCount?: number;
   rankingV2WinnerScore?: number | null;
@@ -155,6 +162,51 @@ const GOIANIA_STRUCTURAL_ALIAS_FALLBACKS: Record<string, string[]> = {
   "RESIDENCIAL ELI FORTE": ["ELI_FORTE_EXTENSAO"],
   "FORTEVILLE EXTENSAO": ["FORTE_VILLE_EXTENSAO"],
   "RESIDENCIAL FORTEVILLE EXTENSAO": ["FORTE_VILLE_EXTENSAO"],
+};
+
+const GOIANIA_BAIRRO_ALIASES_V1: Record<string, string[]> = {
+  "RESIDENCIAL SERRA AZUL ETAPA I": ["SERRA_AZUL"],
+  "JARDIM PETROPOLIS": ["PETROPOLIS"],
+  "RESIDENCIAL PETROPOLIS": ["PETROPOLIS"],
+  "PARQUE JOAO BRAZ": ["INDUSTRIAL_JOAO_BRAZ", "INDUSTRIAL_JOAO_BRAZ_2"],
+  "PARQUE INDUSTRIAL JOAO BRAZ": ["INDUSTRIAL_JOAO_BRAZ", "INDUSTRIAL_JOAO_BRAZ_2"],
+  "SETOR DAS NACOES": ["DAS_NACOES"],
+  "JARDIM ELI FORTE": ["ELI_FORTE"],
+  "JARDIM SAO JOSE": ["SAO_JOSE"],
+  "SETOR COIMBRA": ["COIMBRA"],
+  "VILA SANTA RITA": ["SANTA_RITA_ACRESCIMO"],
+  "CIDADE VERA CRUZ": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ 1": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ I": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ II": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ III": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ IV": ["VERA_CRUZ"],
+  "CONJUNTO VERA CRUZ V": ["VERA_CRUZ"],
+  "RESIDENCIAL GOIANIA VIVA": ["GOIANIA_VIVA"],
+  "PARQUE OESTE INDUSTRIAL": ["OESTE_INDUSTRIAL"],
+  "PARQUE OESTE INDUSTRIAL EXTENSAO": ["OESTE_INDUSTRIAL_EXTENSAO"],
+  "PARQUE OESTE INDUSTRIAL PROLONGAMENTO": ["OESTE_INDUSTRIAL_PROLONGAMENTO"],
+  "JARDIM DO CERRADO 1": ["JARDINS_DO_CERRADO_1"],
+  "JARDIM DO CERRADO 2": ["JARDINS_DO_CERRADO_2"],
+  "JARDIM DO CERRADO 3": ["JARDINS_DO_CERRADO_3"],
+  "JARDIM DO CERRADO 4": ["JARDINS_DO_CERRADO_4"],
+  "JARDIM DO CERRADO 5": ["JARDINS_DO_CERRADO_5"],
+  "JARDIM DO CERRADO 6": ["JARDINS_DO_CERRADO_6"],
+  "JARDIM DO CERRADO 7": ["JARDINS_DO_CERRADO_7"],
+  "JARDIM DO CERRADO 8": ["JARDINS_DO_CERRADO_8"],
+  "JARDIM DO CERRADO 9": ["JARDINS_DO_CERRADO_9"],
+  "JARDIM DO CERRADO 10": ["JARDINS_DO_CERRADO_10"],
+  "JARDIM DO CERRADO 11": ["JARDINS_DO_CERRADO_11"],
+  "JARDINS DO CERRADO 01": ["JARDINS_DO_CERRADO_1"],
+  "JARDINS DO CERRADO 02": ["JARDINS_DO_CERRADO_2"],
+  "JARDINS DO CERRADO 03": ["JARDINS_DO_CERRADO_3"],
+  "JARDINS DO CERRADO 04": ["JARDINS_DO_CERRADO_4"],
+  "JARDINS DO CERRADO 05": ["JARDINS_DO_CERRADO_5"],
+  "JARDINS DO CERRADO 06": ["JARDINS_DO_CERRADO_6"],
+  "JARDINS DO CERRADO 07": ["JARDINS_DO_CERRADO_7"],
+  "JARDINS DO CERRADO 08": ["JARDINS_DO_CERRADO_8"],
+  "JARDINS DO CERRADO 09": ["JARDINS_DO_CERRADO_9"],
 };
 
 function isShadowEnabled() {
@@ -295,6 +347,15 @@ function resolveGoianiaStructuralAliasFallbacks(bairroKey: string) {
   return fallbackTargets.map((fallback) => ({
     from: normalized,
     to: normalizeKey(fallback),
+  }));
+}
+
+function resolveGoianiaBairroAliasesV1(bairroKey: string) {
+  const normalized = normalizeKey(bairroKey);
+  const targets = GOIANIA_BAIRRO_ALIASES_V1[normalized] || [];
+  return targets.map((target) => ({
+    from: normalized,
+    to: normalizeKey(target),
   }));
 }
 
@@ -458,7 +519,8 @@ function positiveShadowResult(args: {
     | "compound_lot_canonical"
     | "compound_lot"
     | "partition_fallback_exact"
-    | "structural_alias_exact";
+    | "structural_alias_exact"
+    | "alias_bairro_exact";
   reason: string;
   key: string;
   candidates: LocalFirstCandidate[];
@@ -468,6 +530,10 @@ function positiveShadowResult(args: {
   structuralAliasFrom?: string | null;
   structuralAliasTo?: string | null;
   structuralAliasCandidatesCount?: number;
+  aliasBairroFrom?: string | null;
+  aliasBairroTo?: string | null;
+  aliasBairroStreetCompatibility?: GoianiaStreetComparison | null;
+  aliasBairroCandidatesCount?: number;
 }): GoianiaLocalFirstShadow {
   const inputStreet = normalizeKey(args.inputStreet || "");
   const candidatesBeforeStreet = [...args.candidates].sort(compareCandidate);
@@ -516,6 +582,15 @@ function positiveShadowResult(args: {
       ? bestScored?.streetCompatibility ?? null
       : null,
     structuralAliasCandidatesCount: args.structuralAliasCandidatesCount ?? 0,
+    aliasBairroApplied: args.matchType === "alias_bairro_exact",
+    aliasBairroFrom: args.aliasBairroFrom ?? null,
+    aliasBairroTo: args.aliasBairroTo ?? null,
+    aliasBairroStreetCompatibility: args.aliasBairroStreetCompatibility ?? null,
+    aliasBairroUniqueCandidate:
+      args.aliasBairroCandidatesCount === undefined
+        ? undefined
+        : args.aliasBairroCandidatesCount === 1,
+    aliasBairroCandidatesCount: args.aliasBairroCandidatesCount ?? 0,
     candidate: best
       ? {
           bairro: String(best.b || ""),
@@ -534,7 +609,7 @@ function negativeShadowResult(args: {
   matchType: Exclude<
     GoianiaLocalFirstMatchType,
     "exact" | "exact_canonical" | "exact_alphanumeric_canonical" | "compound_lot_canonical" | "compound_lot"
-    | "structural_alias_exact"
+    | "structural_alias_exact" | "alias_bairro_exact"
   >;
   reason: string;
   key: string | null;
@@ -543,6 +618,11 @@ function negativeShadowResult(args: {
   structuralAliasTo?: string | null;
   structuralAliasStreetCompatibility?: GoianiaStreetComparison | null;
   structuralAliasCandidatesCount?: number;
+  aliasBairroApplied?: boolean;
+  aliasBairroFrom?: string | null;
+  aliasBairroTo?: string | null;
+  aliasBairroStreetCompatibility?: GoianiaStreetComparison | null;
+  aliasBairroCandidatesCount?: number;
 }): GoianiaLocalFirstShadow {
   return {
     attempted: true,
@@ -557,6 +637,15 @@ function negativeShadowResult(args: {
     structuralAliasTo: args.structuralAliasTo ?? null,
     structuralAliasStreetCompatibility: args.structuralAliasStreetCompatibility ?? null,
     structuralAliasCandidatesCount: args.structuralAliasCandidatesCount ?? 0,
+    aliasBairroApplied: args.aliasBairroApplied ?? false,
+    aliasBairroFrom: args.aliasBairroFrom ?? null,
+    aliasBairroTo: args.aliasBairroTo ?? null,
+    aliasBairroStreetCompatibility: args.aliasBairroStreetCompatibility ?? null,
+    aliasBairroUniqueCandidate:
+      args.aliasBairroCandidatesCount === undefined
+        ? undefined
+        : args.aliasBairroCandidatesCount === 1,
+    aliasBairroCandidatesCount: args.aliasBairroCandidatesCount ?? 0,
     candidate: null,
   };
 }
@@ -642,6 +731,136 @@ function lookupGoianiaStructuralAliasFallback(args: {
         structuralAliasStreetCompatibility: streetCompatibility,
         structuralAliasCandidatesCount: candidatesCount,
       });
+  }
+
+  return bestDiagnostic;
+}
+
+function lookupGoianiaBairroAliasV1(args: {
+  fromBairroKey: string;
+  quadraKey: string;
+  loteKey: string;
+  inputStreet?: string;
+}): GoianiaLocalFirstShadow | null {
+  const aliases = resolveGoianiaBairroAliasesV1(args.fromBairroKey);
+  if (!aliases.length) return null;
+
+  let bestDiagnostic: GoianiaLocalFirstShadow | null = null;
+  const safeMatches: Array<{
+    alias: { from: string; to: string };
+    key: string;
+    candidates: LocalFirstCandidate[];
+    streetCompatibility: GoianiaStreetComparison;
+  }> = [];
+
+  for (const alias of aliases) {
+    const partition = loadPartition(alias.to);
+    const index = partition?.index || null;
+    const key = buildNormalizedKey(alias.to, args.quadraKey, args.loteKey);
+
+    if (!index) {
+      bestDiagnostic =
+        bestDiagnostic ||
+        negativeShadowResult({
+          matchType: "bairro_not_found",
+          reason: "goiania_alias_bairro_no_qd_lt",
+          key,
+          aliasBairroApplied: true,
+          aliasBairroFrom: alias.from,
+          aliasBairroTo: alias.to,
+          aliasBairroCandidatesCount: 0,
+        });
+      continue;
+    }
+
+    const candidates = Array.isArray(index[key]) ? index[key] : [];
+    const candidatesCount = candidates.length;
+
+    if (!candidatesCount) {
+      bestDiagnostic =
+        bestDiagnostic ||
+        negativeShadowResult({
+          matchType: "not_found",
+          reason: "goiania_alias_bairro_no_qd_lt",
+          key,
+          aliasBairroApplied: true,
+          aliasBairroFrom: alias.from,
+          aliasBairroTo: alias.to,
+          aliasBairroCandidatesCount: 0,
+        });
+      continue;
+    }
+
+    const first = candidates[0];
+    const streetCompatibility =
+      args.inputStreet && first?.r ? compareGoianiaStreet(args.inputStreet, String(first.r)) : "STREET_UNKNOWN";
+    const uniqueCandidate = candidatesCount === 1;
+    const hasSafeStreet =
+      streetCompatibility === "STREET_MATCH" || streetCompatibility === "STREET_PARTIAL_MATCH";
+    const hasValidCoords = Number.isFinite(first?.lat) && Number.isFinite(first?.lng);
+    const hasHighConfidence = first?.c === "HIGH";
+
+    if (uniqueCandidate && hasSafeStreet && hasValidCoords && hasHighConfidence) {
+      safeMatches.push({ alias, key, candidates, streetCompatibility });
+      continue;
+    }
+
+    const reason =
+      !uniqueCandidate
+        ? "goiania_alias_bairro_multiple_candidates"
+        : streetCompatibility === "STREET_MISMATCH"
+          ? "goiania_alias_bairro_street_mismatch"
+          : streetCompatibility === "STREET_UNKNOWN"
+            ? "goiania_alias_bairro_street_unknown"
+            : !hasHighConfidence
+              ? "goiania_alias_bairro_not_high_confidence"
+              : !hasValidCoords
+                ? "goiania_alias_bairro_invalid_coords"
+                : "goiania_alias_bairro_no_qd_lt";
+
+    bestDiagnostic =
+      bestDiagnostic ||
+      negativeShadowResult({
+        matchType: "not_found",
+        reason,
+        key,
+        candidatesCount,
+        aliasBairroApplied: true,
+        aliasBairroFrom: alias.from,
+        aliasBairroTo: alias.to,
+        aliasBairroStreetCompatibility: streetCompatibility,
+        aliasBairroCandidatesCount: candidatesCount,
+      });
+  }
+
+  if (safeMatches.length === 1) {
+    const match = safeMatches[0];
+    return positiveShadowResult({
+      matchType: "alias_bairro_exact",
+      reason: "goiania_alias_bairro_exact",
+      key: match.key,
+      candidates: match.candidates,
+      inputStreet: args.inputStreet,
+      aliasBairroFrom: match.alias.from,
+      aliasBairroTo: match.alias.to,
+      aliasBairroStreetCompatibility: match.streetCompatibility,
+      aliasBairroCandidatesCount: match.candidates.length,
+    });
+  }
+
+  if (safeMatches.length > 1) {
+    const first = safeMatches[0];
+    return negativeShadowResult({
+      matchType: "not_found",
+      reason: "goiania_alias_bairro_multiple_candidates",
+      key: first.key,
+      candidatesCount: safeMatches.reduce((sum, match) => sum + match.candidates.length, 0),
+      aliasBairroApplied: true,
+      aliasBairroFrom: first.alias.from,
+      aliasBairroTo: safeMatches.map((match) => match.alias.to).join("|"),
+      aliasBairroStreetCompatibility: first.streetCompatibility,
+      aliasBairroCandidatesCount: safeMatches.reduce((sum, match) => sum + match.candidates.length, 0),
+    });
   }
 
   return bestDiagnostic;
@@ -1308,8 +1527,23 @@ function resolveGoianiaLocalFirstCore(args: {
 
   const rankingV2Result = resolveRankingV2();
 
-  if (rankingV2Result.found || rankingV2Result.rankingV2Attempted) {
+  if (rankingV2Result.found) {
     return rankingV2Result;
+  }
+
+  const aliasBairroResult = lookupGoianiaBairroAliasV1({
+    fromBairroKey: bairroKey,
+    quadraKey,
+    loteKey,
+    inputStreet: args.rua,
+  });
+
+  if (aliasBairroResult?.found) {
+    return aliasBairroResult;
+  }
+
+  if (rankingV2Result.rankingV2Attempted) {
+    return aliasBairroResult || rankingV2Result;
   }
 
   return originalResult;
@@ -1324,6 +1558,7 @@ function isGoianiaPositiveMatchType(matchType: GoianiaLocalFirstMatchType) {
     matchType === "compound_lot" ||
     matchType === "partition_fallback_exact" ||
     matchType === "structural_alias_exact" ||
+    matchType === "alias_bairro_exact" ||
     matchType === "ranking_v2_exact"
   );
 }
@@ -1344,6 +1579,7 @@ function mapGoianiaLocalFirstValidation(
     result.localFirstStreetCompatibility ??
       result.fallbackStreetCompatibility ??
       result.structuralAliasStreetCompatibility ??
+      result.aliasBairroStreetCompatibility ??
       null,
   );
   const candidateUnique = result.candidatesCount === 1;
@@ -1426,6 +1662,15 @@ function mapGoianiaLocalFirstValidation(
       structuralAliasTo: result.structuralAliasTo ?? null,
       structuralAliasCandidatesCount:
         result.structuralAliasCandidatesCount ?? null,
+      aliasBairroApplied: result.aliasBairroApplied ?? false,
+      aliasBairroFrom: result.aliasBairroFrom ?? null,
+      aliasBairroTo: result.aliasBairroTo ?? null,
+      aliasBairroStreetCompatibility:
+        result.aliasBairroStreetCompatibility ?? null,
+      aliasBairroUniqueCandidate:
+        result.aliasBairroUniqueCandidate ?? null,
+      aliasBairroCandidatesCount:
+        result.aliasBairroCandidatesCount ?? null,
       rankingV2Attempted: result.rankingV2Attempted ?? false,
       rankingV2CandidatesCount: result.rankingV2CandidatesCount ?? 0,
       rankingV2WinnerScore: result.rankingV2WinnerScore ?? null,
