@@ -842,12 +842,65 @@ const QUADRA_LOTE_TOKEN =
 const QUADRA_LOTE_NUMERIC_TOKEN =
   String.raw`(?:\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
 
-function extractQuadraLoteSmart(raw: string) {
+type QuadraLoteSmartOptions = {
+  allowGoianiaSafeVariants?: boolean;
+};
+
+function normalizeCompoundLoteValue(value: string, suffix = "") {
+  const raw = String(value || "").trim();
+  if (!/[\/]/.test(raw)) return normalizeQLValue(raw, suffix);
+
+  const parts = raw
+    .split("/")
+    .map((part) => normalizeQLValue(part))
+    .filter(Boolean);
+
+  return parts.length >= 2 ? parts.join("/") : normalizeQLValue(raw, suffix);
+}
+
+function extractGoianiaSafeQuadraLotePair(up: string) {
+  const separator = String.raw`[\s._,\-:]*`;
+  const quadraMarker = String.raw`(?:QUADRA|QUAD|QDR|QD|Q|QR|GD|GDR)`;
+  const loteMarker = String.raw`(?:LOTE|LOT|LTS|LTT|LT|L)`;
+  const quadraValue = String.raw`(?:[A-Z]{2,3}\d+[A-Z0-9\-]*|\d+[A-Z0-9\-]*)`;
+  const loteValue = String.raw`(?:\d+[A-Z]?(?:\s*/\s*\d+[A-Z]?)?|[A-Z]\d+[A-Z]?)`;
+  const valueEnd = String.raw`(?=\s*(?:,|\.|$|\b(?:CASA|CS|SOBRADO|FUNDO|FUNDOS|PORTAO|PORTÃO|COND|CONDOMINIO|COMERCIAL|OFICINA)\b))`;
+  const pair = up.match(
+    new RegExp(
+      String.raw`\b(${quadraMarker})\.?${separator}0*(${quadraValue})${separator}(${loteMarker})\.?${separator}0*(${loteValue})(?:\s+([A-Z]))?${valueEnd}`,
+    ),
+  );
+
+  if (!pair) return { quadra: "", lote: "" };
+
+  const [, marker, quadraRaw, loteMarkerRaw, loteRaw, suffix] = pair;
+  const hasApprovedVariant =
+    /^[A-Z]{2,3}\d/.test(quadraRaw) ||
+    /^(QR|GD|GDR)$/.test(marker) ||
+    /^(LTS|LTT)$/.test(loteMarkerRaw) ||
+    /[._,]/.test(pair[0]);
+
+  if (!hasApprovedVariant) return { quadra: "", lote: "" };
+
+  return {
+    quadra: normalizeQLValue(quadraRaw),
+    lote: normalizeCompoundLoteValue(loteRaw, suffix),
+  };
+}
+
+function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {}) {
   const up = separateCompactQuadraLoteTokens(raw).toUpperCase();
   const hasApartmentNoise = /\b(BLOCO|BL|APTO|APT|APARTAMENTO)\b/.test(up);
 
   let quadra = "";
   let lote = "";
+
+  if (options.allowGoianiaSafeVariants) {
+    const safePair = extractGoianiaSafeQuadraLotePair(up);
+    if (safePair.quadra && safePair.lote) {
+      return safePair;
+    }
+  }
 
   const qiMatch = up.match(
     new RegExp(
@@ -2292,12 +2345,18 @@ async function processOne(
 
   // 1) Gemini
   const rx = extractByRegex(addressRaw);
-  const smartQL = extractQuadraLoteSmart(addressRaw);
   const localRuaBeforeGemini = stripQuadraLoteFromStreet(rx.rua || "").trim();
   const cityForGeminiSkipKey = normalizeKey(cityIn);
   const isGoianiaForGeminiSkip =
     cityForGeminiSkipKey.includes("GOIANIA") &&
     !cityForGeminiSkipKey.includes("APARECIDA");
+  const smartQL = extractQuadraLoteSmart(addressRaw, {
+    allowGoianiaSafeVariants: isGoianiaForGeminiSkip,
+  });
+  const bairroSmartQL =
+    isGoianiaForGeminiSkip && !smartQL.quadra && !smartQL.lote
+      ? extractQuadraLoteSmart(bairroIn, { allowGoianiaSafeVariants: true })
+      : { quadra: "", lote: "" };
   const skipGeminiForStrongExactMemory =
     isGoianiaForGeminiSkip &&
     memoryHitKind === "exact" &&
@@ -2319,8 +2378,16 @@ async function processOne(
   // 1.1) fallback regex se Gemini falhar
  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
 
- const finalQuadra = mergeAparecidaLotValue(g.normalized.quadra || "", smartQL.quadra || "", rx.quadra || "").trim();
- const finalLote = mergeAparecidaLotValue(g.normalized.lote || "", smartQL.lote || "", rx.lote || "").trim();
+ const finalQuadra = mergeAparecidaLotValue(
+   g.normalized.quadra || "",
+   smartQL.quadra || bairroSmartQL.quadra || "",
+   rx.quadra || "",
+ ).trim();
+ const finalLote = mergeAparecidaLotValue(
+   g.normalized.lote || "",
+   smartQL.lote || bairroSmartQL.lote || "",
+   rx.lote || "",
+ ).trim();
 
   if (
     process.env.NODE_ENV !== "production" &&
@@ -2335,6 +2402,10 @@ async function processOne(
       geminiLoteChanged: !!g.normalized.lote && finalLote !== g.normalized.lote,
       smartQLFilledQuadra: !g.normalized.quadra && !!smartQL.quadra,
       smartQLFilledLote: !g.normalized.lote && !!smartQL.lote,
+      bairroSmartQLFilledQuadra:
+        !g.normalized.quadra && !smartQL.quadra && !!bairroSmartQL.quadra,
+      bairroSmartQLFilledLote:
+        !g.normalized.lote && !smartQL.lote && !!bairroSmartQL.lote,
     });
   }
 
