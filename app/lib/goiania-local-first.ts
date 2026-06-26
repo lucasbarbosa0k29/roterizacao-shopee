@@ -116,6 +116,10 @@ const PARTITION_DIR = process.env.ROTTA_GOIANIA_LOCAL_FIRST_DIR
   : path.join(process.cwd(), "app", "data", "goiania_local_first_by_bairro_v4");
 const partitionCache = new Map<string, Partition | null>();
 const PARTITION_CACHE_MAX_ENTRIES = 40;
+const GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP = readPositiveIntegerEnv(
+  "GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP",
+  80,
+);
 const allPartitionKeysCache: { value?: string[] } = {};
 const BAIRRO_PREFIXES = [
   "CONJUNTO",
@@ -133,6 +137,22 @@ function getAllPartitionKeysCount() {
   return Array.isArray(allPartitionKeysCache.value)
     ? (allPartitionKeysCache.value as string[]).length
     : 0;
+}
+
+function readPositiveIntegerEnv(name: string, fallback: number) {
+  const parsed = Number(process.env[name]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isMemoryDebugVerbose() {
+  return process.env.MEMORY_DEBUG_VERBOSE === "true" || process.env.MEMORY_DEBUG_VERBOSE === "1";
+}
+
+function isGoianiaLocalFirstWideScanEnabled() {
+  return (
+    process.env.GOIANIA_LOCALFIRST_ALLOW_WIDE_SCAN === "true" ||
+    process.env.GOIANIA_LOCALFIRST_ALLOW_WIDE_SCAN === "1"
+  );
 }
 
 function getCachedPartition(bairroKey: string) {
@@ -431,26 +451,30 @@ function loadPartition(bairroKey: string) {
     return null;
   }
 
-  logMemory("goiania-local-first:before-load-partition", {
-    route: "goiania-local-first",
-    bairroKey,
-    filePath,
-    cacheSizes: {
-      partitionCache: partitionCache.size,
-      allPartitionKeys: getAllPartitionKeysCount(),
-    },
-  });
+  if (isMemoryDebugVerbose()) {
+    logMemory("goiania-local-first:before-load-partition", {
+      route: "goiania-local-first",
+      bairroKey,
+      filePath,
+      cacheSizes: {
+        partitionCache: partitionCache.size,
+        allPartitionKeys: getAllPartitionKeysCount(),
+      },
+    });
+  }
   const parsed = JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as Partition;
   rememberPartition(bairroKey, parsed);
-  logMemory("goiania-local-first:after-load-partition", {
-    route: "goiania-local-first",
-    bairroKey,
-    filePath,
-    cacheSizes: {
-      partitionCache: partitionCache.size,
-      allPartitionKeys: getAllPartitionKeysCount(),
-    },
-  });
+  if (isMemoryDebugVerbose()) {
+    logMemory("goiania-local-first:after-load-partition", {
+      route: "goiania-local-first",
+      bairroKey,
+      filePath,
+      cacheSizes: {
+        partitionCache: partitionCache.size,
+        allPartitionKeys: getAllPartitionKeysCount(),
+      },
+    });
+  }
   return parsed;
 }
 
@@ -502,6 +526,87 @@ function isBairroCompatibleForRankingV2(inputBairroKey: string, partitionKey: st
   if (stripBairroPrefix(inputBairroKey) === partitionKey) return true;
   if (stripBairroPrefix(partitionKey) === inputBairroKey) return true;
   return false;
+}
+
+function addPartitionKeyCandidate(candidates: string[], seen: Set<string>, value: string | null | undefined) {
+  const normalized = normalizeKey(value || "");
+  if (!normalized || seen.has(normalized)) return;
+  seen.add(normalized);
+  candidates.push(normalized);
+}
+
+function buildGoianiaRankingV2CandidatePartitionKeys(inputBairroKey: string, allPartitionKeys: string[]) {
+  const allPartitionKeysSet = new Set(allPartitionKeys);
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const normalizedBairroKey = normalizeKey(inputBairroKey);
+  const bairroWithoutPrefix = stripBairroPrefix(normalizedBairroKey);
+  const sourceBairros = [normalizedBairroKey, bairroWithoutPrefix].filter(Boolean) as string[];
+
+  for (const sourceBairro of sourceBairros) {
+    addPartitionKeyCandidate(candidates, seen, sourceBairro);
+    addPartitionKeyCandidate(
+      candidates,
+      seen,
+      resolveGoianiaPartitionFallback(sourceBairro)?.to,
+    );
+
+    for (const alias of resolveGoianiaStructuralAliasFallbacks(sourceBairro)) {
+      addPartitionKeyCandidate(candidates, seen, alias.to);
+    }
+
+    for (const alias of resolveGoianiaBairroAliasesV1(sourceBairro)) {
+      addPartitionKeyCandidate(candidates, seen, alias.to);
+    }
+  }
+
+  return candidates.filter((partitionKey) => allPartitionKeysSet.has(partitionKey));
+}
+
+function limitGoianiaRankingV2PartitionScan(args: {
+  inputBairroKey: string;
+  partitionKeys: string[];
+  scanMode: "candidate" | "wide";
+}) {
+  if (args.partitionKeys.length <= GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP) {
+    return args.partitionKeys;
+  }
+
+  logMemory("GOIANIA_LOCALFIRST_PARTITION_SCAN_LIMITED", {
+    route: "goiania-local-first",
+    inputBairroKey: args.inputBairroKey,
+    scanMode: args.scanMode,
+    totalPartitionKeys: args.partitionKeys.length,
+    maxPartitionsPerLookup: GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP,
+    cacheSizes: {
+      partitionCache: partitionCache.size,
+      allPartitionKeys: getAllPartitionKeysCount(),
+    },
+  });
+
+  return args.partitionKeys.slice(0, GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP);
+}
+
+function buildGoianiaRankingV2PartitionKeys(inputBairroKey: string) {
+  const allPartitionKeys = loadAllPartitionKeys();
+  const candidatePartitionKeys = buildGoianiaRankingV2CandidatePartitionKeys(
+    inputBairroKey,
+    allPartitionKeys,
+  );
+  const hasUsefulBairro = !!normalizeKey(inputBairroKey);
+  const useWideScan =
+    !hasUsefulBairro ||
+    candidatePartitionKeys.length === 0 ||
+    isGoianiaLocalFirstWideScanEnabled();
+  const partitionKeys = useWideScan
+    ? [...new Set([...candidatePartitionKeys, ...allPartitionKeys])]
+    : candidatePartitionKeys;
+
+  return limitGoianiaRankingV2PartitionScan({
+    inputBairroKey,
+    partitionKeys,
+    scanMode: useWideScan ? "wide" : "candidate",
+  });
 }
 
 function emptyRankingV2Diagnostic(args: {
@@ -1138,7 +1243,7 @@ function lookupGoianiaRankingV2(args: {
   let sawStreetMismatch = false;
   let sawStreetUnknown = false;
 
-  for (const partitionKey of loadAllPartitionKeys()) {
+  for (const partitionKey of buildGoianiaRankingV2PartitionKeys(args.inputBairroKey)) {
     const partition = loadPartition(partitionKey);
     const index = partition?.index || null;
     if (!index) continue;
