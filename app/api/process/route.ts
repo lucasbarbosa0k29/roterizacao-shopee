@@ -96,6 +96,8 @@ type Normalized = {
   parserRule?: string | null;
   parserSource?: string | null;
   parserConfidence?: "HIGH" | "LOW" | null;
+  campoOrigem?: ParserCampoOrigem | null;
+  parserInputOriginal?: string | null;
   bairroParserCleaned?: boolean;
   bairroParserExtractedQdLt?: boolean;
   bairroBeforeParser?: string | null;
@@ -108,6 +110,21 @@ type InputRow = {
   bairro?: string;
   city?: string;
   cep?: string;
+  complemento?: any;
+  compl?: any;
+  comp?: any;
+  complement?: any;
+  observacao?: any;
+  observação?: any;
+  obs?: any;
+  observacoes?: any;
+  observações?: any;
+  referencia?: any;
+  referência?: any;
+  reference?: any;
+  ponto_referencia?: any;
+  pontoReferencia?: any;
+  [key: string]: any;
 };
 
 type AparecidaShadowDebug = {
@@ -864,6 +881,13 @@ type QuadraLoteSmartOptions = {
   allowGoianiaSafeVariants?: boolean;
 };
 
+type ParserCampoOrigem =
+  | "address"
+  | "complemento"
+  | "observacao"
+  | "bairro"
+  | "referencia";
+
 type QuadraLoteSmartResult = {
   quadra: string;
   lote: string;
@@ -872,6 +896,8 @@ type QuadraLoteSmartResult = {
   parserRule?: string | null;
   parserSource?: string | null;
   parserConfidence?: "HIGH" | "LOW" | null;
+  campoOrigem?: ParserCampoOrigem | null;
+  parserInputOriginal?: string | null;
 };
 
 function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
@@ -883,7 +909,134 @@ function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
     parserRule: null,
     parserSource: null,
     parserConfidence: null,
+    campoOrigem: null,
+    parserInputOriginal: null,
   };
+}
+
+function normalizeContextFieldName(value: string) {
+  return normalizeKey(value).replace(/\s+/g, "");
+}
+
+function pickContextText(row: InputRow, names: string[]) {
+  const targets = new Set(names.map(normalizeContextFieldName));
+
+  for (const [key, value] of Object.entries(row || {})) {
+    if (!targets.has(normalizeContextFieldName(key))) continue;
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+
+  return "";
+}
+
+function withParserCandidateMetadata(
+  result: QuadraLoteSmartResult,
+  campoOrigem: ParserCampoOrigem,
+  parserInputOriginal: string,
+): QuadraLoteSmartResult {
+  if (!result.quadra || !result.lote) return result;
+
+  return {
+    ...result,
+    parserSource: campoOrigem,
+    campoOrigem,
+    parserInputOriginal,
+  };
+}
+
+function sameParserCandidate(left: QuadraLoteSmartResult, right: QuadraLoteSmartResult) {
+  return (
+    normalizeKey(left.quadra) === normalizeKey(right.quadra) &&
+    normalizeKey(left.lote) === normalizeKey(right.lote)
+  );
+}
+
+function resolveParserCandidatesByConfidence(
+  candidates: QuadraLoteSmartResult[],
+  confidence: "HIGH" | "LOW",
+): QuadraLoteSmartResult {
+  const scoped = candidates.filter(
+    (candidate) =>
+      candidate.quadra &&
+      candidate.lote &&
+      candidate.parserConfidence === confidence,
+  );
+
+  if (!scoped.length) return emptyQuadraLoteSmartResult();
+
+  const first = scoped[0];
+  const allSame = scoped.every((candidate) => sameParserCandidate(first, candidate));
+
+  if (allSame) {
+    return {
+      ...first,
+      parserRule:
+        scoped.length > 1
+          ? `${first.parserRule || "context_qd_lt"}_same_${confidence.toLowerCase()}`
+          : first.parserRule,
+    };
+  }
+
+  return {
+    ...emptyQuadraLoteSmartResult(),
+    inferredQdLt: confidence === "LOW",
+    inferredPattern: `conflicting_${confidence.toLowerCase()}_context_qd_lt`,
+    parserRule: `context_qd_lt_conflict_${confidence.toLowerCase()}`,
+    parserSource: scoped.map((candidate) => candidate.campoOrigem).filter(Boolean).join("|"),
+    parserConfidence: confidence,
+  };
+}
+
+function resolveQuadraLoteContext(args: {
+  row: InputRow;
+  addressRaw: string;
+  complemento: string;
+  observacaoPlanilha: string;
+  observacaoNormalizada: string;
+  bairroIn: string;
+  referencia: string;
+  allowGoianiaSafeVariants: boolean;
+}): QuadraLoteSmartResult {
+  const sources: Array<{ campoOrigem: ParserCampoOrigem; text: string }> = [
+    { campoOrigem: "address", text: args.addressRaw },
+    { campoOrigem: "complemento", text: args.complemento },
+    { campoOrigem: "observacao", text: args.observacaoPlanilha },
+    { campoOrigem: "observacao", text: args.observacaoNormalizada },
+    { campoOrigem: "bairro", text: args.bairroIn },
+    { campoOrigem: "referencia", text: args.referencia },
+  ];
+  const seen = new Set<string>();
+  const candidates: QuadraLoteSmartResult[] = [];
+
+  for (const source of sources) {
+    const parserInputOriginal = String(source.text || "").trim();
+    if (!parserInputOriginal) continue;
+
+    const dedupeKey = `${source.campoOrigem}|${parserInputOriginal}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    const candidate = withParserCandidateMetadata(
+      extractQuadraLoteSmart(parserInputOriginal, {
+        allowGoianiaSafeVariants: args.allowGoianiaSafeVariants,
+      }),
+      source.campoOrigem,
+      parserInputOriginal,
+    );
+
+    if (candidate.quadra && candidate.lote) candidates.push(candidate);
+  }
+
+  const high = resolveParserCandidatesByConfidence(candidates, "HIGH");
+  if (high.quadra && high.lote) return high;
+  if (high.parserRule === "context_qd_lt_conflict_high") return high;
+
+  return resolveParserCandidatesByConfidence(candidates, "LOW");
+}
+
+function mergeParserCandidateValue(...values: string[]) {
+  return values.find((value) => String(value || "").trim()) || "";
 }
 
 function cleanGoianiaBairroText(value: string) {
@@ -2510,21 +2663,17 @@ async function processOne(
   const isGoianiaForGeminiSkip =
     cityForGeminiSkipKey.includes("GOIANIA") &&
     !cityForGeminiSkipKey.includes("APARECIDA");
-  const smartQL = extractQuadraLoteSmart(addressRaw, {
+  const preGeminiAddressSmartQL = extractQuadraLoteSmart(addressRaw, {
     allowGoianiaSafeVariants: isGoianiaForGeminiSkip,
   });
-  const bairroSmartQL =
-    isGoianiaForGeminiSkip && !smartQL.quadra && !smartQL.lote
-      ? extractQuadraLoteSmart(bairroIn, { allowGoianiaSafeVariants: true })
-      : emptyQuadraLoteSmartResult();
   const skipGeminiForStrongExactMemory =
     isGoianiaForGeminiSkip &&
     memoryHitKind === "exact" &&
     memoryHit?.lat != null &&
     memoryHit?.lng != null &&
     !!localRuaBeforeGemini &&
-    !!smartQL.quadra &&
-    !!smartQL.lote;
+    !!preGeminiAddressSmartQL.quadra &&
+    !!preGeminiAddressSmartQL.lote;
 
   const g = await geminiNormalize({
     address: addressRaw,
@@ -2538,14 +2687,67 @@ async function processOne(
   // 1.1) fallback regex se Gemini falhar
  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
 
-  const obsSmartQL =
-    isGoianiaForGeminiSkip &&
-    !smartQL.quadra &&
-    !smartQL.lote &&
-    !bairroSmartQL.quadra &&
-    !bairroSmartQL.lote
-      ? extractQuadraLoteSmart(g.normalized.observacao || "", { allowGoianiaSafeVariants: true })
-      : emptyQuadraLoteSmartResult();
+  const complementoIn = pickContextText(row, [
+    "Complemento",
+    "complemento",
+    "compl",
+    "comp",
+    "complement",
+    "Complemento Endereco",
+    "Complemento Endereço",
+    "address complement",
+    "address_complement",
+    "complemento_endereco",
+  ]);
+  const observacaoIn = pickContextText(row, [
+    "Observação",
+    "Observacao",
+    "observação",
+    "observacao",
+    "obs",
+    "OBS",
+    "observacoes",
+    "observações",
+    "observations",
+    "observation",
+    "comentario",
+    "comentário",
+    "comments",
+  ]);
+  const referenciaIn = pickContextText(row, [
+    "Referência",
+    "Referencia",
+    "referência",
+    "referencia",
+    "reference",
+    "ponto_referencia",
+    "pontoReferencia",
+    "Ponto de Referência",
+    "Ponto de Referencia",
+    "ponto de referência",
+    "ponto de referencia",
+    "landmark",
+  ]);
+  const smartQL = isGoianiaForGeminiSkip
+    ? resolveQuadraLoteContext({
+        row,
+        addressRaw,
+        complemento: complementoIn,
+        observacaoPlanilha: observacaoIn,
+        observacaoNormalizada: g.normalized.observacao || "",
+        bairroIn,
+        referencia: referenciaIn,
+        allowGoianiaSafeVariants: true,
+      })
+    : emptyQuadraLoteSmartResult();
+  const bairroSmartQL = isGoianiaForGeminiSkip
+    ? withParserCandidateMetadata(
+        extractQuadraLoteSmart(bairroIn, { allowGoianiaSafeVariants: true }),
+        "bairro",
+        bairroIn,
+      )
+    : emptyQuadraLoteSmartResult();
+  const obsSmartQL = emptyQuadraLoteSmartResult();
   const bairroParser = isGoianiaForGeminiSkip
     ? normalizeGoianiaBairroParser(bairroIn, bairroSmartQL)
     : {
@@ -2556,34 +2758,44 @@ async function processOne(
         bairroAfterParser: bairroIn || null,
       };
   const smartParserSource =
-    smartQL.quadra && smartQL.lote
-      ? { ...smartQL, parserSource: "address" }
+    smartQL.parserRule?.startsWith("context_qd_lt_conflict_")
+      ? smartQL
+      : smartQL.quadra && smartQL.lote
+      ? smartQL
       : bairroSmartQL.quadra && bairroSmartQL.lote
-        ? { ...bairroSmartQL, parserSource: "bairro" }
+        ? bairroSmartQL
         : obsSmartQL.quadra && obsSmartQL.lote
           ? { ...obsSmartQL, parserSource: "observacao" }
           : emptyQuadraLoteSmartResult();
+  const contextParserConflict = smartQL.parserRule?.startsWith("context_qd_lt_conflict_") ?? false;
   const invalidGoianiaParserValue = (value: string) =>
     isGoianiaForGeminiSkip && /^(?:OTE|LTE|LT|L|LOTE|E)$/i.test(String(value || "").trim());
 
   const finalQuadra = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.quadra) ? "" : g.normalized.quadra || "",
-    smartQL.quadra || bairroSmartQL.quadra || obsSmartQL.quadra || "",
+    contextParserConflict
+      ? ""
+      : mergeParserCandidateValue(smartQL.quadra, bairroSmartQL.quadra, obsSmartQL.quadra),
     rx.quadra || "",
   ).trim();
   const finalLote = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
-    smartQL.lote || bairroSmartQL.lote || obsSmartQL.lote || "",
+    contextParserConflict
+      ? ""
+      : mergeParserCandidateValue(smartQL.lote, bairroSmartQL.lote, obsSmartQL.lote),
     rx.lote || "",
   ).trim();
 
   const finalParserDebug =
-    isGoianiaForGeminiSkip && finalQuadra && finalLote
+    isGoianiaForGeminiSkip &&
+    ((finalQuadra && finalLote) || smartParserSource.parserRule?.startsWith("context_qd_lt_conflict_"))
       ? {
           inferredQdLt: !!smartParserSource.inferredQdLt,
           inferredPattern: smartParserSource.inferredPattern ?? null,
           parserRule: smartParserSource.parserRule ?? null,
           parserSource: smartParserSource.parserSource ?? null,
+          campoOrigem: smartParserSource.campoOrigem ?? null,
+          parserInputOriginal: smartParserSource.parserInputOriginal ?? null,
           parserConfidence:
             smartParserSource.parserConfidence === "HIGH" || smartParserSource.parserConfidence === "LOW"
               ? smartParserSource.parserConfidence
@@ -2594,6 +2806,8 @@ async function processOne(
           inferredPattern: null,
           parserRule: null,
           parserSource: null,
+          campoOrigem: null,
+          parserInputOriginal: null,
           parserConfidence: null,
         };
 
@@ -2610,6 +2824,9 @@ async function processOne(
       geminiLoteChanged: !!g.normalized.lote && finalLote !== g.normalized.lote,
       smartQLFilledQuadra: !g.normalized.quadra && !!smartQL.quadra,
       smartQLFilledLote: !g.normalized.lote && !!smartQL.lote,
+      smartQLCampoOrigem: smartQL.campoOrigem ?? null,
+      smartQLParserInputOriginal: smartQL.parserInputOriginal ?? null,
+      smartQLConflict: smartQL.parserRule?.startsWith("context_qd_lt_conflict_") ?? false,
       bairroSmartQLFilledQuadra:
         !g.normalized.quadra && !smartQL.quadra && !!bairroSmartQL.quadra,
       bairroSmartQLFilledLote:
@@ -2651,6 +2868,8 @@ async function processOne(
     parserRule: finalParserDebug.parserRule,
     parserSource: finalParserDebug.parserSource,
     parserConfidence: finalParserDebug.parserConfidence as "HIGH" | "LOW" | null,
+    campoOrigem: finalParserDebug.campoOrigem ?? null,
+    parserInputOriginal: finalParserDebug.parserInputOriginal ?? null,
     bairroParserCleaned: bairroParser.bairroParserCleaned,
     bairroParserExtractedQdLt: bairroParser.bairroParserExtractedQdLt,
     bairroBeforeParser: bairroParser.bairroBeforeParser,
@@ -4795,6 +5014,8 @@ if (shouldAutoSaveAddressMemory) {
         parserRule: normalized.parserRule ?? null,
         parserSource: normalized.parserSource ?? null,
         parserConfidence: normalized.parserConfidence ?? null,
+        campoOrigem: normalized.campoOrigem ?? null,
+        parserInputOriginal: normalized.parserInputOriginal ?? null,
         bairroParserCleaned: !!normalized.bairroParserCleaned,
         bairroParserExtractedQdLt: !!normalized.bairroParserExtractedQdLt,
         bairroBeforeParser: normalized.bairroBeforeParser ?? null,
