@@ -91,6 +91,11 @@ type Normalized = {
   estado: string;
   cep?: string;
   observacao: string;
+  inferredQdLt?: boolean;
+  inferredPattern?: string | null;
+  parserRule?: string | null;
+  parserSource?: string | null;
+  parserConfidence?: "HIGH" | "LOW" | null;
 };
 
 type InputRow = {
@@ -310,8 +315,10 @@ function cleanAddressForHere(s: string) {
 
 function separateCompactQuadraLoteTokens(value: string) {
   return String(value || "")
+    .replace(/\b(QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\s*(\d)/gi, "$1 $2")
+    .replace(/\b(LTS|LTT|LTE|LOTE|LOT|LT|L)(?![A-Z])[\s._,:-]*(\d)/gi, "$1 $2")
     .replace(/(^|[^A-Z])(\d)(QUADRA|QUAD|QDR|QD|Q)(?![A-Z])/gi, "$1$2 $3")
-    .replace(/(^|[^A-Z])(\d)(LT|LOTE|LOT|L)(?![A-Z])/gi, "$1$2 $3");
+    .replace(/(^|[^A-Z])(\d)(LTS|LTT|LTE|LT|LOTE|LOT|L)(?![A-Z])/gi, "$1$2 $3");
 }
 
 function stripQuadraLoteFromStreet(q: string) {
@@ -834,7 +841,7 @@ function findFirstSafeMatch(text: string, pattern: RegExp) {
 }
 
 const QUADRA_LOTE_VALUE_END =
-  String.raw`(?=\s*(?:,|\.|$|\b(?:LOTE|LOT|LT|L(?![A-Z])|QUADRA|QUAD|QDR|QD|Q)\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL)\b))`;
+  String.raw`(?=\s*(?:,|\.|$|\b(?:LTS|LTT|LTE|LOTE|LOT|LT|L(?![A-Z])|QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\b|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL|PORTAO|PORTÃO|ESQUINA|FUNDO|FUNDOS)\b))`;
 
 const QUADRA_LOTE_TOKEN =
   String.raw`(?:[A-Z](?:\s*[-:]?\s*\d+[A-Z0-9\-]*)?|[A-Z]|\d+[A-Z0-9]{0,5}(?:-[A-Z0-9]{1,3})?)`;
@@ -845,6 +852,28 @@ const QUADRA_LOTE_NUMERIC_TOKEN =
 type QuadraLoteSmartOptions = {
   allowGoianiaSafeVariants?: boolean;
 };
+
+type QuadraLoteSmartResult = {
+  quadra: string;
+  lote: string;
+  inferredQdLt?: boolean;
+  inferredPattern?: string | null;
+  parserRule?: string | null;
+  parserSource?: string | null;
+  parserConfidence?: "HIGH" | "LOW" | null;
+};
+
+function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
+  return {
+    quadra: "",
+    lote: "",
+    inferredQdLt: false,
+    inferredPattern: null,
+    parserRule: null,
+    parserSource: null,
+    parserConfidence: null,
+  };
+}
 
 function normalizeCompoundLoteValue(value: string, suffix = "") {
   const raw = String(value || "").trim();
@@ -860,11 +889,11 @@ function normalizeCompoundLoteValue(value: string, suffix = "") {
 
 function extractGoianiaSafeQuadraLotePair(up: string) {
   const separator = String.raw`[\s._,\-:]*`;
-  const quadraMarker = String.raw`(?:QUADRA|QUAD|QDR|QD|Q|QR|GD|GDR)`;
-  const loteMarker = String.raw`(?:LOTE|LOT|LTS|LTT|LT|L)`;
+  const quadraMarker = String.raw`(?:QUADRA|QUAD|QDRA|QDR|QDA|QD|QR|GD|GDR|Q)`;
+  const loteMarker = String.raw`(?:LOTE|LTS|LTT|LTE|LOT|LT|L(?![A-Z]))`;
   const quadraValue = String.raw`(?:[A-Z]{2,3}\d+[A-Z0-9\-]*|\d+[A-Z0-9\-]*)`;
   const loteValue = String.raw`(?:\d+[A-Z]?(?:\s*/\s*\d+[A-Z]?)?|[A-Z]\d+[A-Z]?)`;
-  const valueEnd = String.raw`(?=\s*(?:,|\.|$|\b(?:CASA|CS|SOBRADO|FUNDO|FUNDOS|PORTAO|PORTÃO|COND|CONDOMINIO|COMERCIAL|OFICINA)\b))`;
+  const valueEnd = String.raw`(?=\s*(?:,|\.|$|\b(?:CASA|CS|SOBRADO|FUNDO|FUNDOS|PORTAO|PORTÃO|ESQUINA|COND|CONDOMINIO|COMERCIAL|OFICINA)\b))`;
   const pair = up.match(
     new RegExp(
       String.raw`\b(${quadraMarker})\.?${separator}0*(${quadraValue})${separator}(${loteMarker})\.?${separator}0*(${loteValue})(?:\s+([A-Z]))?${valueEnd}`,
@@ -876,8 +905,9 @@ function extractGoianiaSafeQuadraLotePair(up: string) {
   const [, marker, quadraRaw, loteMarkerRaw, loteRaw, suffix] = pair;
   const hasApprovedVariant =
     /^[A-Z]{2,3}\d/.test(quadraRaw) ||
+    /^(QDA|QDRA)$/.test(marker) ||
     /^(QR|GD|GDR)$/.test(marker) ||
-    /^(LTS|LTT)$/.test(loteMarkerRaw) ||
+    /^(LTS|LTT|LTE)$/.test(loteMarkerRaw) ||
     /[._,]/.test(pair[0]);
 
   if (!hasApprovedVariant) return { quadra: "", lote: "" };
@@ -885,7 +915,61 @@ function extractGoianiaSafeQuadraLotePair(up: string) {
   return {
     quadra: normalizeQLValue(quadraRaw),
     lote: normalizeCompoundLoteValue(loteRaw, suffix),
+    inferredQdLt: false,
+    inferredPattern: null,
+    parserRule: "goiania_safe_explicit_pair",
+    parserSource: "address",
+    parserConfidence: "HIGH",
   };
+}
+
+function hasUnsafeInferredQdLtContext(up: string) {
+  if (
+    /\b(AP|APT|APTO|APARTAMENTO|BLOCO|BL|SALA|PORTAO|PORTÃO|CASA|CS|SN|S\/N|SEM NUMERO|COMERCIAL|LOJA|OFICINA|ACADEMIA)\b/.test(
+      up,
+    )
+  ) {
+    return true;
+  }
+
+  if (/\b(?:RUA|R)\s+\d+[A-Z]?\s*,?\s+\d+\b/.test(up)) return true;
+  if (/\b(?:RUA|R)\s+[A-Z0-9\s]+,\s*\d+\b/.test(up) && !/\b(QD|QDA|QDRA|QUADRA|QDR|Q|LT|LTE|LOTE|L)\b/.test(up)) {
+    return true;
+  }
+
+  return false;
+}
+
+function extractInferredGoianiaQuadraLote(up: string): QuadraLoteSmartResult {
+  if (hasUnsafeInferredQdLtContext(up)) return emptyQuadraLoteSmartResult();
+
+  const patterns: Array<{ pattern: RegExp; label: string }> = [
+    {
+      label: "qd_marker_number_space_number",
+      pattern: /\b(?:QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\s*0*(\d{1,4}[A-Z]?)\s+0*(\d{1,4}[A-Z]?)\b/,
+    },
+    {
+      label: "number_lote_marker_number",
+      pattern: /\b0*(\d{1,4}[A-Z]?)\s+(?:LTS|LTT|LTE|LOTE|LOT|LT|L(?![A-Z]))\.?\s*0*(\d{1,4}[A-Z]?)\b/,
+    },
+  ];
+
+  for (const item of patterns) {
+    const match = up.match(item.pattern);
+    if (!match) continue;
+
+    return {
+      quadra: normalizeQLValue(match[1]),
+      lote: normalizeQLValue(match[2]),
+      inferredQdLt: true,
+      inferredPattern: item.label,
+      parserRule: "goiania_inferred_qd_lt",
+      parserSource: "address",
+      parserConfidence: "LOW",
+    };
+  }
+
+  return emptyQuadraLoteSmartResult();
 }
 
 function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {}) {
@@ -915,7 +999,7 @@ function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {
     findFirstSafeMatch(
       up,
       new RegExp(
-        String.raw`\b(?:QUADRA|QUAD|QDR|QD)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+        String.raw`\b(?:QUADRA|QUAD|QDRA|QDR|QDA|QD)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
       ),
     ) ||
     findFirstSafeMatch(
@@ -935,7 +1019,7 @@ function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {
     findFirstSafeMatch(
       up,
       new RegExp(
-        String.raw`\b(?:LOTE|LOT|LT)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
+        String.raw`\b(?:LTS|LTT|LTE|LOTE|LOT|LT)\.?\s*[:\-]?\s*(${QUADRA_LOTE_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`,
       ),
     ) ||
     findFirstSafeMatch(
@@ -977,7 +1061,24 @@ function extractQuadraLoteSmart(raw: string, options: QuadraLoteSmartOptions = {
     }
   }
 
-  return { quadra, lote };
+  if (quadra && lote) {
+    return {
+      quadra,
+      lote,
+      inferredQdLt: false,
+      inferredPattern: null,
+      parserRule: "explicit_qd_lt",
+      parserSource: "address",
+      parserConfidence: "HIGH",
+    };
+  }
+
+  if (options.allowGoianiaSafeVariants) {
+    const inferred = extractInferredGoianiaQuadraLote(up);
+    if (inferred.quadra && inferred.lote) return inferred;
+  }
+
+  return emptyQuadraLoteSmartResult();
 }
 
 function isAparecidaBairroNoise(value: string) {
@@ -2378,16 +2479,40 @@ async function processOne(
   // 1.1) fallback regex se Gemini falhar
  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
 
- const finalQuadra = mergeAparecidaLotValue(
-   g.normalized.quadra || "",
-   smartQL.quadra || bairroSmartQL.quadra || "",
-   rx.quadra || "",
- ).trim();
- const finalLote = mergeAparecidaLotValue(
-   g.normalized.lote || "",
-   smartQL.lote || bairroSmartQL.lote || "",
-   rx.lote || "",
- ).trim();
+  const smartParserSource = smartQL.quadra && smartQL.lote ? smartQL : bairroSmartQL;
+  const invalidGoianiaParserValue = (value: string) =>
+    isGoianiaForGeminiSkip && /^(?:OTE|LTE|LT|L|LOTE|E)$/i.test(String(value || "").trim());
+
+  const finalQuadra = mergeAparecidaLotValue(
+    invalidGoianiaParserValue(g.normalized.quadra) ? "" : g.normalized.quadra || "",
+    smartQL.quadra || bairroSmartQL.quadra || "",
+    rx.quadra || "",
+  ).trim();
+  const finalLote = mergeAparecidaLotValue(
+    invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
+    smartQL.lote || bairroSmartQL.lote || "",
+    rx.lote || "",
+  ).trim();
+
+  const finalParserDebug =
+    isGoianiaForGeminiSkip && finalQuadra && finalLote
+      ? {
+          inferredQdLt: !!smartParserSource.inferredQdLt,
+          inferredPattern: smartParserSource.inferredPattern ?? null,
+          parserRule: smartParserSource.parserRule ?? null,
+          parserSource: smartParserSource.parserSource ?? null,
+          parserConfidence:
+            smartParserSource.parserConfidence === "HIGH" || smartParserSource.parserConfidence === "LOW"
+              ? smartParserSource.parserConfidence
+              : null,
+        }
+      : {
+          inferredQdLt: false,
+          inferredPattern: null,
+          parserRule: null,
+          parserSource: null,
+          parserConfidence: null,
+        };
 
   if (
     process.env.NODE_ENV !== "production" &&
@@ -2431,6 +2556,11 @@ async function processOne(
     estado: (g.normalized.estado || "GO").trim() || "GO",
     numero: (g.normalized.numero || "").trim(),
     observacao: obsCleanRaw.replace(/gemini\s*erro/gi, "").trim(),
+    inferredQdLt: finalParserDebug.inferredQdLt,
+    inferredPattern: finalParserDebug.inferredPattern,
+    parserRule: finalParserDebug.parserRule,
+    parserSource: finalParserDebug.parserSource,
+    parserConfidence: finalParserDebug.parserConfidence as "HIGH" | "LOW" | null,
   };
 
   const isRuaFraca = isWeakStreetForMemoryHint(normalized.rua);
@@ -4545,6 +4675,11 @@ if (shouldAutoSaveAddressMemory) {
         rankingV2StreetCompatibility: localFirstGoianiaShadow.rankingV2StreetCompatibility ?? null,
         rankingV2Reason: localFirstGoianiaShadow.rankingV2Reason ?? null,
         rankingV2BlockedReason: localFirstGoianiaShadow.rankingV2BlockedReason ?? null,
+        inferredQdLt: !!normalized.inferredQdLt,
+        inferredPattern: normalized.inferredPattern ?? null,
+        parserRule: normalized.parserRule ?? null,
+        parserSource: normalized.parserSource ?? null,
+        parserConfidence: normalized.parserConfidence ?? null,
         goianiaLocalFirstStreetCompatibility,
         goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
         goianiaLocalFirstCandidateStreetNormalized,
