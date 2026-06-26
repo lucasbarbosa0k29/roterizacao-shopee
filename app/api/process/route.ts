@@ -2503,8 +2503,11 @@ async function processOne(
   const isAparecida = isAparecidaCity(cityForDecision);
   const goianiaLocalFirstShadowEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_SHADOW === "1";
   const goianiaLocalFirstBypassEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_BYPASS === "1";
+  const goianiaRankingV2FinalEnabled = true;
   const exposeGoianiaLocalFirstDiagnostics =
-    goianiaLocalFirstShadowEnabled || goianiaLocalFirstBypassEnabled;
+    goianiaLocalFirstShadowEnabled ||
+    goianiaLocalFirstBypassEnabled ||
+    goianiaRankingV2FinalEnabled;
   const localFirstGoianiaShadow = lookupGoianiaLocalFirstShadow({
     city: cityForDecision,
     bairro: normalized.bairro || bairroIn,
@@ -2560,9 +2563,37 @@ async function processOne(
       localFirstGoianiaShadow.matchType !== "compound_lot_canonical" &&
       localFirstGoianiaShadow.matchType !== "compound_lot" &&
       localFirstGoianiaShadow.matchType !== "partition_fallback_exact" &&
-      localFirstGoianiaShadow.matchType !== "structural_alias_exact"
+      localFirstGoianiaShadow.matchType !== "structural_alias_exact" &&
+      localFirstGoianiaShadow.matchType !== "ranking_v2_exact"
     ) {
       return "NO_LOCAL_CANDIDATE";
+    }
+    if (localFirstGoianiaShadow.matchType === "ranking_v2_exact") {
+      if (
+        localFirstGoianiaShadow.rankingV2StreetCompatibility !== "STREET_MATCH" &&
+        localFirstGoianiaShadow.rankingV2StreetCompatibility !== "STREET_PARTIAL_MATCH"
+      ) {
+        return "NO_LOCAL_CANDIDATE";
+      }
+      if (
+        typeof localFirstGoianiaShadow.rankingV2WinnerScore !== "number" ||
+        localFirstGoianiaShadow.rankingV2WinnerScore < 180
+      ) {
+        return "NO_LOCAL_CANDIDATE";
+      }
+      if (
+        localFirstGoianiaShadow.rankingV2RunnerUpScore !== null &&
+        localFirstGoianiaShadow.rankingV2RunnerUpScore !== undefined &&
+        (
+          typeof localFirstGoianiaShadow.rankingV2ScoreGap !== "number" ||
+          localFirstGoianiaShadow.rankingV2ScoreGap < 30
+        )
+      ) {
+        return "NO_LOCAL_CANDIDATE";
+      }
+      if ((localFirstGoianiaShadow.rankingV2CandidatesCount ?? 0) < 1) {
+        return "NO_LOCAL_CANDIDATE";
+      }
     }
     const goianiaCompoundLotInput = /(\/|-|\bE\b)/i.test(String(normalized.lote || ""));
     if (
@@ -2572,11 +2603,13 @@ async function processOne(
       return "COMPOUND_LOT_BUILDING_CONTEXT";
     }
     if (localFirstGoianiaShadow.confidence !== "HIGH") return "NOT_HIGH_CONFIDENCE";
-    if (
-      typeof localFirstGoianiaShadow.distanceM !== "number" ||
-      localFirstGoianiaShadow.distanceM > 120
-    ) {
-      return "DISTANCE_OVER_LIMIT";
+    if (localFirstGoianiaShadow.matchType !== "ranking_v2_exact") {
+      if (
+        typeof localFirstGoianiaShadow.distanceM !== "number" ||
+        localFirstGoianiaShadow.distanceM > 120
+      ) {
+        return "DISTANCE_OVER_LIMIT";
+      }
     }
     if (
       typeof localFirstGoianiaCandidate.lat !== "number" ||
@@ -2589,6 +2622,10 @@ async function processOne(
 
   localFirstGoianiaBypassReason = resolveGoianiaLocalFirstBypassReason();
   localFirstGoianiaWouldBypass = localFirstGoianiaBypassReason === "WOULD_BYPASS";
+  const localFirstGoianiaCanFinalizeWithoutFlag =
+    goianiaRankingV2FinalEnabled &&
+    localFirstGoianiaShadow.matchType === "ranking_v2_exact" &&
+    localFirstGoianiaWouldBypass;
   localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
   if (isLocalFirstAliasShadowEnabled() && runState && !localFirstGoianiaWouldBypass) {
     runState.localFirstAliasShadow.shadowTasks.push(
@@ -2692,7 +2729,7 @@ async function processOne(
   const scored: RankedHereEntry[] = [];
 
   if (
-    goianiaLocalFirstBypassEnabled &&
+    (goianiaLocalFirstBypassEnabled || localFirstGoianiaCanFinalizeWithoutFlag) &&
     localFirstGoianiaWouldBypass &&
     localFirstGoianiaCandidate
   ) {
@@ -4377,7 +4414,8 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
       localFirstGoianiaShadow.matchType === "exact_canonical" ||
       localFirstGoianiaShadow.matchType === "exact_alphanumeric_canonical" ||
       localFirstGoianiaShadow.matchType === "partition_fallback_exact" ||
-      localFirstGoianiaShadow.matchType === "structural_alias_exact"
+      localFirstGoianiaShadow.matchType === "structural_alias_exact" ||
+      localFirstGoianiaShadow.matchType === "ranking_v2_exact"
         ? 10
         : 0
     ) +
@@ -4497,6 +4535,16 @@ if (shouldAutoSaveAddressMemory) {
         localFirstWinnerChangedByStreet: !!localFirstGoianiaShadow.localFirstWinnerChangedByStreet,
         localFirstWinnerBeforeStreetLabel: localFirstGoianiaShadow.localFirstWinnerBeforeStreetLabel ?? null,
         localFirstWinnerAfterStreetLabel: localFirstGoianiaShadow.localFirstWinnerAfterStreetLabel ?? null,
+        rankingV2Attempted: !!localFirstGoianiaShadow.rankingV2Attempted,
+        rankingV2CandidatesCount: localFirstGoianiaShadow.rankingV2CandidatesCount ?? 0,
+        rankingV2WinnerScore: localFirstGoianiaShadow.rankingV2WinnerScore ?? null,
+        rankingV2RunnerUpScore: localFirstGoianiaShadow.rankingV2RunnerUpScore ?? null,
+        rankingV2ScoreGap: localFirstGoianiaShadow.rankingV2ScoreGap ?? null,
+        rankingV2WinnerPartition: localFirstGoianiaShadow.rankingV2WinnerPartition ?? null,
+        rankingV2WinnerStreet: localFirstGoianiaShadow.rankingV2WinnerStreet ?? null,
+        rankingV2StreetCompatibility: localFirstGoianiaShadow.rankingV2StreetCompatibility ?? null,
+        rankingV2Reason: localFirstGoianiaShadow.rankingV2Reason ?? null,
+        rankingV2BlockedReason: localFirstGoianiaShadow.rankingV2BlockedReason ?? null,
         goianiaLocalFirstStreetCompatibility,
         goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
         goianiaLocalFirstCandidateStreetNormalized,
