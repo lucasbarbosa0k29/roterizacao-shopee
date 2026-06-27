@@ -12,7 +12,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { Prisma } from "@prisma/client";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
-import { logMemory } from "@/app/lib/memory-observability";
+import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 
 function normalizeResultJson(resultJson: any) {
   if (!resultJson) return null;
@@ -131,7 +131,7 @@ export async function GET(
     const url = new URL(req.url);
     const progressOnly = url.searchParams.get("mode") === "progress";
 
-    logMemory("history:id:before-db", {
+    logMemoryDiagnostics("history:id:before-db", {
       route: "/api/history/[id]",
       jobId: safeId,
       processed: null,
@@ -173,7 +173,7 @@ export async function GET(
       return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
     }
 
-    logMemory("history:id:after-db", {
+    logMemoryDiagnostics("history:id:after-db", {
       route: "/api/history/[id]",
       jobId: safeId,
       processed: job?.processedStops ?? null,
@@ -193,7 +193,7 @@ export async function GET(
     let storedResultJson = fullJob.resultJson;
 
     if (fullJob.resultPath && isManagedJobResultPath(fullJob.resultPath)) {
-      logMemory("history:id:before-load-file", {
+      logMemoryDiagnostics("history:id:before-load-file", {
         route: "/api/history/[id]",
         jobId: safeId,
         processed: fullJob.processedStops ?? null,
@@ -202,7 +202,7 @@ export async function GET(
       });
       try {
         storedResultJson = await loadJobResult(fullJob.resultPath);
-        logMemory("history:id:after-load-file", {
+        logMemoryDiagnostics("history:id:after-load-file", {
           route: "/api/history/[id]",
           jobId: safeId,
           processed: fullJob.processedStops ?? null,

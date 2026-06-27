@@ -7,7 +7,8 @@ import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
-import { logMemory } from "@/app/lib/memory-observability";
+import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
+import { getGynLotCacheSnapshot, gynLotCacheState } from "@/app/lib/gyn-lot-cache";
 
 export const runtime = "nodejs";
 
@@ -30,14 +31,14 @@ type RTreeItem = {
   i: number;
 };
 
-let cached: {
+const cached: {
   geo?: FeatureCollection;
   tree?: RBush<RTreeItem>;
   filePath?: string;
   missing?: boolean;
-} = {};
+} = gynLotCacheState.cached as any;
 
-const gynLotCache = new Map<string, any>();
+const gynLotCache = gynLotCacheState.gynLotCache;
 
 function coordCacheKey(lat: number, lng: number) {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
@@ -98,11 +99,11 @@ function loadGoiania() {
     return cached;
   }
 
-  logMemory("gyn-lot:before-load", {
+  logMemoryDiagnostics("gyn-lot:before-load", {
     route: "/api/gyn/lot",
     filePath,
     cacheSizes: {
-      gynLotCache: gynLotCache.size,
+      ...getGynLotCacheSnapshot(),
     },
   });
   const raw = fs.readFileSync(filePath, "utf8");
@@ -135,11 +136,11 @@ function loadGoiania() {
   cached.filePath = filePath;
   cached.missing = false;
 
-  logMemory("gyn-lot:after-load", {
+  logMemoryDiagnostics("gyn-lot:after-load", {
     route: "/api/gyn/lot",
     filePath,
     cacheSizes: {
-      gynLotCache: gynLotCache.size,
+      ...getGynLotCacheSnapshot(),
       features: geo.features.length,
     },
   });

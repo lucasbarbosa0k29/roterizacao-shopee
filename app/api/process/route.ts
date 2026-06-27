@@ -64,11 +64,16 @@ import {
 } from "@/app/lib/address-context-resolver";
 import {
   createLocalFirstAliasShadowState,
+  getLocalFirstAliasShadowSnapshot,
   isLocalFirstAliasShadowEnabled,
   runLocalFirstAliasShadow,
   type LocalFirstAliasShadowState,
 } from "@/app/lib/local-first-alias-shadow";
-import { logMemory } from "@/app/lib/memory-observability";
+import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
+import { getAparecidaLocalLotsCacheSnapshot } from "@/app/lib/aparecida-local-lots";
+import { getGynLotCacheSnapshot } from "@/app/lib/gyn-lot-cache";
+import { getGoianiaLocalFirstCacheSnapshot } from "@/app/lib/goiania-local-first";
+import { getTrindadeLocalFirstCacheSnapshot } from "@/app/lib/trindade-localfirst-shadow";
 
 
 export const runtime = "nodejs";
@@ -87,6 +92,16 @@ type GoogleCommercialFallbackRunState = {
 type ProcessRunState = GoogleCommercialFallbackRunState & {
   localFirstAliasShadow: LocalFirstAliasShadowState;
 };
+
+function getProcessCacheSnapshot(runState?: ProcessRunState) {
+  return {
+    aparecida: getAparecidaLocalLotsCacheSnapshot(),
+    gynLot: getGynLotCacheSnapshot(),
+    goianiaLocalFirst: getGoianiaLocalFirstCacheSnapshot(),
+    trindade: getTrindadeLocalFirstCacheSnapshot(),
+    aliasShadow: runState ? getLocalFirstAliasShadowSnapshot(runState.localFirstAliasShadow) : null,
+  };
+}
 
 type Normalized = {
   rua: string;
@@ -3082,6 +3097,7 @@ async function processOne(
   let localFirstGoianiaWouldBypass = false;
   let localFirstGoianiaBypassReason: string | null = null;
   let localFirstGoianiaUsedAsFinal = false;
+  let localFirstBypassHere = false;
 
   const resolveGoianiaLocalFirstBypassReason = () => {
     const cityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
@@ -3258,7 +3274,6 @@ async function processOne(
   let localLotFinalItem: any = null;
   let localLotFinalScore = -999;
   let localLotFinalArc: any = null;
-  let localFirstBypassHere = false;
   let localFirstMatchedBy: "normalized" | "original" | null = null;
   let aparecidaBlockedLocalFirstPair: AparecidaBlockedLocalFirstPair | null = null;
   let partialStreetFallbackUsed = false;
@@ -5460,7 +5475,7 @@ if (shouldAutoSaveAddressMemory) {
       ? "LOCALFIRST_GOIANIA"
       : memoryHit
         ? "MEMORY"
-        : finalRankedKind === "discover"
+      : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
           : "HERE_GEOCODE";
 
@@ -5834,21 +5849,27 @@ export async function POST(req: Request) {
     }
 
     const baseOrigin = new URL(req.url).origin;
+
+    logMemoryDiagnostics("process:before-runstate", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: rowsIn.length,
+      processed: 0,
+      cacheSnapshot: getProcessCacheSnapshot(),
+    });
+
     const runState: ProcessRunState = {
       jobId,
       googleCommercialFallbackCalls: 0,
       localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
     };
 
-    logMemory("process:job:start", {
+    logMemoryDiagnostics("process:job:start", {
       route: "/api/process",
       jobId: jobId || null,
       rows: rowsIn.length,
       processed: 0,
-      cacheSizes: {
-        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
-        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
-      },
+      cacheSnapshot: getProcessCacheSnapshot(runState),
     });
 
     const concurrency = 5;
@@ -5885,15 +5906,12 @@ export async function POST(req: Request) {
           completedCount += 1;
 
           if (completedCount % 20 === 0 || completedCount === rowsIn.length) {
-            logMemory("process:rows:progress", {
+            logMemoryDiagnostics("process:rows:progress", {
               route: "/api/process",
               jobId: jobId || null,
               rows: rowsIn.length,
               processed: completedCount,
-              cacheSizes: {
-                shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
-                seenKeys: runState.localFirstAliasShadow.seenKeys.size,
-              },
+              cacheSnapshot: getProcessCacheSnapshot(runState),
             });
           }
 
@@ -5919,61 +5937,57 @@ export async function POST(req: Request) {
       }
     }
 
-    logMemory("process:before-workers", {
+    logMemoryDiagnostics("process:before-workers", {
       route: "/api/process",
       jobId: jobId || null,
       rows: rowsIn.length,
       processed: completedCount,
-      cacheSizes: {
-        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
-        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
-      },
+      cacheSnapshot: getProcessCacheSnapshot(runState),
     });
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     await Promise.allSettled(runState.localFirstAliasShadow.shadowTasks);
-    logMemory("process:after-workers", {
+    logMemoryDiagnostics("process:after-workers", {
       route: "/api/process",
       jobId: jobId || null,
       rows: rowsIn.length,
       processed: completedCount,
-      cacheSizes: {
-        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
-        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
-      },
+      cacheSnapshot: getProcessCacheSnapshot(runState),
     });
 
     let resultPath: string | null = null;
 
-   // ✅ no final, marca DONE e salva resultado completo
-if (jobId) {
-  logMemory("process:before-save-result", {
-    route: "/api/process",
-    jobId,
-    rows: results.length,
-    processed: completedCount,
-  });
-  resultPath = await saveJobResult(jobId, results);
-  logMemory("process:after-save-result", {
-    route: "/api/process",
-    jobId,
-    rows: results.length,
-    processed: completedCount,
-    resultPath,
-  });
-  await prisma.importJob.update({
-    where: { id: jobId },
-    data: {
-      status: "DONE",
-      finishedAt: new Date(),
-      processedStops: rowsIn.length,
+    // ✅ no final, marca DONE e salva resultado completo
+    if (jobId) {
+      logMemoryDiagnostics("process:before-save-result", {
+        route: "/api/process",
+        jobId,
+        rows: results.length,
+        processed: completedCount,
+        cacheSnapshot: getProcessCacheSnapshot(runState),
+      });
+      resultPath = await saveJobResult(jobId, results);
+      logMemoryDiagnostics("process:after-save-result", {
+        route: "/api/process",
+        jobId,
+        rows: results.length,
+        processed: completedCount,
+        resultPath,
+        cacheSnapshot: getProcessCacheSnapshot(runState),
+      });
+      await prisma.importJob.update({
+        where: { id: jobId },
+        data: {
+          status: "DONE",
+          finishedAt: new Date(),
+          processedStops: rowsIn.length,
 
-      // 🔥 SALVA O RESULTADO FINAL NO BANCO
-      resultPath,
-      resultJson: results as Prisma.InputJsonValue,
-      resultSavedAt: new Date(),
-    },
-  });
-}
+          // 🔥 SALVA O RESULTADO FINAL NO BANCO
+          resultPath,
+          resultJson: results as Prisma.InputJsonValue,
+          resultSavedAt: new Date(),
+        },
+      });
+    }
 
 
     let debugMemorySummary: any = undefined;
@@ -5995,7 +6009,6 @@ if (jobId) {
       const aparecidaLocalStreetShadowTotal = rowsWithDebug.filter(
         (r: any) => r.memoryDebug.aparecidaLocalStreetShadow,
       ).length;
-
       debugMemorySummary = {
         enabled: true,
         totalRows: rowsWithDebug.length,
@@ -6035,15 +6048,12 @@ if (jobId) {
       console.info("[MEMORY_BATCH_SUMMARY]", debugMemorySummary);
     }
 
-    logMemory("process:before-response", {
+    logMemoryDiagnostics("process:before-response", {
       route: "/api/process",
       jobId: jobId || null,
       rows: results.length,
       processed: completedCount,
-      cacheSizes: {
-        shadowTasks: runState.localFirstAliasShadow.shadowTasks.length,
-        seenKeys: runState.localFirstAliasShadow.seenKeys.size,
-      },
+      cacheSnapshot: getProcessCacheSnapshot(runState),
     });
     return NextResponse.json({
       total: results.length,

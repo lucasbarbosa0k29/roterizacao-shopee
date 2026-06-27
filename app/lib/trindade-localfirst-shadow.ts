@@ -93,6 +93,21 @@ const lotIndexCache = {
   byBairroQuadraLote: null as Map<string, LocalFirstRecord[]> | null,
 };
 
+export function getTrindadeLocalFirstCacheSnapshot() {
+  return {
+    loaded: !!cache.manifest || !!cache.lotes || !!cache.quadras || !!cache.logradouros || !!cache.bairros || !!cache.loteamentos || !!cache.aliases,
+    nameIndexSizes: {
+      bairros: nameIndexCache.bairros?.size ?? 0,
+      loteamentos: nameIndexCache.loteamentos?.size ?? 0,
+      logradouros: nameIndexCache.logradouros?.size ?? 0,
+    },
+    lotIndexSizes: {
+      byQuadraLote: lotIndexCache.byQuadraLote?.size ?? 0,
+      byBairroQuadraLote: lotIndexCache.byBairroQuadraLote?.size ?? 0,
+    },
+  };
+}
+
 function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as T;
 }

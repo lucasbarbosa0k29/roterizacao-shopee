@@ -39,6 +39,16 @@ export type LocalFirstAliasShadowResult = {
   rejectedReason?: string | null;
 };
 
+export function getLocalFirstAliasShadowSnapshot(state: LocalFirstAliasShadowState) {
+  return {
+    jobId: state.jobId,
+    shadowTasksSize: state.shadowTasks.length,
+    seenKeysSize: state.seenKeys.size,
+    geminiCalls: state.geminiCalls,
+    maxGeminiCalls: state.maxGeminiCalls,
+  };
+}
+
 const DEFAULT_MAX_GEMINI_CALLS_PER_JOB = 30;
 
 export function isLocalFirstAliasShadowEnabled() {

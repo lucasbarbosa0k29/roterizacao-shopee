@@ -5,7 +5,7 @@ import {
   normalizeGoianiaStreetName,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
-import { logMemory } from "@/app/lib/memory-observability";
+import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -150,10 +150,12 @@ const BAIRRO_PREFIXES = [
   "VILLAGE",
 ];
 
-function getAllPartitionKeysCount() {
-  return Array.isArray(allPartitionKeysCache.value)
-    ? (allPartitionKeysCache.value as string[]).length
-    : 0;
+export function getGoianiaLocalFirstCacheSnapshot() {
+  return {
+    partitionCacheSize: partitionCache.size,
+    allPartitionKeysLoaded: Array.isArray(allPartitionKeysCache.value),
+    streetToPartitionsLoaded: !!streetToPartitionsCache.value,
+  };
 }
 
 function loadStreetToPartitionsIndex() {
@@ -172,10 +174,6 @@ function loadStreetToPartitionsIndex() {
 function readPositiveIntegerEnv(name: string, fallback: number) {
   const parsed = Number(process.env[name]);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function isMemoryDebugVerbose() {
-  return process.env.MEMORY_DEBUG_VERBOSE === "true" || process.env.MEMORY_DEBUG_VERBOSE === "1";
 }
 
 function isGoianiaLocalFirstWideScanEnabled() {
@@ -481,30 +479,24 @@ function loadPartition(bairroKey: string) {
     return null;
   }
 
-  if (isMemoryDebugVerbose()) {
-    logMemory("goiania-local-first:before-load-partition", {
-      route: "goiania-local-first",
-      bairroKey,
-      filePath,
-      cacheSizes: {
-        partitionCache: partitionCache.size,
-        allPartitionKeys: getAllPartitionKeysCount(),
-      },
-    });
-  }
+  logMemoryDiagnostics("goiania-local-first:before-load-partition", {
+    route: "goiania-local-first",
+    bairroKey,
+    filePath,
+    cacheSizes: {
+      ...getGoianiaLocalFirstCacheSnapshot(),
+    },
+  });
   const parsed = JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")) as Partition;
   rememberPartition(bairroKey, parsed);
-  if (isMemoryDebugVerbose()) {
-    logMemory("goiania-local-first:after-load-partition", {
-      route: "goiania-local-first",
-      bairroKey,
-      filePath,
-      cacheSizes: {
-        partitionCache: partitionCache.size,
-        allPartitionKeys: getAllPartitionKeysCount(),
-      },
-    });
-  }
+  logMemoryDiagnostics("goiania-local-first:after-load-partition", {
+    route: "goiania-local-first",
+    bairroKey,
+    filePath,
+    cacheSizes: {
+      ...getGoianiaLocalFirstCacheSnapshot(),
+    },
+  });
   return parsed;
 }
 
@@ -515,12 +507,11 @@ function loadAllPartitionKeys() {
     return allPartitionKeysCache.value;
   }
 
-  logMemory("goiania-local-first:before-load-partition-keys", {
+  logMemoryDiagnostics("goiania-local-first:before-load-partition-keys", {
     route: "goiania-local-first",
     partitionDir: PARTITION_DIR,
     cacheSizes: {
-      partitionCache: partitionCache.size,
-      allPartitionKeys: getAllPartitionKeysCount(),
+      ...getGoianiaLocalFirstCacheSnapshot(),
     },
   });
   allPartitionKeysCache.value = fs
@@ -530,12 +521,11 @@ function loadAllPartitionKeys() {
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
 
-  logMemory("goiania-local-first:after-load-partition-keys", {
+  logMemoryDiagnostics("goiania-local-first:after-load-partition-keys", {
     route: "goiania-local-first",
     partitionDir: PARTITION_DIR,
     cacheSizes: {
-      partitionCache: partitionCache.size,
-      allPartitionKeys: getAllPartitionKeysCount(),
+      ...getGoianiaLocalFirstCacheSnapshot(),
     },
   });
 
@@ -615,15 +605,14 @@ function limitGoianiaRankingV2PartitionScan(args: {
     };
   }
 
-  logMemory("GOIANIA_LOCALFIRST_PARTITION_SCAN_LIMITED", {
+  logMemoryDiagnostics("GOIANIA_LOCALFIRST_PARTITION_SCAN_LIMITED", {
     route: "goiania-local-first",
     inputBairroKey: args.inputBairroKey,
     scanMode: args.scanMode,
     totalPartitionKeys: args.partitionKeys.length,
     maxPartitionsPerLookup: GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP,
     cacheSizes: {
-      partitionCache: partitionCache.size,
-      allPartitionKeys: getAllPartitionKeysCount(),
+      ...getGoianiaLocalFirstCacheSnapshot(),
     },
   });
 

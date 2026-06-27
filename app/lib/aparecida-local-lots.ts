@@ -6,7 +6,7 @@ import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
-import { logMemory } from "@/app/lib/memory-observability";
+import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -85,6 +85,15 @@ const centroids: LoadedCentroids = {};
 const streetCentroids: LoadedStreetCentroids = {};
 const coordinateCache = new Map<string, any>();
 const LOCAL_ALIAS_MAX_SPREAD_METERS = 120;
+
+export function getAparecidaLocalLotsCacheSnapshot() {
+  return {
+    datasetLoaded: !!dataset.geo && !!dataset.tree,
+    centroidsLoaded: !!centroids.records && !!centroids.index,
+    streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+    coordinateCacheSize: coordinateCache.size,
+  };
+}
 
 function disableDataset(reason: string, error?: unknown) {
   dataset.disabled = true;
@@ -373,13 +382,11 @@ function loadAparecidaDataset() {
   }
 
   try {
-    logMemory("aparecida:before-load-dataset", {
+    logMemoryDiagnostics("aparecida:before-load-dataset", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        datasetLoaded: !!dataset.geo && !!dataset.tree,
-        centroidsLoaded: !!centroids.records && !!centroids.index,
-        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+        ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
     const parsed = (() => {
@@ -433,14 +440,12 @@ function loadAparecidaDataset() {
     dataset.filePath = filePath;
     dataset.missing = false;
 
-    logMemory("aparecida:after-load-dataset", {
+    logMemoryDiagnostics("aparecida:after-load-dataset", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        datasetLoaded: !!dataset.geo && !!dataset.tree,
+        ...getAparecidaLocalLotsCacheSnapshot(),
         features: geo.features.length,
-        centroidsLoaded: !!centroids.records && !!centroids.index,
-        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
       },
     });
 
@@ -461,13 +466,11 @@ function loadAparecidaCentroids() {
   }
 
   try {
-    logMemory("aparecida:before-load-centroids", {
+    logMemoryDiagnostics("aparecida:before-load-centroids", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        centroidsLoaded: !!centroids.records && !!centroids.index,
-        datasetLoaded: !!dataset.geo && !!dataset.tree,
-        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+        ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
     const records = (() => {
@@ -503,11 +506,11 @@ function loadAparecidaCentroids() {
 
     centroids.records = records;
     centroids.index = index;
-    logMemory("aparecida:after-load-centroids", {
+    logMemoryDiagnostics("aparecida:after-load-centroids", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        centroidsLoaded: !!centroids.records && !!centroids.index,
+        ...getAparecidaLocalLotsCacheSnapshot(),
         records: records.length,
         indexKeys: index.size,
       },
@@ -537,12 +540,11 @@ function loadAparecidaStreetCentroids() {
   }
 
   try {
-    logMemory("aparecida:before-load-street-centroids", {
+    logMemoryDiagnostics("aparecida:before-load-street-centroids", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        centroidsLoaded: !!centroids.records && !!centroids.index,
-        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+        ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
     const records = (() => {
@@ -570,11 +572,11 @@ function loadAparecidaStreetCentroids() {
 
     streetCentroids.records = records;
     streetCentroids.index = index;
-    logMemory("aparecida:after-load-street-centroids", {
+    logMemoryDiagnostics("aparecida:after-load-street-centroids", {
       route: "aparecida-local-lots",
       filePath,
       cacheSizes: {
-        streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
+        ...getAparecidaLocalLotsCacheSnapshot(),
         records: records.length,
         indexKeys: index.size,
       },
