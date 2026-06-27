@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, FormEvent } from "react";
 import type { RouteImportAccess, RouteJobProgress } from "../../lib/useRouteImportFlow";
@@ -15,6 +16,25 @@ type RouteUploadBoxProps = {
   handleSubmit: (e: FormEvent<HTMLFormElement>) => void;
 };
 
+function UploadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+    >
+      <path d="M12 3v12" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
 export function RouteUploadBox({
   variant,
   file,
@@ -26,28 +46,37 @@ export function RouteUploadBox({
   handleSubmit,
 }: RouteUploadBoxProps) {
   const router = useRouter();
+  const [estimatedProgress, setEstimatedProgress] = useState(0);
 
-  function ProcessingStatus() {
-    return (
-      <div className="mt-4 rounded-[22px] border border-[#cde3dd] bg-[#f4fbf8] px-4 py-4 text-sm text-slate-800">
-        <div className="font-semibold">Processando planilha...</div>
-        <div className="mt-1 text-slate-600">Estamos montando sua rota.</div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-          <div className="relative h-full w-full overflow-hidden rounded-full bg-[#cde3dd]">
-            <div className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-[#0f766e] motion-safe:animate-[route-indeterminate_1.25s_ease-in-out_infinite]" />
-          </div>
-        </div>
-        {jobProgress?.status && (
-          <div className="mt-3 text-xs text-slate-500">
-            {jobProgress.status === "PENDING" ? "Importação iniciada" : "Processamento em andamento"}
-          </div>
-        )}
-        {jobProgress?.errorMessage && (
-          <div className="mt-2 text-red-700">Erro: {jobProgress.errorMessage}</div>
-        )}
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (variant !== "twa") return;
+
+    if (!loading) {
+      setEstimatedProgress(0);
+      return;
+    }
+
+    setEstimatedProgress(0);
+    const timer = window.setInterval(() => {
+      setEstimatedProgress((current) => {
+        if (current >= 95) return current;
+        const step = current < 50 ? 4 : current < 80 ? 2 : 1;
+        return Math.min(95, current + step);
+      });
+    }, 260);
+
+    return () => window.clearInterval(timer);
+  }, [loading, variant]);
+
+  const realProgress = (() => {
+    if (!jobProgress) return null;
+    const total = Number(jobProgress.totalStops);
+    const processed = Number(jobProgress.processedStops);
+    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(processed)) return null;
+    return Math.min(95, Math.max(0, Math.round((processed / total) * 100)));
+  })();
+
+  const progressToShow = Math.min(95, Math.max(0, realProgress ?? estimatedProgress));
 
   if (variant === "web") {
     return (
@@ -79,8 +108,8 @@ export function RouteUploadBox({
               />
 
               <div className="flex items-center gap-3 md:gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dff5ef] text-lg text-[#0f5f58] md:h-12 md:w-12 md:text-xl">
-                  ⬆️
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dff5ef] text-[#0f5f58] md:h-12 md:w-12">
+                  <UploadIcon />
                 </div>
 
                 <div className="min-w-0">
@@ -140,8 +169,8 @@ export function RouteUploadBox({
     <form onSubmit={handleSubmit} className="w-full">
       <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dff5ef] text-lg text-[#0f5f58]">
-            ⬆️
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dff5ef] text-[#0f5f58]">
+            <UploadIcon />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-slate-900">Carregar Arquivo Operacional</div>
@@ -153,8 +182,16 @@ export function RouteUploadBox({
 
         <div className="mt-4 space-y-3">
           <label
-            className="block cursor-pointer rounded-[18px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] p-4"
+            className={[
+              "block rounded-[18px] border border-dashed border-[#7bb7ab] bg-[linear-gradient(180deg,#f8fcfb_0%,#f1f7f6_100%)] p-4",
+              loading ? "cursor-default" : "cursor-pointer",
+            ].join(" ")}
             onClick={(e) => {
+              if (loading) {
+                e.preventDefault();
+                return;
+              }
+
               if (access?.canStartRoute !== false) return;
               e.preventDefault();
               setFile(null);
@@ -165,12 +202,31 @@ export function RouteUploadBox({
               type="file"
               accept=".xlsx,.csv"
               className="hidden"
-              disabled={access?.canStartRoute === false}
+              disabled={access?.canStartRoute === false || loading}
               onChange={handleFileChange}
             />
-            <div className="text-sm text-slate-700">
-              Toque para escolher uma planilha operacional
-            </div>
+
+            {!loading ? (
+              <div className="text-sm text-slate-700">
+                Toque para escolher uma planilha operacional
+              </div>
+            ) : (
+              <div className="text-sm text-slate-800">
+                <div className="font-semibold">Processando planilha...</div>
+                <div className="mt-1 text-slate-600">Estamos montando sua rota.</div>
+                <div className="mt-4 overflow-hidden rounded-full bg-slate-200">
+                  <div className="relative h-8 rounded-full bg-[#dbe9e5]">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-[#0f766e] transition-[width] duration-300 ease-out"
+                      style={{ width: `${progressToShow}%` }}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center px-3 text-[11px] font-semibold tracking-wide text-white drop-shadow">
+                      Processando {progressToShow}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </label>
 
           {!loading ? (
@@ -182,8 +238,6 @@ export function RouteUploadBox({
             </button>
           ) : null}
         </div>
-
-        {loading ? <ProcessingStatus /> : null}
       </div>
     </form>
   );
