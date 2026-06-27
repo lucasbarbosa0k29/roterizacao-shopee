@@ -57,6 +57,12 @@ import {
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
 import {
+  detectAddressContext,
+  type AddressContextConfidence,
+  type AddressContextSource,
+  type AddressContextType,
+} from "@/app/lib/address-context-resolver";
+import {
   createLocalFirstAliasShadowState,
   isLocalFirstAliasShadowEnabled,
   runLocalFirstAliasShadow,
@@ -103,6 +109,38 @@ type Normalized = {
   bairroParserExtractedQdLt?: boolean;
   bairroBeforeParser?: string | null;
   bairroAfterParser?: string | null;
+  addressContextDetected?: boolean;
+  addressContextType?: AddressContextType;
+  addressContextConfidence?: AddressContextConfidence;
+  addressContextSource?: AddressContextSource | null;
+  addressContextText?: string | null;
+  addressContextName?: string | null;
+  addressContextNormalizedName?: string | null;
+  addressContextTokens?: string[];
+  addressContextBlock?: string | null;
+  addressContextTower?: string | null;
+  addressContextApartment?: string | null;
+  addressContextHouse?: string | null;
+  addressContextQuadra?: string | null;
+  addressContextLot?: string | null;
+  addressContextHasQdLt?: boolean;
+  addressContextQdLtSource?: AddressContextSource | null;
+  addressContextCandidate?: {
+    detected: boolean;
+    type: AddressContextType;
+    confidence: AddressContextConfidence;
+    normalizedName: string | null;
+    hasQdLt: boolean;
+    source: AddressContextSource | null;
+    qdLtSource: AddressContextSource | null;
+  };
+  eligibleForCondominiumResolver?: boolean;
+  eligibleReason?:
+    | "READY_FOR_CONDOMINIUM_RESOLVER"
+    | "NO_CONTEXT"
+    | "LOW_CONFIDENCE"
+    | "NO_NORMALIZED_NAME";
+  addressContextResolverVersion?: number;
 };
 
 type InputRow = {
@@ -224,6 +262,22 @@ type MemoryDebugRow = {
   localLotBoostApplied?: boolean;
   localLotUsedAsFinal?: boolean;
   localLotBlockedByBairro?: boolean;
+  addressContextCandidate?: {
+    detected: boolean;
+    type: AddressContextType;
+    confidence: AddressContextConfidence;
+    normalizedName: string | null;
+    hasQdLt: boolean;
+    source: AddressContextSource | null;
+    qdLtSource: AddressContextSource | null;
+  };
+  eligibleForCondominiumResolver?: boolean;
+  eligibleReason?:
+    | "READY_FOR_CONDOMINIUM_RESOLVER"
+    | "NO_CONTEXT"
+    | "LOW_CONFIDENCE"
+    | "NO_NORMALIZED_NAME";
+  addressContextResolverVersion?: number;
   localFirstGoianiaAttempted?: boolean;
   localFirstGoianiaFound?: boolean;
   localFirstGoianiaMatchType?: GoianiaLocalFirstShadow["matchType"];
@@ -2771,6 +2825,35 @@ async function processOne(
   const contextParserConflict = smartQL.parserRule?.startsWith("context_qd_lt_conflict_") ?? false;
   const invalidGoianiaParserValue = (value: string) =>
     isGoianiaForGeminiSkip && /^(?:OTE|LTE|LT|L|LOTE|E)$/i.test(String(value || "").trim());
+  const addressContext = detectAddressContext({
+    address: addressRaw,
+    complemento: complementoIn,
+    observacao: observacaoIn,
+    bairro: bairroIn,
+    referencia: referenciaIn,
+  });
+  const addressContextCandidate = {
+    detected: addressContext.addressContextDetected ?? false,
+    type: addressContext.addressContextType ?? "OUTRO",
+    confidence: addressContext.addressContextConfidence ?? "LOW",
+    normalizedName: addressContext.addressContextNormalizedName ?? null,
+    hasQdLt: addressContext.addressContextHasQdLt ?? false,
+    source: addressContext.addressContextSource ?? null,
+    qdLtSource: addressContext.addressContextQdLtSource ?? null,
+  };
+  const eligibleForCondominiumResolver =
+    addressContextCandidate.detected &&
+    (addressContextCandidate.confidence === "HIGH" ||
+      addressContextCandidate.confidence === "MEDIUM") &&
+    !!String(addressContextCandidate.normalizedName || "").trim();
+  const eligibleReason = !addressContextCandidate.detected
+    ? "NO_CONTEXT"
+    : addressContextCandidate.confidence === "LOW"
+      ? "LOW_CONFIDENCE"
+      : !String(addressContextCandidate.normalizedName || "").trim()
+        ? "NO_NORMALIZED_NAME"
+        : "READY_FOR_CONDOMINIUM_RESOLVER";
+  const addressContextResolverVersion = 1;
 
   const finalQuadra = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.quadra) ? "" : g.normalized.quadra || "",
@@ -2875,6 +2958,26 @@ async function processOne(
     bairroParserExtractedQdLt: bairroParser.bairroParserExtractedQdLt,
     bairroBeforeParser: bairroParser.bairroBeforeParser,
     bairroAfterParser: bairroParser.bairroAfterParser,
+    addressContextDetected: addressContext.addressContextDetected,
+    addressContextType: addressContext.addressContextType,
+    addressContextConfidence: addressContext.addressContextConfidence,
+    addressContextSource: addressContext.addressContextSource,
+    addressContextText: addressContext.addressContextText,
+    addressContextName: addressContext.addressContextName,
+    addressContextNormalizedName: addressContext.addressContextNormalizedName,
+    addressContextTokens: addressContext.addressContextTokens,
+    addressContextBlock: addressContext.addressContextBlock,
+    addressContextTower: addressContext.addressContextTower,
+    addressContextApartment: addressContext.addressContextApartment,
+    addressContextHouse: addressContext.addressContextHouse,
+    addressContextQuadra: addressContext.addressContextQuadra,
+    addressContextLot: addressContext.addressContextLot,
+    addressContextHasQdLt: addressContext.addressContextHasQdLt,
+    addressContextQdLtSource: addressContext.addressContextQdLtSource,
+    addressContextCandidate,
+    eligibleForCondominiumResolver,
+    eligibleReason,
+    addressContextResolverVersion,
   };
 
   const isRuaFraca = isWeakStreetForMemoryHint(normalized.rua);
@@ -5021,6 +5124,26 @@ if (shouldAutoSaveAddressMemory) {
         bairroParserExtractedQdLt: !!normalized.bairroParserExtractedQdLt,
         bairroBeforeParser: normalized.bairroBeforeParser ?? null,
         bairroAfterParser: normalized.bairroAfterParser ?? null,
+        addressContextDetected: normalized.addressContextDetected ?? false,
+        addressContextType: normalized.addressContextType ?? "OUTRO",
+        addressContextConfidence: normalized.addressContextConfidence ?? "LOW",
+        addressContextSource: normalized.addressContextSource ?? null,
+        addressContextText: normalized.addressContextText ?? null,
+        addressContextName: normalized.addressContextName ?? null,
+        addressContextNormalizedName: normalized.addressContextNormalizedName ?? null,
+        addressContextTokens: normalized.addressContextTokens ?? [],
+        addressContextBlock: normalized.addressContextBlock ?? null,
+        addressContextTower: normalized.addressContextTower ?? null,
+        addressContextApartment: normalized.addressContextApartment ?? null,
+        addressContextHouse: normalized.addressContextHouse ?? null,
+        addressContextQuadra: normalized.addressContextQuadra ?? null,
+        addressContextLot: normalized.addressContextLot ?? null,
+        addressContextHasQdLt: normalized.addressContextHasQdLt ?? false,
+        addressContextQdLtSource: normalized.addressContextQdLtSource ?? null,
+        addressContextCandidate: normalized.addressContextCandidate,
+        eligibleForCondominiumResolver: normalized.eligibleForCondominiumResolver,
+        eligibleReason: normalized.eligibleReason,
+        addressContextResolverVersion: normalized.addressContextResolverVersion ?? 1,
         goianiaLocalFirstStreetCompatibility,
         goianiaLocalFirstInputStreetNormalized: goianiaInputStreetNormalized,
         goianiaLocalFirstCandidateStreetNormalized,
