@@ -85,6 +85,14 @@ const centroids: LoadedCentroids = {};
 const streetCentroids: LoadedStreetCentroids = {};
 const coordinateCache = new Map<string, any>();
 const LOCAL_ALIAS_MAX_SPREAD_METERS = 120;
+const APARECIDA_CENTROID_CACHE_TTL_MS = 15 * 60 * 1000;
+
+let centroidCacheActiveReaders = 0;
+let centroidCacheClearPending = false;
+let centroidCacheTtlTimer: ReturnType<typeof setTimeout> | null = null;
+let centroidCacheLastAccessAt = 0;
+let centroidsEverLoaded = false;
+let streetCentroidsEverLoaded = false;
 
 export function getAparecidaLocalLotsCacheSnapshot() {
   return {
@@ -92,7 +100,110 @@ export function getAparecidaLocalLotsCacheSnapshot() {
     centroidsLoaded: !!centroids.records && !!centroids.index,
     streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
     coordinateCacheSize: coordinateCache.size,
+    centroidCacheActiveReaders,
+    centroidCacheClearPending,
+    centroidCacheTtlArmed: !!centroidCacheTtlTimer,
+    centroidCacheLastAccessAt,
   };
+}
+
+function logAparecidaCentroidCacheEvent(event: string, extra: Record<string, unknown> = {}) {
+  logMemoryDiagnostics(event, {
+    route: "aparecida-local-lots",
+    cacheSizes: getAparecidaLocalLotsCacheSnapshot(),
+    ...extra,
+  });
+}
+
+function cancelAparecidaCentroidCacheTtlTimer() {
+  if (centroidCacheTtlTimer) {
+    clearTimeout(centroidCacheTtlTimer);
+    centroidCacheTtlTimer = null;
+  }
+}
+
+function hasAparecidaCentroidCacheData() {
+  return !!centroids.records || !!centroids.index || !!streetCentroids.records || !!streetCentroids.index;
+}
+
+function armAparecidaCentroidCacheTtl() {
+  cancelAparecidaCentroidCacheTtlTimer();
+
+  if (!hasAparecidaCentroidCacheData()) return;
+
+  centroidCacheTtlTimer = setTimeout(() => {
+    centroidCacheTtlTimer = null;
+    logAparecidaCentroidCacheEvent("CACHE_TTL_EXPIRED", {
+      ttlMs: APARECIDA_CENTROID_CACHE_TTL_MS,
+      activeReaders: centroidCacheActiveReaders,
+    });
+
+    if (centroidCacheActiveReaders > 0) {
+      centroidCacheClearPending = true;
+      logAparecidaCentroidCacheEvent("CACHE_CLEAR_DEFERRED", {
+        reason: "TTL_EXPIRED_DURING_ACTIVE_USE",
+        activeReaders: centroidCacheActiveReaders,
+      });
+      return;
+    }
+
+    clearAparecidaCentroidCaches("TTL_EXPIRED");
+  }, APARECIDA_CENTROID_CACHE_TTL_MS);
+
+  centroidCacheTtlTimer.unref?.();
+}
+
+function touchAparecidaCentroidCache() {
+  centroidCacheLastAccessAt = Date.now();
+  if (centroidCacheActiveReaders === 0 && !centroidCacheClearPending) {
+    armAparecidaCentroidCacheTtl();
+  }
+}
+
+function acquireAparecidaCentroidLease() {
+  centroidCacheActiveReaders += 1;
+  centroidCacheLastAccessAt = Date.now();
+  cancelAparecidaCentroidCacheTtlTimer();
+}
+
+function releaseAparecidaCentroidLease() {
+  centroidCacheActiveReaders = Math.max(0, centroidCacheActiveReaders - 1);
+  centroidCacheLastAccessAt = Date.now();
+
+  if (centroidCacheActiveReaders > 0) return;
+
+  if (centroidCacheClearPending) {
+    centroidCacheClearPending = false;
+    clearAparecidaCentroidCaches("TTL_EXPIRED_AFTER_ACTIVE_USE");
+    return;
+  }
+
+  armAparecidaCentroidCacheTtl();
+}
+
+export function clearAparecidaCentroidCaches(reason: string) {
+  cancelAparecidaCentroidCacheTtlTimer();
+
+  const hadData =
+    !!centroids.records ||
+    !!centroids.index ||
+    !!streetCentroids.records ||
+    !!streetCentroids.index ||
+    coordinateCache.size > 0;
+
+  centroids.records = undefined;
+  centroids.index = undefined;
+  streetCentroids.records = undefined;
+  streetCentroids.index = undefined;
+  coordinateCache.clear();
+  centroidCacheClearPending = false;
+
+  if (hadData) {
+    logAparecidaCentroidCacheEvent("CACHE_CLEARED", {
+      reason,
+      coordinateCacheCleared: true,
+    });
+  }
 }
 
 function disableDataset(reason: string, error?: unknown) {
@@ -457,7 +568,10 @@ function loadAparecidaDataset() {
 
 function loadAparecidaCentroids() {
   if (centroids.missing || centroids.disabled) return centroids;
-  if (centroids.records && centroids.index) return centroids;
+  if (centroids.records && centroids.index) {
+    touchAparecidaCentroidCache();
+    return centroids;
+  }
 
   const filePath = path.join(process.cwd(), "public", "data", "aparecida_lot_centroids.json");
   if (!fs.existsSync(filePath)) {
@@ -506,14 +620,15 @@ function loadAparecidaCentroids() {
 
     centroids.records = records;
     centroids.index = index;
-    logMemoryDiagnostics("aparecida:after-load-centroids", {
+    const eventName = centroidsEverLoaded ? "CACHE_RELOADED" : "CACHE_LOAD";
+    centroidsEverLoaded = true;
+    touchAparecidaCentroidCache();
+    logAparecidaCentroidCacheEvent(eventName, {
+      cacheName: "centroids",
       route: "aparecida-local-lots",
       filePath,
-      cacheSizes: {
-        ...getAparecidaLocalLotsCacheSnapshot(),
-        records: records.length,
-        indexKeys: index.size,
-      },
+      records: records.length,
+      indexKeys: index.size,
     });
     return centroids;
   } catch (error) {
@@ -531,7 +646,10 @@ function streetCentroidKey(bairro: string, quadra: string, lote: string) {
 
 function loadAparecidaStreetCentroids() {
   if (streetCentroids.missing || streetCentroids.disabled) return streetCentroids;
-  if (streetCentroids.records && streetCentroids.index) return streetCentroids;
+  if (streetCentroids.records && streetCentroids.index) {
+    touchAparecidaCentroidCache();
+    return streetCentroids;
+  }
 
   const filePath = path.join(process.cwd(), "public", "data", "aparecida_lot_centroids_with_street.json");
   if (!fs.existsSync(filePath)) {
@@ -572,14 +690,15 @@ function loadAparecidaStreetCentroids() {
 
     streetCentroids.records = records;
     streetCentroids.index = index;
-    logMemoryDiagnostics("aparecida:after-load-street-centroids", {
+    const eventName = streetCentroidsEverLoaded ? "CACHE_RELOADED" : "CACHE_LOAD";
+    streetCentroidsEverLoaded = true;
+    touchAparecidaCentroidCache();
+    logAparecidaCentroidCacheEvent(eventName, {
+      cacheName: "streetCentroids",
       route: "aparecida-local-lots",
       filePath,
-      cacheSizes: {
-        ...getAparecidaLocalLotsCacheSnapshot(),
-        records: records.length,
-        indexKeys: index.size,
-      },
+      records: records.length,
+      indexKeys: index.size,
     });
     return streetCentroids;
   } catch (error) {
@@ -722,55 +841,60 @@ function geometryCentroid(geometry: any): { lat: number; lng: number } | null {
 }
 
 export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return { found: false as const };
-  }
+  acquireAparecidaCentroidLease();
+  try {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { found: false as const };
+    }
 
-  const cacheKey = coordCacheKey(lat, lng);
-  if (coordinateCache.has(cacheKey)) {
-    return { ...coordinateCache.get(cacheKey), cached: true };
-  }
+    const cacheKey = coordCacheKey(lat, lng);
+    if (coordinateCache.has(cacheKey)) {
+      return { ...coordinateCache.get(cacheKey), cached: true };
+    }
 
-  const { geo, tree, missing } = loadAparecidaDataset();
-  if (missing || !geo || !tree) {
-    return { found: false as const };
-  }
+    const { geo, tree, missing } = loadAparecidaDataset();
+    if (missing || !geo || !tree) {
+      return { found: false as const };
+    }
 
-  const candidates = tree.search({
-    minX: lng,
-    minY: lat,
-    maxX: lng,
-    maxY: lat,
-  });
+    const candidates = tree.search({
+      minX: lng,
+      minY: lat,
+      maxX: lng,
+      maxY: lat,
+    });
 
-  if (!candidates.length) {
+    if (!candidates.length) {
+      coordinateCache.set(cacheKey, { found: false });
+      return { found: false as const };
+    }
+
+    const pt = point([lng, lat]);
+    const ptBuffer = buffer(pt, 2, { units: "meters" });
+
+    for (const c of candidates) {
+      const f = geo.features[c.i];
+      if (!f) continue;
+
+      if (booleanIntersects(ptBuffer as any, f as any)) {
+        const p = f.properties || {};
+        const result = {
+          found: true as const,
+          quadra: pickFirstString(p, ["quadra", "num_qdr", "NUM_QDR", "QD"]),
+          lote: pickFirstString(p, ["lote", "num_lot", "NUM_LOT", "LT"]),
+          bairro: pickFirstString(p, ["bairro", "nm_bai", "NM_BAI", "SETOR"]),
+        };
+
+        coordinateCache.set(cacheKey, result);
+        return { ...result, cached: false };
+      }
+    }
+
     coordinateCache.set(cacheKey, { found: false });
     return { found: false as const };
+  } finally {
+    releaseAparecidaCentroidLease();
   }
-
-  const pt = point([lng, lat]);
-  const ptBuffer = buffer(pt, 2, { units: "meters" });
-
-  for (const c of candidates) {
-    const f = geo.features[c.i];
-    if (!f) continue;
-
-    if (booleanIntersects(ptBuffer as any, f as any)) {
-      const p = f.properties || {};
-      const result = {
-        found: true as const,
-        quadra: pickFirstString(p, ["quadra", "num_qdr", "NUM_QDR", "QD"]),
-        lote: pickFirstString(p, ["lote", "num_lot", "NUM_LOT", "LT"]),
-        bairro: pickFirstString(p, ["bairro", "nm_bai", "NM_BAI", "SETOR"]),
-      };
-
-      coordinateCache.set(cacheKey, result);
-      return { ...result, cached: false };
-    }
-  }
-
-  coordinateCache.set(cacheKey, { found: false });
-  return { found: false as const };
 }
 
 export function findAparecidaLocalLotCandidate(args: {
@@ -783,6 +907,8 @@ export function findAparecidaLocalLotCandidate(args: {
   cep?: string;
   allowStrongBairroAlias?: boolean;
 }) {
+  acquireAparecidaCentroidLease();
+  try {
   const q = normalizeQuadraLoteValue(args.quadra || "");
   const l = canonicalLot(args.lote || "");
   const bairro = String(args.bairro || "").trim();
@@ -881,6 +1007,9 @@ export function findAparecidaLocalLotCandidate(args: {
   });
 
   return candidates[0];
+  } finally {
+    releaseAparecidaCentroidLease();
+  }
 }
 
 function compareAparecidaStreetForValidation(
