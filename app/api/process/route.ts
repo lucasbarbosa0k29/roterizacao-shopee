@@ -38,7 +38,6 @@ import { authOptions } from "@/app/lib/auth";
 import { AccessControlError, consumeRouteAllowance } from "@/app/lib/access-control";
 import { Prisma } from "@prisma/client";
 import {
-  areAparecidaBairrosCompatible,
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
 } from "@/app/lib/aparecida-local-lots";
@@ -518,56 +517,23 @@ function buildMemoryKeyCandidates(args: {
     candidates,
   };
 }
-// REMOVE QUADRA/LOTE DA QUERY (pra não atrapalhar o HERE)
-const APARECIDA_BLOCKED_LOCAL_FIRST_PAIRS = new Set([
-  "JARDIM HELVECIA->JARDIM LUZ",
-  "JARDIM HELVECIA->VEIGA JARDIM",
-  "JARDIM CRISTAL->JARDIM LUZ",
-  "JARDIM IPANEMA->JARDIM LUZ",
-  "JARDIM RIO GRANDE->JARDIM LUZ",
-  "SETOR SANTO ANDRE->INDUSTRIAL SANTO ANTONIO",
-  "SETOR SANTO ANDRE->SANTO ANTONIO",
-  "SETOR SANTO ANDRE->SANTO ANTONIO CONJUNTO HABITACIONAL PROGRESSO",
-  "SETOR SANTO ANDRE->SANTO ANTONIO CONJUNTO PROGRESSO",
-  "SETOR SANTO ANDRE->CONJUNTO HABITACIONAL PROGRESSO",
-]);
-
-function normalizeAparecidaBlockedLocalFirstBairroKey(value: string) {
-  return normalizeKey(value)
-    .replace(/\bANT NIO\b/g, "ANTONIO")
-    .replace(/\bCONJ\b/g, "CONJUNTO")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function buildAparecidaBlockedLocalFirstPair(args: {
-  isAparecida: boolean;
-  localLotCandidateFound: boolean;
-  localLotLocalAliasAccepted: boolean;
   expectedBairro: string;
   localBairro: string;
   quadra: string;
   lote: string;
 }): AparecidaBlockedLocalFirstPair | null {
-  if (!args.isAparecida || !args.localLotCandidateFound || args.localLotLocalAliasAccepted) {
-    return null;
-  }
-
-  const expectedBairroKey = normalizeAparecidaBlockedLocalFirstBairroKey(args.expectedBairro);
-  const localBairroKey = normalizeAparecidaBlockedLocalFirstBairroKey(args.localBairro);
-  const blockedPairKey = `${expectedBairroKey}->${localBairroKey}`;
-
-  if (!APARECIDA_BLOCKED_LOCAL_FIRST_PAIRS.has(blockedPairKey)) {
-    return null;
-  }
+  const expectedBairroKey = normalizeKey(args.expectedBairro || "");
+  const localBairroKey = normalizeKey(args.localBairro || "");
+  if (!expectedBairroKey || !localBairroKey) return null;
 
   return {
     expectedBairro: args.expectedBairro,
     localBairro: args.localBairro,
     quadra: args.quadra,
     lote: args.lote,
-    motivo: "APARECIDA_BLOCKED_LOCAL_FIRST_PAIR",
-    blockedPairKey,
+    motivo: "APARECIDA_BAIRRO_MISMATCH",
+    blockedPairKey: `${expectedBairroKey}->${localBairroKey}`,
   };
 }
 
@@ -1468,10 +1434,7 @@ function pickAparecidaLocalFirstCandidate(args: {
     });
 
     if (!candidate) continue;
-    if (
-      !candidate.localAliasAccepted &&
-      !areAparecidaBairrosCompatible(target.bairro, candidate.bairro)
-    ) continue;
+    if (candidate.canFinalizeLocalFirst === false) continue;
 
     return { candidate, matchedBy: target.label };
   }
@@ -3440,20 +3403,17 @@ async function processOne(
       localLotBairro = localAparecidaCandidate.bairro || "";
       localLotLocalAliasAccepted = !!localAparecidaCandidate.localAliasAccepted;
       localLotBairroDivergenteLocalForte = !!localAparecidaCandidate.bairroDivergenteLocalForte;
+      localLotCanFinalizeLocalFirst = localAparecidaCandidate.canFinalizeLocalFirst !== false;
       localFirstMatchedBy = localFirstCandidate.matchedBy;
 
-      aparecidaBlockedLocalFirstPair = buildAparecidaBlockedLocalFirstPair({
-        isAparecida,
-        localLotCandidateFound,
-        localLotLocalAliasAccepted,
-        expectedBairro: normalized.bairro || bairroIn,
-        localBairro: localLotBairro,
-        quadra: localLotQuadra,
-        lote: localLotLote,
-      });
-
-      if (aparecidaBlockedLocalFirstPair) {
+      if (!localLotCanFinalizeLocalFirst) {
         localLotBlockedByBairro = true;
+        aparecidaBlockedLocalFirstPair = buildAparecidaBlockedLocalFirstPair({
+          expectedBairro: normalized.bairro || bairroIn,
+          localBairro: localLotBairro,
+          quadra: localLotQuadra,
+          lote: localLotLote,
+        });
         console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
           ...aparecidaBlockedLocalFirstPair,
@@ -3832,18 +3792,16 @@ async function processOne(
       localLotBairroMismatchLocalFirst = !!localAparecidaCandidate.bairroMismatchLocalFirst;
       localLotCanFinalizeLocalFirst = localAparecidaCandidate.canFinalizeLocalFirst !== false;
 
-      const localBlockedPair = buildAparecidaBlockedLocalFirstPair({
-        isAparecida,
-        localLotCandidateFound,
-        localLotLocalAliasAccepted,
-        expectedBairro: normalized.bairro || bairroIn,
-        localBairro: localLotBairro,
-        quadra: localLotQuadra,
-        lote: localLotLote,
-      });
-      if (localBlockedPair && !aparecidaBlockedLocalFirstPair) {
-        aparecidaBlockedLocalFirstPair = localBlockedPair;
+      if (!localLotCanFinalizeLocalFirst) {
         localLotBlockedByBairro = true;
+        if (!aparecidaBlockedLocalFirstPair) {
+          aparecidaBlockedLocalFirstPair = buildAparecidaBlockedLocalFirstPair({
+            expectedBairro: normalized.bairro || bairroIn,
+            localBairro: localLotBairro,
+            quadra: localLotQuadra,
+            lote: localLotLote,
+          });
+        }
         console.info("[APARECIDA_BLOCKED_LOCAL_FIRST_PAIR]", {
           sequence: row?.sequence ?? "",
           ...aparecidaBlockedLocalFirstPair,

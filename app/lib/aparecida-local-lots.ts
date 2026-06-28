@@ -305,6 +305,51 @@ function normalizeAparecidaBairroPairKey(left: string, right: string) {
   return a < b ? `${a}|||${b}` : `${b}|||${a}`;
 }
 
+function normalizeAparecidaBairroForLocalFirstCompare(value: string) {
+  return normalizeAparecidaBairroForCompare(value)
+    .replace(/\b(?:QDRA|QUADRA|QDR|QDA|QD|LTS|LTT|LTE|LOTE|LOT|LT)\d*\b.*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeAparecidaBairroStageToken(token: string) {
+  const stageMap: Record<string, string> = {
+    "1": "I",
+    "2": "II",
+    "3": "III",
+    "4": "IV",
+    "5": "V",
+    "6": "VI",
+    "7": "VII",
+    "8": "VIII",
+    "9": "IX",
+    "10": "X",
+  };
+
+  return stageMap[token] || token;
+}
+
+function normalizeAparecidaBairroForLocalFirstTokens(value: string) {
+  return normalizeAparecidaBairroForLocalFirstCompare(value)
+    .split(" ")
+    .filter(Boolean)
+    .map(normalizeAparecidaBairroStageToken)
+    .filter((token) => !APARECIDA_BAIRRO_GENERIC_TOKENS.has(token));
+}
+
+function areAparecidaBairroStageTokensOnly(value: string) {
+  if (!value) return false;
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .every((token) => /^(I|II|III|IV|V|VI|VII|VIII|IX|X)$/.test(token));
+}
+
+function isAparecidaBairroSafeLocalFirstSuffix(value: string) {
+  const tokens = value.split(" ").filter(Boolean);
+  return tokens.length > 0 && tokens.every((token) => areAparecidaBairroStageTokensOnly(token));
+}
+
 const APARECIDA_BAIRRO_DENYLIST = new Set([
   normalizeAparecidaBairroPairKey("JARDIM LUZ", "VEIGA JARDIM"),
   normalizeAparecidaBairroPairKey("CIDADE SATELITE SAO LUIZ", "CIDADE LIVRE"),
@@ -399,16 +444,30 @@ export function normalizeAparecidaBairroForCompare(value: string) {
 }
 
 export function areAparecidaBairrosCompatible(expected: string, actual: string) {
-  const left = normalizeAparecidaBairroForCompare(expected);
-  const right = normalizeAparecidaBairroForCompare(actual);
+  const left = normalizeAparecidaBairroForLocalFirstCompare(expected);
+  const right = normalizeAparecidaBairroForLocalFirstCompare(actual);
   if (!left || !right) return false;
   if (isAparecidaBairroDenied(left, right)) return false;
   if (isAparecidaBairroAllowed(left, right)) return true;
   if (left === right) return true;
-  if (left.includes(right) || right.includes(left)) {
-    return hasStrongSharedAparecidaBairroToken(left, right);
+
+  const leftTokens = normalizeAparecidaBairroForLocalFirstTokens(left);
+  const rightTokens = normalizeAparecidaBairroForLocalFirstTokens(right);
+  if (!leftTokens.length || !rightTokens.length) return false;
+
+  const leftKey = leftTokens.join(" ");
+  const rightKey = rightTokens.join(" ");
+  if (leftKey === rightKey) return true;
+
+  if (leftKey.startsWith(`${rightKey} `)) {
+    return isAparecidaBairroSafeLocalFirstSuffix(leftKey.slice(rightKey.length).trim());
   }
-  return hasStrongSharedAparecidaBairroToken(left, right);
+
+  if (rightKey.startsWith(`${leftKey} `)) {
+    return isAparecidaBairroSafeLocalFirstSuffix(rightKey.slice(leftKey.length).trim());
+  }
+
+  return false;
 }
 
 function bairroCompatible(expected: string, actual: string) {
