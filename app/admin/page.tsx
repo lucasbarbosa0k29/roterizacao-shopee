@@ -48,6 +48,16 @@ type ObservabilityData = {
   batchSaveErrorToday: number;
   memoryHealth: "OK" | "ATENCAO" | "CRITICO";
   dailyRows: ObservabilityRow[];
+  hereMetrics: Array<{
+    service: string;
+    today: number;
+    month: number;
+    origins: Array<{
+      origin: string;
+      today: number;
+      month: number;
+    }>;
+  }>;
 };
 
 export default function AdminPage() {
@@ -57,6 +67,18 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const canAccessAdministrators = status === "authenticated" && isSuperAdmin(session?.user as any);
+  const hereMetricCards = obs?.hereMetrics ?? [];
+  const hereMetricRows = hereMetricCards.flatMap((metric) =>
+    metric.origins
+      .filter((origin) => origin.today !== 0 || origin.month !== 0)
+      .map((origin, index) => ({
+        service: metric.service,
+        origin: origin.origin,
+        today: origin.today,
+        month: origin.month,
+        showService: index === 0,
+      })),
+  );
 
   async function load() {
     try {
@@ -310,6 +332,79 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="mt-6">
+                <div className="mb-3 text-sm font-semibold text-slate-700">
+                  Consumo HERE por serviço e origem
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {hereMetricCards.map((metric) => (
+                    <div
+                      key={metric.service}
+                      className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3"
+                    >
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {metric.service}
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                            Hoje
+                          </div>
+                          <div className="mt-1 text-lg font-bold text-slate-900">
+                            {metric.today}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                            Mês
+                          </div>
+                          <div className="mt-1 text-lg font-bold text-slate-900">
+                            {metric.month}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {hereMetricRows.length === 0 ? (
+                  <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-sm text-slate-500">
+                    Nenhum consumo HERE registrado ainda.
+                  </div>
+                ) : (
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="min-w-full text-xs sm:text-sm">
+                      <thead className="bg-slate-50 text-left text-slate-500">
+                        <tr className="border-b border-slate-200">
+                          <th className="px-3 py-2 font-semibold">Serviço</th>
+                          <th className="px-3 py-2 font-semibold">Origem</th>
+                          <th className="px-3 py-2 font-semibold">Hoje</th>
+                          <th className="px-3 py-2 font-semibold">Mês</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {hereMetricRows.map((row) => (
+                          <tr
+                            key={`${row.service}-${row.origin}`}
+                            className="border-b border-slate-100 last:border-b-0"
+                          >
+                            <td className="px-3 py-1.5 align-top">
+                              {row.showService ? (
+                                <span className="font-medium text-slate-900">{row.service}</span>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-1.5 text-slate-600">{row.origin}</td>
+                            <td className="px-3 py-1.5 text-slate-900">{row.today}</td>
+                            <td className="px-3 py-1.5 text-slate-900">{row.month}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>
           )}

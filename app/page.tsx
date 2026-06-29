@@ -137,6 +137,14 @@ type HereSuggestItem = {
   distance?: number;
 };
 
+type HereMapLike = {
+  getCenter?: () => { lat?: number; lng?: number } | null;
+  getZoom?: () => number;
+  setCenter: (pos: { lat: number; lng: number }) => void;
+  setZoom: (zoom: number) => void;
+  getViewPort: () => { resize: () => void };
+};
+
 type GoogleSearchResult = {
   id: string;
   name: string;
@@ -1509,6 +1517,73 @@ useEffect(() => {
     return normalizedItem.includes(normalizedExpected) || normalizedExpected.includes(normalizedItem);
   }
 
+  function getSuggestAt(idx: number) {
+    return pinLatLng
+      ? `${pinLatLng.lat},${pinLatLng.lng}`
+      : rows?.[idx]?.lat && rows?.[idx]?.lng
+        ? `${rows[idx].lat},${rows[idx].lng}`
+        : "-16.8233,-49.2439";
+  }
+
+  function buildSuggestCacheKey(qRaw: string, at: string) {
+    return `${qRaw.trim().toUpperCase()}__${at}`;
+  }
+
+  function reportHereMetric(
+    service:
+      | "HERE_GEOCODE"
+      | "HERE_AUTOSUGGEST"
+      | "HERE_MAP_MANUAL"
+      | "HERE_MAP_OVERVIEW",
+    origin: "manual" | "autosuggest" | "map_manual" | "map_overview",
+  ) {
+    void fetch("/api/observability/here", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ service, origin }),
+    }).catch(() => {});
+  }
+
+  function ensureHereMapViewport(
+    map: HereMapLike | null | undefined,
+    pos: { lat: number; lng: number },
+    zoom = 17,
+  ) {
+    if (!map || !pos) return;
+
+    try {
+      const currentCenter = map.getCenter?.();
+      const currentZoom = Number(map.getZoom?.() ?? 0);
+      const latDiff = Math.abs(Number(currentCenter?.lat ?? 0) - pos.lat);
+      const lngDiff = Math.abs(Number(currentCenter?.lng ?? 0) - pos.lng);
+      const centerChanged = latDiff > 0.00005 || lngDiff > 0.00005;
+      const zoomChanged = Math.abs(currentZoom - zoom) >= 0.1;
+
+      if (centerChanged) map.setCenter(pos);
+      if (zoomChanged) map.setZoom(zoom);
+    } catch {}
+  }
+
+  function resizeHereMapIfNeeded(
+    map: HereMapLike | null | undefined,
+    container: HTMLDivElement | null,
+    sizeRef: React.MutableRefObject<{ width: number; height: number }>,
+  ) {
+    if (!map || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    if (!width || !height) return;
+    if (sizeRef.current.width === width && sizeRef.current.height === height) return;
+
+    sizeRef.current = { width, height };
+    try {
+      map.getViewPort().resize();
+    } catch {}
+  }
+
   const modalCity = modalIdx !== null ? rows?.[modalIdx]?.city : "";
   const arcgisCityKey = getArcgisCityKey(modalCity);
   const forceArcgisOnly = isModalOpen && isAparecidaCity(modalCity);
@@ -1570,9 +1645,13 @@ useEffect(() => {
   const suggestAbortRef = useRef<AbortController | null>(null);
   const suggestTimerRef = useRef<any>(null);
   const searchBoxWrapRef = useRef<HTMLDivElement | null>(null);
+  const suggestCacheRef = useRef<Map<string, HereSuggestItem[]>>(new Map());
+  const lastSuggestCacheKeyRef = useRef("");
 
   // ✅ cache local pra não repetir busca HERE do mesmo texto
   const geocodeCacheRef = useRef<Map<string, any>>(new Map());
+  const manualMapSizeRef = useRef({ width: 0, height: 0 });
+  const overviewMapSizeRef = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
     function onDown() {
@@ -3352,10 +3431,7 @@ function clearReview(groupId: string) {
         const label = cached?.address?.label || cached?.title || "";
         const cepFound = cached?.address?.postalCode || "";
         setPinLatLng({ lat: pos.lat, lng: pos.lng });
-        if (hereMap.current) {
-          hereMap.current.setCenter(pos);
-          hereMap.current.setZoom(17);
-        }
+        ensureHereMapViewport(hereMap.current, pos, 17);
         if (markerRef.current) markerRef.current.setGeometry(pos);
         setPickedLabel(label);
         setPickedCep(cepFound);
@@ -3376,6 +3452,7 @@ function clearReview(groupId: string) {
       fetch(url.toString())
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
+          reportHereMetric("HERE_GEOCODE", "manual");
           const item = Array.isArray(data?.items) ? data.items[0] : null;
           if (!item?.position) return;
 
@@ -3383,10 +3460,7 @@ function clearReview(groupId: string) {
 
           const pos = item.position;
           setPinLatLng({ lat: pos.lat, lng: pos.lng });
-          if (hereMap.current) {
-            hereMap.current.setCenter(pos);
-            hereMap.current.setZoom(17);
-          }
+          ensureHereMapViewport(hereMap.current, pos, 17);
           if (markerRef.current) markerRef.current.setGeometry(pos);
 
           const label = item?.address?.label || item?.title || "";
@@ -3419,13 +3493,15 @@ function clearReview(groupId: string) {
     setSuggestLoading(true);
 
     const idx = modalIdx ?? 0;
-
-    const at =
-      pinLatLng
-        ? `${pinLatLng.lat},${pinLatLng.lng}`
-        : rows?.[idx]?.lat && rows?.[idx]?.lng
-        ? `${rows[idx].lat},${rows[idx].lng}`
-        : "-16.8233,-49.2439";
+    const at = getSuggestAt(idx);
+    const cacheKey = buildSuggestCacheKey(qTrim, at);
+    const cachedItems = suggestCacheRef.current.get(cacheKey);
+    if (cachedItems) {
+      lastSuggestCacheKeyRef.current = cacheKey;
+      setSuggestItems(cachedItems);
+      setSuggestActive(cachedItems.length ? 0 : -1);
+      return;
+    }
 
     const url = new URL("https://autosuggest.search.hereapi.com/v1/autosuggest");
     url.searchParams.set("q", qTrim);
@@ -3444,6 +3520,7 @@ function clearReview(groupId: string) {
     }
 
     const data = await res.json().catch(() => null);
+    reportHereMetric("HERE_AUTOSUGGEST", "autosuggest");
 
     const items: HereSuggestItem[] = Array.isArray(data?.items)
       ? data.items.filter((it: any) => {
@@ -3453,6 +3530,8 @@ function clearReview(groupId: string) {
         })
       : [];
 
+    suggestCacheRef.current.set(cacheKey, items);
+    lastSuggestCacheKeyRef.current = cacheKey;
     setSuggestItems(items);
     setSuggestActive(items.length ? 0 : -1);
   } catch {
@@ -3499,10 +3578,7 @@ function clearReview(groupId: string) {
     const pos = { lat: item.position.lat, lng: item.position.lng };
     setPinLatLng(pos);
 
-    if (hereMap.current) {
-      hereMap.current.setCenter(pos);
-      hereMap.current.setZoom(17);
-    }
+    ensureHereMapViewport(hereMap.current, pos, 17);
     if (markerRef.current) markerRef.current.setGeometry(pos);
 
     const cepFound = item?.address?.postalCode || "";
@@ -3543,8 +3619,8 @@ function clearReview(groupId: string) {
     useEffect(() => {
       if (!isModalOpen || activeMapProvider !== "here" || !mapRef.current) return;
 
-   const H = (window as any).H;
-if (!H) return;
+      const H = (window as any).H;
+      if (!H) return;
 
 
       if (hereMap.current) {
@@ -3578,15 +3654,19 @@ ui.removeControl("mapsettings"); // <- remove o menu que costuma buggar
 ui.getControl("mapsettings")?.setDisabled(true);
 
       hereMap.current = map;
-map.getViewModel().addEventListener("sync", () => {
-  map.getViewPort().resize();
-});
-
-      // ✅ força o HERE Map calcular tamanho real (ESSENCIAL em modal)
-      setTimeout(() => map.getViewPort().resize(), 50);
-setTimeout(() => map.getViewPort().resize(), 150);
-setTimeout(() => map.getViewPort().resize(), 400);
-setTimeout(() => map.getViewPort().resize(), 800);
+      manualMapSizeRef.current = { width: 0, height: 0 };
+      resizeHereMapIfNeeded(map, mapRef.current, manualMapSizeRef);
+      const resizeFrame = window.requestAnimationFrame(() => {
+        resizeHereMapIfNeeded(map, mapRef.current, manualMapSizeRef);
+      });
+      const resizeObserver =
+        typeof ResizeObserver !== "undefined" && mapRef.current
+          ? new ResizeObserver(() => {
+              resizeHereMapIfNeeded(map, mapRef.current, manualMapSizeRef);
+            })
+          : null;
+      resizeObserver?.observe(mapRef.current);
+      reportHereMetric("HERE_MAP_MANUAL", "map_manual");
 
   
 
@@ -3629,9 +3709,10 @@ setTimeout(() => map.getViewPort().resize(), 800);
   };
 
       map.addEventListener("tap", onTap);
-      setTimeout(() => map.getViewPort().resize(), 80);
 
      return () => {
+  window.cancelAnimationFrame(resizeFrame);
+  resizeObserver?.disconnect();
   // limpa listeners
   try {
     map.removeEventListener("tap", onTap);
@@ -3676,7 +3757,7 @@ setTimeout(() => map.getViewPort().resize(), 800);
       // centraliza mapa
             // centraliza mapa (evita travar quando veio do clique)
       if (!pinFromTapRef.current) {
-       
+        ensureHereMapViewport(hereMap.current, pinLatLng, 17);
       } else {
         // reseta depois do clique
         pinFromTapRef.current = false;
@@ -3723,10 +3804,19 @@ setTimeout(() => map.getViewPort().resize(), 800);
 
       overviewHereMap.current = map;
       overviewDidFitRef.current = false;
-
-      map.getViewModel().addEventListener("sync", () => {
-        map.getViewPort().resize();
+      overviewMapSizeRef.current = { width: 0, height: 0 };
+      resizeHereMapIfNeeded(map, overviewMapRef.current, overviewMapSizeRef);
+      const resizeFrame = window.requestAnimationFrame(() => {
+        resizeHereMapIfNeeded(map, overviewMapRef.current, overviewMapSizeRef);
       });
+      const resizeObserver =
+        typeof ResizeObserver !== "undefined" && overviewMapRef.current
+          ? new ResizeObserver(() => {
+              resizeHereMapIfNeeded(map, overviewMapRef.current, overviewMapSizeRef);
+            })
+          : null;
+      resizeObserver?.observe(overviewMapRef.current);
+      reportHereMetric("HERE_MAP_OVERVIEW", "map_overview");
 
       const onMapViewChangeEnd = () => {
         syncOverviewCardPosition(overviewSelectedPointRef.current);
@@ -3752,11 +3842,9 @@ setTimeout(() => map.getViewPort().resize(), 800);
       map.addEventListener("mapviewchangeend", onMapViewChangeEnd);
       map.addEventListener("tap", onMapTapForMove);
 
-      setTimeout(() => map.getViewPort().resize(), 50);
-      setTimeout(() => map.getViewPort().resize(), 150);
-      setTimeout(() => map.getViewPort().resize(), 400);
-
       return () => {
+        window.cancelAnimationFrame(resizeFrame);
+        resizeObserver?.disconnect();
         if (overviewMarkersGroupRef.current) {
           try {
             map.removeObject(overviewMarkersGroupRef.current);
@@ -5834,7 +5922,18 @@ onContextMenu={(e) => {
               onFocus={() => {
                 if (activeMapProvider === "google") return;
                 setSuggestOpen(true);
-                scheduleSuggest(modalValue);
+                const idx = modalIdx ?? 0;
+                const cacheKey = buildSuggestCacheKey(modalValue, getSuggestAt(idx));
+                const cachedItems = suggestCacheRef.current.get(cacheKey);
+                if (cachedItems) {
+                  lastSuggestCacheKeyRef.current = cacheKey;
+                  setSuggestItems(cachedItems);
+                  setSuggestActive(cachedItems.length ? 0 : -1);
+                  return;
+                }
+                if (cacheKey !== lastSuggestCacheKeyRef.current) {
+                  scheduleSuggest(modalValue);
+                }
               }}
               onKeyDown={(e) => {
                 if (activeMapProvider === "google" && e.key === "Enter") {
@@ -6073,7 +6172,18 @@ onContextMenu={(e) => {
               onFocus={() => {
                 if (activeMapProvider === "google") return;
                 setSuggestOpen(true);
-                scheduleSuggest(modalValue);
+                const idx = modalIdx ?? 0;
+                const cacheKey = buildSuggestCacheKey(modalValue, getSuggestAt(idx));
+                const cachedItems = suggestCacheRef.current.get(cacheKey);
+                if (cachedItems) {
+                  lastSuggestCacheKeyRef.current = cacheKey;
+                  setSuggestItems(cachedItems);
+                  setSuggestActive(cachedItems.length ? 0 : -1);
+                  return;
+                }
+                if (cacheKey !== lastSuggestCacheKeyRef.current) {
+                  scheduleSuggest(modalValue);
+                }
               }}
               onKeyDown={(e) => {
                 if (activeMapProvider === "google" && e.key === "Enter") {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { incrementHereMetric } from "@/app/lib/admin-observability";
 
 export async function GET(req: Request) {
   try {
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
       `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lng}&lang=pt-BR&apikey=${apiKey}`;
 
     const res = await fetch(url);
+    await incrementHereMetric("HERE_REVERSE", "reverse").catch(() => {});
     const data = await res.json();
 
     const item = data?.items?.[0];

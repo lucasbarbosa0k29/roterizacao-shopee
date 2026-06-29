@@ -10,6 +10,36 @@ export const METRIC_MEMORY_BATCH_SAVE_OK = "ADDRESS_MEMORY_BATCH_SAVE_OK";
 export const METRIC_MEMORY_BATCH_SAVE_ERROR = "ADDRESS_MEMORY_BATCH_SAVE_ERROR";
 export const METRIC_MEMORY_HIT_TOTAL = "MEMORY_HIT_TOTAL";
 export const METRIC_MEMORY_LOOKUP_TOTAL = "MEMORY_LOOKUP_TOTAL";
+export const HERE_METRIC_SERVICES = [
+  "HERE_GEOCODE",
+  "HERE_DISCOVER",
+  "HERE_REVERSE",
+  "HERE_AUTOSUGGEST",
+  "HERE_MAP_MANUAL",
+  "HERE_MAP_OVERVIEW",
+] as const;
+export const HERE_METRIC_ORIGINS = [
+  "process",
+  "manual",
+  "reverse",
+  "autosuggest",
+  "map_manual",
+  "map_overview",
+] as const;
+
+export type HereMetricService = (typeof HERE_METRIC_SERVICES)[number];
+export type HereMetricOrigin = (typeof HERE_METRIC_ORIGINS)[number];
+export type HereMetricOriginSnapshot = {
+  origin: HereMetricOrigin;
+  today: number;
+  month: number;
+};
+export type HereMetricSnapshot = {
+  service: HereMetricService;
+  today: number;
+  month: number;
+  origins: HereMetricOriginSnapshot[];
+};
 
 const OBS_DAYS = 7;
 const APP_TIMEZONE = "America/Sao_Paulo";
@@ -49,7 +79,29 @@ export type AdminObservabilitySnapshot = {
   batchSaveErrorToday: number;
   memoryHealth: MemoryHealth;
   dailyRows: ObservabilityRow[];
+  hereMetrics: HereMetricSnapshot[];
 };
+
+function buildHereMetricKey(service: HereMetricService, origin: HereMetricOrigin) {
+  return `${service}__${origin}`;
+}
+
+function parseHereMetricKey(service: string): {
+  service: HereMetricService;
+  origin: HereMetricOrigin;
+} | null {
+  const [serviceName, originName] = service.split("__");
+  if (
+    HERE_METRIC_SERVICES.includes(serviceName as HereMetricService) &&
+    HERE_METRIC_ORIGINS.includes(originName as HereMetricOrigin)
+  ) {
+    return {
+      service: serviceName as HereMetricService,
+      origin: originName as HereMetricOrigin,
+    };
+  }
+  return null;
+}
 
 function pad2(value: number) {
   return String(value).padStart(2, "0");
@@ -154,6 +206,55 @@ export async function incrementDailyMetric(service: string) {
   });
 }
 
+export async function incrementHereMetric(
+  service: HereMetricService,
+  origin: HereMetricOrigin,
+  now = new Date(),
+) {
+  const scopedService = buildHereMetricKey(service, origin);
+  const dayKey = getDayKey(now);
+  const monthKey = getMonthKey(now);
+
+  await prisma.$transaction([
+    prisma.apiUsageCounter.upsert({
+      where: {
+        service_periodType_periodKey: {
+          service: scopedService,
+          periodType: ApiUsagePeriodType.DAY,
+          periodKey: dayKey,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      create: {
+        service: scopedService,
+        periodType: ApiUsagePeriodType.DAY,
+        periodKey: dayKey,
+        count: 1,
+      },
+    }),
+    prisma.apiUsageCounter.upsert({
+      where: {
+        service_periodType_periodKey: {
+          service: scopedService,
+          periodType: ApiUsagePeriodType.MONTH,
+          periodKey: monthKey,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      create: {
+        service: scopedService,
+        periodType: ApiUsagePeriodType.MONTH,
+        periodKey: monthKey,
+        count: 1,
+      },
+    }),
+  ]);
+}
+
 export async function getAdminObservabilitySnapshot(
   now = new Date(),
 ): Promise<AdminObservabilitySnapshot> {
@@ -161,6 +262,9 @@ export async function getAdminObservabilitySnapshot(
   const todayKey = getDayKey(now);
   const recentDays = getRecentDays(now, OBS_DAYS);
   const dayKeys = recentDays.map((d) => d.key);
+  const hereTrackedServices = HERE_METRIC_SERVICES.flatMap((service) =>
+    HERE_METRIC_ORIGINS.map((origin) => buildHereMetricKey(service, origin)),
+  );
 
   const trackedServices = [
     METRIC_DISCOVER,
@@ -172,9 +276,10 @@ export async function getAdminObservabilitySnapshot(
     METRIC_MEMORY_SAVE_ERROR,
     METRIC_MEMORY_BATCH_SAVE_OK,
     METRIC_MEMORY_BATCH_SAVE_ERROR,
+    ...hereTrackedServices,
   ];
 
-  const [discoverMonthRow, dailyCounterRows, createdRows, memoryTotalStored] = await Promise.all([
+  const [discoverMonthRow, dailyCounterRows, monthlyCounterRows, createdRows, memoryTotalStored] = await Promise.all([
     prisma.apiUsageCounter.findUnique({
       where: {
         service_periodType_periodKey: {
@@ -190,6 +295,18 @@ export async function getAdminObservabilitySnapshot(
         service: { in: trackedServices },
         periodType: ApiUsagePeriodType.DAY,
         periodKey: { in: dayKeys },
+      },
+      select: {
+        service: true,
+        periodKey: true,
+        count: true,
+      },
+    }),
+    prisma.apiUsageCounter.findMany({
+      where: {
+        service: { in: hereTrackedServices },
+        periodType: ApiUsagePeriodType.MONTH,
+        periodKey: monthKey,
       },
       select: {
         service: true,
@@ -222,6 +339,8 @@ export async function getAdminObservabilitySnapshot(
   const manualErrorMap = buildCounterMap(dailyCounterRows, METRIC_MEMORY_SAVE_ERROR);
   const batchOkMap = buildCounterMap(dailyCounterRows, METRIC_MEMORY_BATCH_SAVE_OK);
   const batchErrorMap = buildCounterMap(dailyCounterRows, METRIC_MEMORY_BATCH_SAVE_ERROR);
+  const hereDailyRows = dailyCounterRows.filter((row) => parseHereMetricKey(row.service));
+  const hereMonthlyRows = monthlyCounterRows.filter((row) => parseHereMetricKey(row.service));
 
   const dailyRowsBase = recentDays
     .map(({ key, label }) => {
@@ -283,6 +402,23 @@ export async function getAdminObservabilitySnapshot(
     memoryLookupToday > 0
       ? Math.round((memoryHitToday / memoryLookupToday) * 100)
       : 0;
+  const hereMetrics: HereMetricSnapshot[] = HERE_METRIC_SERVICES.map((service) => {
+    const origins = HERE_METRIC_ORIGINS.map((origin) => {
+      const scopedService = buildHereMetricKey(service, origin);
+      const today =
+        hereDailyRows.find((row) => row.service === scopedService && row.periodKey === todayKey)?.count ?? 0;
+      const month =
+        hereMonthlyRows.find((row) => row.service === scopedService && row.periodKey === monthKey)?.count ?? 0;
+      return { origin, today, month };
+    });
+
+    return {
+      service,
+      today: origins.reduce((sum, row) => sum + row.today, 0),
+      month: origins.reduce((sum, row) => sum + row.month, 0),
+      origins,
+    };
+  });
 
   return {
     discoverMonth: discoverMonthRow?.count ?? 0,
@@ -301,5 +437,6 @@ export async function getAdminObservabilitySnapshot(
     batchSaveErrorToday: todayRow?.batchSaveError ?? 0,
     memoryHealth: todayRow?.memoryHealth ?? "OK",
     dailyRows,
+    hereMetrics,
   };
 }
