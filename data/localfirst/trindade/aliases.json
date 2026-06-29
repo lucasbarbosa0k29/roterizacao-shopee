@@ -180,6 +180,126 @@
       "notes": "trindade offline bairro alias audit safe"
     },
     {
+      "type": "bairro",
+      "input": "SETOR JARDIM IMPERIAL 2",
+      "normalized": "SETOR JARDIM IMPERIAL 2",
+      "value": "JARDIM IMPERIAL",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "RESIDENCIAL SANTA FE JARDINS 2",
+      "normalized": "RESIDENCIAL SANTA FE JARDINS 2",
+      "value": "RESIDENCIAL SANTA FE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "SANTA FE",
+      "normalized": "SANTA FE",
+      "value": "RESIDENCIAL SANTA FE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "RESIDENCIAL SANTA FE 2",
+      "normalized": "RESIDENCIAL SANTA FE 2",
+      "value": "RESIDENCIAL SANTA FE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "RESID SANTA FE JARDINS 1",
+      "normalized": "RESID SANTA FE JARDINS 1",
+      "value": "RESIDENCIAL SANTA FE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA PAI ETERNO",
+      "normalized": "AVENIDA PAI ETERNO",
+      "value": "RUA AVENIDA PAI ETERNO",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA BRASIL",
+      "normalized": "AVENIDA BRASIL",
+      "value": "RUA AVENIDA BRASIL",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA JOAO PAULO I",
+      "normalized": "AVENIDA JOAO PAULO I",
+      "value": "RUA AVENIDA JOAO PAULO I",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA DOS ANGICOS",
+      "normalized": "AVENIDA DOS ANGICOS",
+      "value": "RUA AVENIDA DOS ANGICOS",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA DR EDILBERTO DA VEIGA JARDIM",
+      "normalized": "AVENIDA DR EDILBERTO DA VEIGA JARDIM",
+      "value": "RUA AVENIDA DR EDILBERTO DA VEIGA JARDIM",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA DAS CARAIBAS",
+      "normalized": "AVENIDA DAS CARAIBAS",
+      "value": "RUA AVENIDA DAS CARAIBAS",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AV DAS CARAIBAS",
+      "normalized": "AV DAS CARAIBAS",
+      "value": "RUA AVENIDA DAS CARAIBAS",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA VEIGA VALLE",
+      "normalized": "AVENIDA VEIGA VALLE",
+      "value": "RUA AVENIDA VEIGA VALLE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA SUMARE",
+      "normalized": "AVENIDA SUMARE",
+      "value": "RUA AVENIDA SUMARE",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "AVENIDA DOUTOR EDILBERTO DA VIEGA JARDIM",
+      "normalized": "AVENIDA DOUTOR EDILBERTO DA VIEGA JARDIM",
+      "value": "RUA AVENIDA DR EDILBERTO DA VEIGA JARDIM",
+      "confidence": 0.95,
+      "notes": "trindade general alias audit safe"
+    },
+    {
       "type": "logradouro",
       "input": "RUA ROSENDA",
       "normalized": "RUA ROZENDA",
