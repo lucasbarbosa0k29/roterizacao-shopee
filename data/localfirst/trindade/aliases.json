@@ -148,6 +148,38 @@
       "notes": "alexandro audit alias"
     },
     {
+      "type": "bairro",
+      "input": "SETOR JARDIM IMPERIAL",
+      "normalized": "SETOR JARDIM IMPERIAL",
+      "value": "JARDIM IMPERIAL",
+      "confidence": 0.95,
+      "notes": "trindade offline bairro alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR LAGUNA PARQUE",
+      "normalized": "SETOR LAGUNA PARQUE",
+      "value": "SETOR LAGUNA PARK",
+      "confidence": 0.95,
+      "notes": "trindade offline bairro alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "JARDIM IMPERIAL 2",
+      "normalized": "JARDIM IMPERIAL 2",
+      "value": "JARDIM IMPERIAL",
+      "confidence": 0.95,
+      "notes": "trindade offline bairro alias audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "SETOR JARDIM IMPERIAL1",
+      "normalized": "SETOR JARDIM IMPERIAL1",
+      "value": "JARDIM IMPERIAL",
+      "confidence": 0.95,
+      "notes": "trindade offline bairro alias audit safe"
+    },
+    {
       "type": "logradouro",
       "input": "RUA ROSENDA",
       "normalized": "RUA ROZENDA",
