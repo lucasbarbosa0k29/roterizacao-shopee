@@ -221,6 +221,14 @@
     },
     {
       "type": "logradouro",
+      "input": "R S 3",
+      "normalized": "R S 3",
+      "value": "RUA S 3",
+      "confidence": 0.95,
+      "notes": "trindade 28 real failures manual review safe"
+    },
+    {
+      "type": "logradouro",
       "input": "AVENIDA PAI ETERNO",
       "normalized": "AVENIDA PAI ETERNO",
       "value": "RUA AVENIDA PAI ETERNO",
