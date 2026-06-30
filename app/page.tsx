@@ -81,6 +81,8 @@ type RowItem = {
 
 type ManualEdit = {
   address?: string; // ✅ opcional (não vamos mais gravar endereço no manual)
+  resolvedAddress?: string;
+  normalizedAddress?: string;
   lat?: number;
   lng?: number;
   quadra?: string;
@@ -1684,15 +1686,11 @@ useEffect(() => {
 
   // ✅ Destination Address deve ser 100% fiel ao Excel
  function getShownAddress(i: number) {
-  const manual = manualEdits[i];
-  if (manual?.address && manual.address.trim()) return manual.address;
   return String(rows[i]?.original || "");
 }
 
-  // ✅ Para export: se tiver manual, usa manual; senão usa o original do Excel
+  // ✅ Para export: sempre usa o original do Excel
   function getExportAddress(i: number) {
-    const manual = manualEdits[i];
-    if (manual?.address) return manual.address;
     return String(rows[i]?.original || "");
   }
 
@@ -3000,13 +2998,15 @@ function clearReview(groupId: string) {
     afterConfirm?: () => void;
     manualEditPatch?: Partial<ManualEdit>;
   }) {
+    const { address: _discardedAddress, ...manualEditPatch } = args.manualEditPatch || {};
+
     setManualEdits((prev) => {
       const next = { ...prev };
       for (const idx of args.idxsToApply) {
         const current = prev[idx] || {};
         next[idx] = {
           ...current,
-          ...(args.manualEditPatch || {}),
+          ...manualEditPatch,
           lat: args.coord.lat,
           lng: args.coord.lng,
           confirmed: true,
@@ -3168,7 +3168,7 @@ function clearReview(groupId: string) {
       const draft = trindadeManualPick;
       const draftAddress = String(draft?.address || "").trim();
       const textualAddress = String(modalValue || modalOriginal || pickedLabel || "").trim();
-      const address = String(
+      const resolvedAddress = String(
         draftAddress && !isCoordinateLikeText(draftAddress) ? draftAddress : textualAddress,
       ).trim();
       const quadra = String(draft?.quadra || pickedQuadra || "").trim();
@@ -3179,7 +3179,8 @@ function clearReview(groupId: string) {
         coord,
         afterConfirm: closeManualModal,
         manualEditPatch: {
-          address: address || undefined,
+          resolvedAddress: resolvedAddress || undefined,
+          normalizedAddress: resolvedAddress || undefined,
           quadra: quadra || undefined,
           lote: lote || undefined,
         },
