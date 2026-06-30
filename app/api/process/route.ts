@@ -73,6 +73,7 @@ import { getAparecidaLocalLotsCacheSnapshot } from "@/app/lib/aparecida-local-lo
 import { getGynLotCacheSnapshot } from "@/app/lib/gyn-lot-cache";
 import { getGoianiaLocalFirstCacheSnapshot } from "@/app/lib/goiania-local-first";
 import { getTrindadeLocalFirstCacheSnapshot } from "@/app/lib/trindade-localfirst-shadow";
+import { lookupGoianiaPoiShadow } from "@/app/lib/goiania-poi-shadow";
 
 
 export const runtime = "nodejs";
@@ -88,8 +89,40 @@ type GoogleCommercialFallbackRunState = {
   googleCommercialFallbackCalls: number;
 };
 
+type GoianiaPoiShadowAuditRow = {
+  id: string;
+  occurredAt: Date;
+  jobId: string | null;
+  userId: string | null;
+  userEmail: string | null;
+  spreadsheetName: string | null;
+  stopSequence: string | null;
+  originalAddress: string;
+  normalizedAddress: string | null;
+  bairro: string | null;
+  poiId: string | null;
+  poiName: string;
+  poiCategory: string;
+  poiConfidence: "HIGH" | "MEDIUM";
+  poiLat: number | null;
+  poiLng: number | null;
+  poiSources: string[];
+  poiReason: string | null;
+  finalSource: string | null;
+  finalMatchType: string | null;
+  finalStatus: string | null;
+  finalLat: number | null;
+  finalLng: number | null;
+  poiShadowWouldHelpCurrentResult: boolean;
+  metadata: Record<string, unknown>;
+};
+
 type ProcessRunState = GoogleCommercialFallbackRunState & {
   localFirstAliasShadow: LocalFirstAliasShadowState;
+  userId: string | null;
+  userEmail: string | null;
+  spreadsheetName: string | null;
+  goianiaPoiShadowAudits: GoianiaPoiShadowAuditRow[];
 };
 
 function getProcessCacheSnapshot(runState?: ProcessRunState) {
@@ -100,6 +133,77 @@ function getProcessCacheSnapshot(runState?: ProcessRunState) {
     trindade: getTrindadeLocalFirstCacheSnapshot(),
     aliasShadow: runState ? getLocalFirstAliasShadowSnapshot(runState.localFirstAliasShadow) : null,
   };
+}
+
+async function saveGoianiaPoiShadowAudits(rows: GoianiaPoiShadowAuditRow[]) {
+  if (!rows.length) return;
+
+  try {
+    const values = rows.map((row) => Prisma.sql`(
+      ${row.id},
+      ${row.occurredAt},
+      ${row.jobId},
+      ${row.userId},
+      ${row.userEmail},
+      ${row.spreadsheetName},
+      ${row.stopSequence},
+      ${row.originalAddress},
+      ${row.normalizedAddress},
+      ${row.bairro},
+      ${row.poiId},
+      ${row.poiName},
+      ${row.poiCategory},
+      ${row.poiConfidence},
+      ${row.poiLat},
+      ${row.poiLng},
+      ${JSON.stringify(row.poiSources)}::jsonb,
+      ${row.poiReason},
+      ${row.finalSource},
+      ${row.finalMatchType},
+      ${row.finalStatus},
+      ${row.finalLat},
+      ${row.finalLng},
+      ${row.poiShadowWouldHelpCurrentResult},
+      ${JSON.stringify(row.metadata)}::jsonb
+    )`);
+
+    await prisma.$executeRaw`
+      INSERT INTO "GoianiaPoiShadowAudit" (
+        "id",
+        "occurredAt",
+        "jobId",
+        "userId",
+        "userEmail",
+        "spreadsheetName",
+        "stopSequence",
+        "originalAddress",
+        "normalizedAddress",
+        "bairro",
+        "poiId",
+        "poiName",
+        "poiCategory",
+        "poiConfidence",
+        "poiLat",
+        "poiLng",
+        "poiSources",
+        "poiReason",
+        "finalSource",
+        "finalMatchType",
+        "finalStatus",
+        "finalLat",
+        "finalLng",
+        "poiShadowWouldHelpCurrentResult",
+        "metadata"
+      )
+      VALUES ${Prisma.join(values)}
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  } catch (error) {
+    console.warn("[GOIANIA_POI_SHADOW_AUDIT_SAVE_ERROR]", {
+      count: rows.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 type Normalized = {
@@ -322,6 +426,15 @@ type MemoryDebugRow = {
   localFirstGoianiaWouldBypass?: boolean;
   localFirstGoianiaBypassReason?: string | null;
   localFirstGoianiaUsedAsFinal?: boolean;
+  poiShadowFound?: boolean;
+  poiShadowConfidence?: "POI_HIGH" | "POI_MEDIUM" | "POI_LOW" | "NO_POI";
+  poiShadowCategory?: string | null;
+  poiShadowName?: string | null;
+  poiShadowLat?: number | null;
+  poiShadowLng?: number | null;
+  poiShadowSources?: string[];
+  poiShadowReason?: string | null;
+  poiShadowWouldHelpCurrentResult?: boolean;
   goianiaHereStreetCompatibility?: GoianiaStreetComparison | null;
   goianiaHereInputStreetNormalized?: string | null;
   goianiaHereCandidateStreetNormalized?: string | null;
@@ -3025,6 +3138,13 @@ async function processOne(
   const normalizedLine = buildNormalizedLine(normalized, fallbackLine);
 
   const cityForDecision = normalized.cidade || cityIn || "";
+  const poiShadow = lookupGoianiaPoiShadow({
+    city: cityForDecision,
+    address: addressRaw,
+    bairro: normalized.bairro || bairroIn,
+    normalizedLine,
+    contextName: normalized.addressContextName ?? null,
+  });
   const isAparecida = isAparecidaCity(cityForDecision);
   const goianiaLocalFirstShadowEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_SHADOW === "1";
   const goianiaLocalFirstBypassEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_BYPASS === "1";
@@ -5436,6 +5556,44 @@ if (shouldAutoSaveAddressMemory) {
       : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
           : "HERE_GEOCODE";
+  const poiShadowUseful = poiShadow.confidence === "POI_HIGH" && poiShadow.found;
+  const poiShadowDistanceToFinalM =
+    poiShadowUseful &&
+    typeof poiShadow.lat === "number" &&
+    typeof poiShadow.lng === "number" &&
+    typeof lat === "number" &&
+    typeof lng === "number"
+      ? haversineMeters({ lat: poiShadow.lat, lng: poiShadow.lng }, { lat, lng })
+      : null;
+  const poiShadowWouldHelpCurrentResult =
+    poiShadowUseful &&
+    (status !== "OK" ||
+      lat == null ||
+      lng == null ||
+      (typeof poiShadowDistanceToFinalM === "number" && poiShadowDistanceToFinalM > 120) ||
+      (finalSource !== "MEMORY" &&
+        finalSource !== "LOCALFIRST_GOIANIA" &&
+        finalSource !== "LOCALFIRST_TRINDADE"));
+
+  if (poiShadow.confidence === "POI_HIGH" || poiShadow.confidence === "POI_MEDIUM") {
+    console.info("[GOIANIA_POI_SHADOW]", {
+      sequence: row?.sequence ?? null,
+      city: cityForDecision,
+      original: addressRaw,
+      finalSource,
+      finalMatchType,
+      finalStatus: status,
+      poiShadowFound: poiShadow.found,
+      poiShadowConfidence: poiShadow.confidence,
+      poiShadowCategory: poiShadow.category,
+      poiShadowName: poiShadow.name,
+      poiShadowSources: poiShadow.sources,
+      poiShadowReason: poiShadow.reason,
+      poiShadowScore: poiShadow.score,
+      poiShadowDistanceToFinalM,
+      poiShadowWouldHelpCurrentResult,
+    });
+  }
 
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
@@ -5525,6 +5683,15 @@ if (shouldAutoSaveAddressMemory) {
     localLotUsedAsFinal,
     localLotBlockedByBairro,
     ...goianiaLocalFirstDiagnostics,
+    poiShadowFound: poiShadow.found,
+    poiShadowConfidence: poiShadow.confidence,
+    poiShadowCategory: poiShadow.category,
+    poiShadowName: poiShadow.name,
+    poiShadowLat: poiShadow.confidence === "POI_HIGH" ? poiShadow.lat : null,
+    poiShadowLng: poiShadow.confidence === "POI_HIGH" ? poiShadow.lng : null,
+    poiShadowSources: poiShadow.sources,
+    poiShadowReason: poiShadow.reason,
+    poiShadowWouldHelpCurrentResult,
     bairroParserCleaned: !!normalized.bairroParserCleaned,
     bairroParserExtractedQdLt: !!normalized.bairroParserExtractedQdLt,
     bairroBeforeParser: normalized.bairroBeforeParser ?? null,
@@ -5568,6 +5735,48 @@ if (shouldAutoSaveAddressMemory) {
       pos: x.it?.position || null,
     })),
   };
+
+  if (
+    runState &&
+    (poiShadow.confidence === "POI_HIGH" || poiShadow.confidence === "POI_MEDIUM") &&
+    poiShadow.name &&
+    poiShadow.category
+  ) {
+    runState.goianiaPoiShadowAudits.push({
+      id: `gyn_poi_shadow_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      occurredAt: new Date(),
+      jobId: runState.jobId || null,
+      userId: runState.userId,
+      userEmail: runState.userEmail,
+      spreadsheetName: runState.spreadsheetName,
+      stopSequence: row?.sequence != null ? String(row.sequence) : null,
+      originalAddress: addressRaw,
+      normalizedAddress: normalizedLine || null,
+      bairro: bairroFinal || null,
+      poiId: poiShadow.poiId,
+      poiName: poiShadow.name,
+      poiCategory: poiShadow.category,
+      poiConfidence: poiShadow.confidence === "POI_HIGH" ? "HIGH" : "MEDIUM",
+      poiLat: poiShadow.lat,
+      poiLng: poiShadow.lng,
+      poiSources: poiShadow.sources,
+      poiReason: poiShadow.reason,
+      finalSource,
+      finalMatchType,
+      finalStatus: status,
+      finalLat: typeof lat === "number" ? lat : null,
+      finalLng: typeof lng === "number" ? lng : null,
+      poiShadowWouldHelpCurrentResult,
+      metadata: {
+        poiShadowScore: poiShadow.score,
+        poiShadowMatchedTokens: poiShadow.matchedTokens,
+        poiShadowDistanceToFinalM,
+        currentDecisionReason: decisionReason,
+        geocodeConfidenceLevel: geocodeConfidenceDiag.level,
+        geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      },
+    });
+  }
 
   if (debugMemory) {
     (result as any).memoryDebug = {
@@ -5677,6 +5886,7 @@ export async function POST(req: Request) {
       select: {
         id: true,
         role: true,
+        email: true,
         accessBlockedAt: true,
         accessBlockReason: true,
       },
@@ -5716,6 +5926,7 @@ export async function POST(req: Request) {
     }
 
     jobId = String(body?.jobId || "").trim();
+    let spreadsheetName: string | null = null;
 
     if (!jobId && role === "USER") {
       return NextResponse.json(
@@ -5727,7 +5938,7 @@ export async function POST(req: Request) {
     if (jobId) {
       const job = await prisma.importJob.findUnique({
         where: { id: jobId },
-        select: { id: true, userId: true, status: true },
+        select: { id: true, userId: true, status: true, originalName: true, storedName: true },
       });
 
       if (!job) {
@@ -5751,6 +5962,7 @@ export async function POST(req: Request) {
           { status: 409 }
         );
       }
+      spreadsheetName = job.originalName || job.storedName || null;
 
       await consumeRouteAllowance({
         userId,
@@ -5818,8 +6030,12 @@ export async function POST(req: Request) {
 
     const runState: ProcessRunState = {
       jobId,
+      userId,
+      userEmail: currentUser.email || null,
+      spreadsheetName,
       googleCommercialFallbackCalls: 0,
       localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
+      goianiaPoiShadowAudits: [],
     };
 
     logMemoryDiagnostics("process:job:start", {
@@ -5904,6 +6120,13 @@ export async function POST(req: Request) {
     });
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     await Promise.allSettled(runState.localFirstAliasShadow.shadowTasks);
+    await saveGoianiaPoiShadowAudits(runState.goianiaPoiShadowAudits);
+    if (runState.goianiaPoiShadowAudits.length) {
+      console.info("[GOIANIA_POI_SHADOW_AUDIT_SAVED]", {
+        jobId: jobId || null,
+        count: runState.goianiaPoiShadowAudits.length,
+      });
+    }
     logMemoryDiagnostics("process:after-workers", {
       route: "/api/process",
       jobId: jobId || null,

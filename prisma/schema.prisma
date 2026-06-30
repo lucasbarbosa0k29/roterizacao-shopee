@@ -84,6 +84,7 @@ model User {
   routeUsages         RouteUsage[]
   routeCredits        RouteCredit[]
   paymentTransactions PaymentTransaction[]
+  goianiaPoiShadowAudits GoianiaPoiShadowAudit[]
   adminActionLogs     AdminAccessLog[]     @relation("AdminActor")
   targetActionLogs    AdminAccessLog[]     @relation("AdminTarget")
 
@@ -156,6 +157,7 @@ model ImportJob {
   resultJson    Json?
   resultPath    String?   @db.Text
   resultSavedAt DateTime?
+  goianiaPoiShadowAudits GoianiaPoiShadowAudit[]
 
   // ✅ NOVO: salva o "estado da tela" (confirmado/revisão, agrupamentos, seleções etc.)
   workspaceJson Json?
@@ -318,6 +320,60 @@ model AddressMemory {
   updatedAt DateTime @updatedAt
 
   @@index([createdAt])
+}
+
+model GoianiaPoiShadowAudit {
+  id String @id
+
+  occurredAt DateTime @default(now())
+
+  jobId String?
+  job   ImportJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail String?
+
+  spreadsheetName String?
+  stopSequence    String?
+
+  originalAddress   String  @db.Text
+  normalizedAddress String? @db.Text
+  bairro            String?
+
+  poiId         String?
+  poiName       String
+  poiCategory   String
+  poiConfidence String
+  poiLat        Float?
+  poiLng        Float?
+  poiSources    Json?
+  poiReason     String? @db.Text
+
+  finalSource    String?
+  finalMatchType String?
+  finalStatus    String?
+  finalLat       Float?
+  finalLng       Float?
+
+  poiShadowWouldHelpCurrentResult Boolean @default(false)
+  metadata Json?
+
+  reviewStatus String @default("PENDING")
+  isCorrect    Boolean?
+  reviewNotes  String? @db.Text
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([occurredAt])
+  @@index([jobId])
+  @@index([userId])
+  @@index([poiConfidence])
+  @@index([poiCategory])
+  @@index([poiName])
+  @@index([poiShadowWouldHelpCurrentResult])
+  @@index([reviewStatus])
 }
 
 model LocalFirstAlias {
