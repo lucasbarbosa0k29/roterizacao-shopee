@@ -3213,12 +3213,6 @@ async function processOne(
       return "NO_LOCAL_CANDIDATE";
     }
     if (
-      normalized.rua &&
-      localFirstGoianiaShadow.localFirstStreetCompatibility === "STREET_MISMATCH"
-    ) {
-      return "STREET_MISMATCH";
-    }
-    if (
       localFirstGoianiaShadow.matchType !== "exact" &&
       localFirstGoianiaShadow.matchType !== "exact_canonical" &&
       localFirstGoianiaShadow.matchType !== "exact_alphanumeric_canonical" &&
