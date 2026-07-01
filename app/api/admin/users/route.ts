@@ -9,6 +9,28 @@ import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex++;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => worker())
+  );
+
+  return results;
+}
+
 async function logAdminAction(
   tx: any,
   params: {
@@ -57,11 +79,13 @@ export async function GET() {
       ? users
       : users.filter((user) => user.role !== "ADMIN");
 
-    const usersWithAccess = await Promise.all(
-      visibleUsers.map(async (user) => ({
+    const usersWithAccess = await mapWithConcurrency(
+      visibleUsers,
+      2,
+      async (user) => ({
         ...user,
         access: await getUserAccessSnapshot(user.id),
-      }))
+      })
     );
 
     return NextResponse.json({ ok: true, users: usersWithAccess });
