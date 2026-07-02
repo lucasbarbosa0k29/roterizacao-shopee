@@ -445,6 +445,8 @@ const CONDO_GROUP_UNIT_CODE_RE = /\b[A-Z]\s*[-]?\s*\d{3,4}[A-Z]?\b/;
 const CONDO_GROUP_NAME_STOPWORDS_RE = /\b(DO|DA|DE|DAS|DOS|DEL|DI)\b/g;
 const CONDO_GROUP_BLOCKED_HINT_RE =
   /\b(?:Q(?:D)?|QUADRA|LTS?|LT|LOTE)\w*\b|\b(?:CASA|LOTEAMENTO|JARDINS|ALPHAVILLE)\b/;
+const CONDO_GROUP_EXPLICIT_VERTICAL_HINT_RE =
+  /\b(?:AP|APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA|UNIDADE|EDIF|EDIFICIO|PREDIO|COND|CONDOMINIO|RESIDENCIAL)\b|\b(?:APT|APTO|APART|APARTAMENTO|AP|UNIDADE)\s*[-:]?\s*\d+[A-Z]?\b/i;
 
 function escapeRegExp(value: string) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -455,6 +457,24 @@ function splitCondoGroupSegments(address: string) {
     .split(/[,;/|]+/g)
     .map((part) => normKey(part))
     .filter(Boolean);
+}
+
+function isCondoGroupLetterNumberStreetSegment(segment: string | null | undefined) {
+  const normalized = normKey(String(segment || ""));
+  if (!CONDO_GROUP_STREET_PREFIX_RE.test(normalized)) return false;
+  const withoutPrefix = normalized.replace(CONDO_GROUP_STREET_PREFIX_CLEAN_RE, "").trim();
+  return /^[A-Z]\s+\d{2,4}[A-Z]?$/.test(withoutPrefix);
+}
+
+function isCondoGroupZeroStreetNumber(value: string | null | undefined) {
+  const normalized = normKey(String(value || ""));
+  return /^0+$/.test(normalized);
+}
+
+function isGenericCondoPhysicalKey(streetName: string | null, streetNumber: string | null) {
+  const normalizedStreet = normKey(String(streetName || ""));
+  const normalizedNumber = normKey(String(streetNumber || ""));
+  return /^[A-Z]$/.test(normalizedStreet) && isCondoGroupZeroStreetNumber(normalizedNumber);
 }
 
 function extractCondoGroupStreetName(segment: string) {
@@ -797,23 +817,30 @@ function buildCondoGroupPlan(address: string, city: string) {
   const normalizedAddress = normKey(address);
   const segments = splitCondoGroupSegments(address);
   const streetIndex = segments.findIndex((segment) => CONDO_GROUP_STREET_PREFIX_RE.test(segment));
+  const streetSegment = streetIndex >= 0 ? segments[streetIndex] : null;
   const streetName =
-    streetIndex >= 0 ? extractCondoGroupStreetName(segments[streetIndex]) : null;
+    streetSegment !== null ? extractCondoGroupStreetName(streetSegment) : null;
+  const shouldIgnoreStreetSegmentUnitCode = isCondoGroupLetterNumberStreetSegment(streetSegment);
+  const unitHintSource = shouldIgnoreStreetSegmentUnitCode
+    ? segments.filter((_, idx) => idx !== streetIndex).join(" ")
+    : normalizedAddress;
   const hasStructuredAddress =
     String(address || "")
       .split(/[,;/|]+/g)
       .map((part) => normKey(part))
       .filter(Boolean).length >= 3;
+  const hasExplicitCondoEvidence = CONDO_GROUP_EXPLICIT_VERTICAL_HINT_RE.test(normalizedAddress);
   const hasVerticalHint =
-    CONDO_GROUP_VERTICAL_HINT_RE.test(normalizedAddress) ||
-    CONDO_GROUP_COMPACT_UNIT_RE.test(normalizedAddress) ||
-    CONDO_GROUP_NUMERIC_UNIT_RE.test(normalizedAddress) ||
-    (CONDO_GROUP_TRAILING_UNIT_RE.test(normalizedAddress) && hasStructuredAddress) ||
+    hasExplicitCondoEvidence ||
+    CONDO_GROUP_COMPACT_UNIT_RE.test(unitHintSource) ||
+    CONDO_GROUP_NUMERIC_UNIT_RE.test(unitHintSource) ||
+    (CONDO_GROUP_TRAILING_UNIT_RE.test(unitHintSource) && hasStructuredAddress) ||
     (isStrongCondoBuildingName(extractCondoGroupBuildingName(segments, streetIndex)) &&
-      CONDO_GROUP_UNIT_CODE_RE.test(normalizedAddress));
+      CONDO_GROUP_UNIT_CODE_RE.test(unitHintSource));
 
   const hasBlockedHorizontalHint = CONDO_GROUP_BLOCKED_HINT_RE.test(normalizedAddress);
   if (!normKey(city)) return null;
+  if (!hasExplicitCondoEvidence) return null;
   if (hasBlockedHorizontalHint && !hasVerticalHint) return null;
   if (!basePlan.shouldAttempt && !hasVerticalHint) return null;
 
@@ -821,11 +848,18 @@ function buildCondoGroupPlan(address: string, city: string) {
     streetIndex >= 0 ? extractCondoGroupNearestStreetNumber(segments, streetIndex) : null;
   const buildingName = extractCondoGroupBuildingName(segments, streetIndex);
   const normalizedCity = normKey(city);
+  const canUsePhysicalKey =
+    !!streetName &&
+    !!streetNumber &&
+    !isCondoGroupZeroStreetNumber(streetNumber) &&
+    !isGenericCondoPhysicalKey(streetName, streetNumber);
 
   const physicalKey =
-    streetName && streetNumber
+    canUsePhysicalKey
       ? normKey(`${streetName} ${streetNumber} ${normalizedCity}`)
-      : basePlan.physicalKey || null;
+      : streetName && streetNumber
+        ? null
+        : basePlan.physicalKey || null;
   const displayNameKey = buildingName
     ? normKey(`${buildingName} ${normalizedCity}`)
     : basePlan.nameKey || null;
