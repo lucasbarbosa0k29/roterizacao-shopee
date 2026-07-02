@@ -81,6 +81,16 @@ function normalizeWorkspaceJson(workspaceJson: any, fallbackResultJson?: any) {
         : {},
     autoGrouped: !!source?.autoGrouped,
     autoBreakIds: Array.isArray(source?.autoBreakIds) ? source.autoBreakIds : [],
+    condoGrouped: !!source?.condoGrouped,
+    condoBreakIds: Array.isArray(source?.condoBreakIds) ? source.condoBreakIds : [],
+    groupItemExclusions:
+      source?.groupItemExclusions && typeof source.groupItemExclusions === "object"
+        ? source.groupItemExclusions
+        : {},
+    routeSummary:
+      source?.routeSummary && typeof source.routeSummary === "object"
+        ? source.routeSummary
+        : null,
     name: typeof source?.name === "string" ? source.name : null,
     updatedAtMs: Number(source?.updatedAtMs || 0),
   };
@@ -104,12 +114,61 @@ function mergeWorkspaceJson(current: any, incoming: any) {
     autoBreakIds: Array.isArray(incoming?.autoBreakIds)
       ? incoming.autoBreakIds
       : (current?.autoBreakIds ?? []),
+    condoGrouped:
+      typeof incoming?.condoGrouped === "boolean"
+        ? incoming.condoGrouped
+        : !!current?.condoGrouped,
+    condoBreakIds: Array.isArray(incoming?.condoBreakIds)
+      ? incoming.condoBreakIds
+      : (current?.condoBreakIds ?? []),
+    groupItemExclusions:
+      incoming?.groupItemExclusions && typeof incoming.groupItemExclusions === "object"
+        ? incoming.groupItemExclusions
+        : (current?.groupItemExclusions ?? {}),
+    routeSummary:
+      incoming?.routeSummary && typeof incoming.routeSummary === "object"
+        ? incoming.routeSummary
+        : (current?.routeSummary ?? null),
     name:
       typeof incoming?.name === "string"
         ? incoming.name
         : (current?.name ?? null),
-    updatedAtMs: Date.now(),
+    updatedAtMs: Number(incoming?.updatedAtMs || Date.now()),
   };
+}
+
+function isStaleWorkspaceSave(current: any, incoming: any) {
+  const currentUpdatedAtMs = Number(current?.updatedAtMs || 0);
+  const incomingUpdatedAtMs = Number(incoming?.updatedAtMs || 0);
+  return (
+    Number.isFinite(currentUpdatedAtMs) &&
+    Number.isFinite(incomingUpdatedAtMs) &&
+    currentUpdatedAtMs > 0 &&
+    incomingUpdatedAtMs > 0 &&
+    incomingUpdatedAtMs < currentUpdatedAtMs
+  );
+}
+
+function getConsolidatedTotalStops(workspaceJson: any, fallbackTotalStops: number) {
+  const totalStops = Number(workspaceJson?.routeSummary?.totalStops);
+  return Number.isFinite(totalStops) && totalStops >= 0
+    ? totalStops
+    : fallbackTotalStops;
+}
+
+function getHistoryDisplayStatus(workspaceJson: any, status: string, totalStops: number) {
+  if (status === "PROCESSING" || status === "PENDING" || status === "FAILED") {
+    return status;
+  }
+
+  const summary = workspaceJson?.routeSummary;
+  const confirmedCount = Number(summary?.confirmedCount);
+  const allConfirmed =
+    summary?.allConfirmed === true &&
+    Number.isFinite(confirmedCount) &&
+    confirmedCount >= totalStops;
+
+  return allConfirmed ? "DONE" : "REVIEW";
 }
 
 export async function GET(
@@ -147,6 +206,7 @@ export async function GET(
             status: true,
             totalStops: true,
             processedStops: true,
+            workspaceJson: true,
             resultSavedAt: true,
             createdAt: true,
             updatedAt: true,
@@ -181,7 +241,16 @@ export async function GET(
     });
 
     if (progressOnly) {
-      return NextResponse.json({ ok: true, job });
+      const totalStops = getConsolidatedTotalStops(job.workspaceJson, job.totalStops);
+      return NextResponse.json({
+        ok: true,
+        job: {
+          ...job,
+          totalStops,
+          displayStatus: getHistoryDisplayStatus(job.workspaceJson, job.status, totalStops),
+          workspaceJson: undefined,
+        },
+      });
     }
 
     const fullJob = job as typeof job & {
@@ -278,6 +347,10 @@ export async function PATCH(
     }
 
     const currentWorkspace = normalizeWorkspaceJson(current.workspaceJson);
+    if (isStaleWorkspaceSave(currentWorkspace, incomingWorkspace)) {
+      return NextResponse.json({ ok: true, ignored: "stale_workspace" });
+    }
+
     const payload = mergeWorkspaceJson(currentWorkspace, incomingWorkspace);
 
     const updated = await prisma.importJob.updateMany({

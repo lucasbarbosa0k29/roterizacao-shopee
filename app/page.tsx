@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -925,6 +925,8 @@ function HomeInner() {
   const [duplicateImportModalOpen, setDuplicateImportModalOpen] = useState(false);
   const [manualEdits, setManualEdits] = useState<Record<number, ManualEdit>>({});
   const lastWorkspaceUpdatedAtRef = useRef(0);
+  const latestWorkspaceSaveRef = useRef<{ historyId: string; payload: any } | null>(null);
+  const workspaceSaveInFlightRef = useRef<Promise<void> | null>(null);
   const isApplyingRemoteWorkspaceRef = useRef(false);
   const [notesEditorIdx, setNotesEditorIdx] = useState<number | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
@@ -1148,6 +1150,22 @@ useEffect(() => {
   const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set());
   const [mergeTargetGroupId, setMergeTargetGroupId] = useState<string | null>(null);
 
+  const flushWorkspaceNow = useCallback(() => {
+    const nextSave = latestWorkspaceSaveRef.current;
+    if (!nextSave?.historyId || !nextSave.payload) return Promise.resolve();
+
+    const promise = updateHistoryDb(nextSave.historyId, nextSave.payload)
+      .catch(() => {})
+      .finally(() => {
+        if (workspaceSaveInFlightRef.current === promise) {
+          workspaceSaveInFlightRef.current = null;
+        }
+      });
+
+    workspaceSaveInFlightRef.current = promise;
+    return promise;
+  }, []);
+
   function applyWorkspaceSnapshot(
     snapshot: any,
     options?: { preserveEphemeral?: boolean; nextName?: string | null }
@@ -1283,45 +1301,6 @@ useEffect(() => {
   }, [jobId, router]);
 
 
-useEffect(() => {
-if (!historyId) return;
-if (isApplyingRemoteWorkspaceRef.current) {
-  isApplyingRemoteWorkspaceRef.current = false;
-  return;
-}
-// ✅ não salva histórico vazio
-if (!rows || rows.length === 0) return;
-  const t = setTimeout(() => {
-  const updatedAtMs = Date.now();
-  lastWorkspaceUpdatedAtRef.current = updatedAtMs;
-  updateHistoryDb(historyId, {
-   version: 1,
-   manualEdits,
-   manualGroups,
-   autoGrouped,
-   autoBreakIds: Array.from(autoBreakIds),
-   condoGrouped,
-   condoBreakIds: Array.from(condoBreakIds),
-   groupItemExclusions,
-   name: historyName || file?.name || "Planilha",
-   updatedAtMs,
-  }).catch(() => {});
-}, 1500);
-
-  return () => clearTimeout(t);
-}, [
-  historyId,
-  rows,
-  manualEdits,
-  manualGroups,
-  autoGrouped,
-  autoBreakIds,
-  condoGrouped,
-  condoBreakIds,
-  groupItemExclusions,
-  file,
-  historyName,
-]);
 useEffect(() => {
 if (!historyId) return;
 if (rows.length > 0 && jobProgress?.status === "DONE") return;
@@ -2490,6 +2469,86 @@ useEffect(() => {
 
     return summary;
   }, [visibleGroupedRows]);
+
+  const routeSummary = useMemo(() => {
+    const confirmedCount = visibleGroupedRows.filter((group) => group.status === "CONFIRMADO").length;
+    const totalStops = visibleGroupedRows.length;
+
+    return {
+      totalStops,
+      confirmedCount,
+      allConfirmed: totalStops > 0 && confirmedCount === totalStops,
+      updatedAtMs: Date.now(),
+    };
+  }, [visibleGroupedRows]);
+
+  useEffect(() => {
+    if (!historyId) return;
+    if (isApplyingRemoteWorkspaceRef.current) {
+      isApplyingRemoteWorkspaceRef.current = false;
+      return;
+    }
+    if (!rows.length) return;
+
+    const updatedAtMs = Date.now();
+    lastWorkspaceUpdatedAtRef.current = updatedAtMs;
+
+    latestWorkspaceSaveRef.current = {
+      historyId,
+      payload: {
+        version: 1,
+        manualEdits,
+        manualGroups,
+        autoGrouped,
+        autoBreakIds: Array.from(autoBreakIds),
+        condoGrouped,
+        condoBreakIds: Array.from(condoBreakIds),
+        groupItemExclusions,
+        routeSummary,
+        name: historyName || file?.name || "Planilha",
+        updatedAtMs,
+      },
+    };
+
+    const t = setTimeout(() => {
+      void flushWorkspaceNow();
+    }, 1500);
+
+    return () => clearTimeout(t);
+  }, [
+    historyId,
+    rows.length,
+    manualEdits,
+    manualGroups,
+    autoGrouped,
+    autoBreakIds,
+    condoGrouped,
+    condoBreakIds,
+    groupItemExclusions,
+    routeSummary,
+    historyName,
+    file,
+    flushWorkspaceNow,
+  ]);
+
+  useEffect(() => {
+    const flush = () => {
+      void flushWorkspaceNow();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [flushWorkspaceNow]);
 
   const summaryPercent = (value: number) =>
     exportSummary.total ? (value / exportSummary.total) * 100 : 0;

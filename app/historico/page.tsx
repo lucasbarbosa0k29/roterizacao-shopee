@@ -10,7 +10,7 @@ import {
 } from "../lib/history-db";
 
 type HistoryItem = DbHistoryListItem & {
-  status?: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  status?: "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "REVIEW";
   totalStops?: number;
 };
 
@@ -22,6 +22,7 @@ type AccessSnapshot = {
 function statusLabel(status: string) {
   if (status === "PROCESSING") return "Processando";
   if (status === "FAILED") return "Falha";
+  if (status === "REVIEW") return "Em revisão";
   if (status === "PENDING") return "Pendente";
   return "Concluída";
 }
@@ -29,6 +30,7 @@ function statusLabel(status: string) {
 function statusTone(status: string) {
   if (status === "PROCESSING") return "amber";
   if (status === "FAILED") return "rose";
+  if (status === "REVIEW") return "amber";
   if (status === "PENDING") return "sky";
   return "emerald";
 }
@@ -67,7 +69,7 @@ export default function HistoricoPage() {
             const job = body?.job;
             return {
               ...item,
-              status: job?.status ?? item.status,
+              status: job?.displayStatus ?? job?.status ?? item.status,
               totalStops: typeof job?.totalStops === "number" ? job.totalStops : item.totalStops,
             };
           } catch {

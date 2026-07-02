@@ -72,6 +72,7 @@ export async function updateHistoryDb(
 ) {
   await fetchJson(`/api/history/${encodeURIComponent(id)}`, {
     method: "PATCH",
+    keepalive: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload), // ✅ corrigido aqui
   });
