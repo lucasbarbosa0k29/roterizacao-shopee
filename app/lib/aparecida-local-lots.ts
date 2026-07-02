@@ -7,6 +7,7 @@ import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
+import { normalizeStreetNameWithoutType } from "@/app/lib/street-normalization";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -1075,8 +1076,8 @@ function compareAparecidaStreetForValidation(
   expected: string,
   actual: string,
 ): LocalFirstStreetMatchType {
-  const left = normalizeText(expected);
-  const right = normalizeText(actual);
+  const left = normalizeStreetNameWithoutType(expected);
+  const right = normalizeStreetNameWithoutType(actual);
 
   if (!left || !right) return "STREET_UNKNOWN";
   if (left === right) return "STREET_MATCH";

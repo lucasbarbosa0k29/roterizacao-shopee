@@ -1,21 +1,10 @@
+import { normalizeStreetNameWithoutType, normalizeStreetText } from "@/app/lib/street-normalization";
+
 export type GoianiaStreetComparison =
   | "STREET_MATCH"
   | "STREET_PARTIAL_MATCH"
   | "STREET_MISMATCH"
   | "STREET_UNKNOWN";
-
-const STREET_TYPE_WORDS = new Set([
-  "RUA",
-  "R",
-  "AVENIDA",
-  "AV",
-  "ALAMEDA",
-  "AL",
-  "TRAVESSA",
-  "TV",
-  "VIELA",
-  "PRACA",
-]);
 
 const WEAK_TOKENS = new Set([
   "RUA",
@@ -41,23 +30,6 @@ const WEAK_TOKENS = new Set([
   "BRASIL",
 ]);
 
-function baseNormalize(input: string) {
-  return String(input || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function normalizeCodeSpacing(input: string) {
-  return input
-    .replace(/\b([A-Z]{1,4})\s+0*([0-9]+)([A-Z]?)\b/g, "$1$2$3")
-    .replace(/\b([A-Z]{1,4})0+([0-9]+)([A-Z]?)\b/g, "$1$2$3")
-    .replace(/\b([A-Z]{1,4})([0-9]+)\s+([A-Z])\b/g, "$1$2$3");
-}
-
 function tokensFor(input: string) {
   return normalizeGoianiaStreetName(input).split(/\s+/).filter(Boolean);
 }
@@ -71,7 +43,7 @@ function meaningfulTokens(input: string) {
 }
 
 function isUnknownStreet(input: string) {
-  const normalized = baseNormalize(input);
+  const normalized = normalizeStreetText(input);
   if (!normalized) return true;
   if (/^\d{5}\s?\d{3}$/.test(normalized)) return true;
   if (/^\d{5}\s?\d{3}\b/.test(normalized) && !/\b(RUA|R|AVENIDA|AV|ALAMEDA|AL|TRAVESSA|TV|VIELA|PRACA)\b/.test(normalized)) {
@@ -116,13 +88,7 @@ function hasPartialNameMatch(input: string, candidate: string) {
 }
 
 export function normalizeGoianiaStreetName(input: string) {
-  const withoutStreetType = baseNormalize(input)
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((token) => !STREET_TYPE_WORDS.has(token))
-    .join(" ");
-
-  return normalizeCodeSpacing(withoutStreetType);
+  return normalizeStreetNameWithoutType(input);
 }
 
 export function compareGoianiaStreet(inputStreet: string, candidateStreet: string): GoianiaStreetComparison {
