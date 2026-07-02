@@ -34,6 +34,14 @@ function statusLabel(status: RecentJob["status"]) {
   return "Pronto para exportar";
 }
 
+function statusTone(status: RecentJob["status"]) {
+  if (status === "PROCESSING") return "amber";
+  if (status === "FAILED") return "rose";
+  if (status === "REVIEW") return "amber";
+  if (status === "PENDING") return "sky";
+  return "emerald";
+}
+
 function relativeLabel(savedAt: number) {
   const diffMs = Date.now() - savedAt;
   const diffMin = Math.max(0, Math.round(diffMs / 60000));
@@ -311,7 +319,18 @@ export function HomeTwaMobile() {
                           </p>
                         </div>
                       </div>
-                      <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                      <span
+                        className={[
+                          "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                          statusTone(item.status) === "emerald"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : statusTone(item.status) === "amber"
+                              ? "bg-amber-50 text-amber-700"
+                              : statusTone(item.status) === "rose"
+                                ? "bg-rose-50 text-rose-700"
+                                : "bg-sky-50 text-sky-700",
+                        ].join(" ")}
+                      >
                         {statusLabel(item.status)}
                       </span>
                     </button>
