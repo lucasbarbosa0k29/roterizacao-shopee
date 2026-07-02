@@ -23,13 +23,14 @@ type AccessSnapshot = {
 };
 
 type RecentJob = DbHistoryListItem & {
-  status?: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  status?: "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "REVIEW";
 };
 
 function statusLabel(status: RecentJob["status"]) {
   if (status === "PROCESSING") return "Processando";
+  if (status === "REVIEW") return "Em revisão";
   if (status === "PENDING") return "Em revisão";
-  if (status === "DONE") return "Análise concluída";
+  if (status === "DONE") return "Concluída";
   return "Pronto para exportar";
 }
 
@@ -60,7 +61,7 @@ async function loadRecentJobs(): Promise<RecentJob[]> {
         const job = body?.job;
         return {
           ...item,
-          status: job?.status,
+          status: job?.displayStatus ?? job?.status,
         };
       } catch {
         return item;
