@@ -18,6 +18,10 @@ export type LocalFirstAliasKeyInput = {
 export type CreatePendingLocalFirstAliasInput = LocalFirstAliasKeyInput & {
   targetBairro?: string | null;
   targetRua?: string | null;
+  sampleBairro?: string | null;
+  sampleRua?: string | null;
+  sampleQuadra?: string | null;
+  sampleLote?: string | null;
   confidence?: number;
   source?: LocalFirstAliasSource;
   lastAiReason?: string | null;
@@ -183,6 +187,10 @@ function buildPendingAliasData(input: CreatePendingLocalFirstAliasInput) {
   return {
     targetBairro: input.targetBairro ?? null,
     targetRua: input.targetRua ?? null,
+    sampleBairro: input.sampleBairro ?? null,
+    sampleRua: input.sampleRua ?? null,
+    sampleQuadra: input.sampleQuadra ?? null,
+    sampleLote: input.sampleLote ?? null,
     confidence: clampConfidence(input.confidence),
     source: input.source ?? LocalFirstAliasSource.AI,
     lastAttemptAt: new Date(),
@@ -235,6 +243,10 @@ export async function createPendingLocalFirstAlias(
             lastFailureReason: data.lastFailureReason,
             cooldownUntil: data.cooldownUntil,
             notes: data.notes,
+            sampleBairro: data.sampleBairro,
+            sampleRua: data.sampleRua,
+            sampleQuadra: data.sampleQuadra,
+            sampleLote: data.sampleLote,
           }
         : {
             ...data,

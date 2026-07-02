@@ -36,20 +36,10 @@ export async function POST(req: Request, ctx: any) {
     const id = String(params?.id || "").trim();
 
     if (!id) {
-      return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+      return NextResponse.json({ error: "ID invalido." }, { status: 400 });
     }
 
     const body = await req.json().catch(() => null);
-    const sampleQuadra = String(body?.sampleQuadra || "").trim();
-    const sampleLote = String(body?.sampleLote || "").trim();
-
-    if (!sampleQuadra || !sampleLote) {
-      return NextResponse.json(
-        { error: "sampleQuadra e sampleLote são obrigatórios." },
-        { status: 400 },
-      );
-    }
-
     const alias = await prisma.localFirstAlias.findUnique({
       where: { id },
       select: {
@@ -60,13 +50,27 @@ export async function POST(req: Request, ctx: any) {
         sourceRua: true,
         targetBairro: true,
         targetRua: true,
+        sampleBairro: true,
+        sampleRua: true,
+        sampleQuadra: true,
+        sampleLote: true,
       },
     });
 
     if (!alias) {
       return NextResponse.json(
-        { error: "Alias não encontrado." },
+        { error: "Alias nao encontrado." },
         { status: 404 },
+      );
+    }
+
+    const sampleQuadra = String(body?.sampleQuadra || alias.sampleQuadra || "").trim();
+    const sampleLote = String(body?.sampleLote || alias.sampleLote || "").trim();
+
+    if (!sampleQuadra || !sampleLote) {
+      return NextResponse.json(
+        { error: "sampleQuadra e sampleLote sao obrigatorios." },
+        { status: 400 },
       );
     }
 
@@ -88,6 +92,10 @@ export async function POST(req: Request, ctx: any) {
         ),
         lastValidationReason: result.reason,
         lastFailureReason: result.failureReason ?? null,
+        sampleBairro: alias.sampleBairro || alias.sourceBairro || null,
+        sampleRua: alias.sampleRua || alias.sourceRua || null,
+        sampleQuadra,
+        sampleLote,
       },
     });
 

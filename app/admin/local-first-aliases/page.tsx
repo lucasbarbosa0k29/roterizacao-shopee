@@ -20,6 +20,10 @@ type AliasRow = {
   sourceRua: string;
   targetBairro: string | null;
   targetRua: string | null;
+  sampleBairro: string | null;
+  sampleRua: string | null;
+  sampleQuadra: string | null;
+  sampleLote: string | null;
   status: AliasStatus;
   source: string;
   confidence: number;
@@ -191,8 +195,8 @@ export default function LocalFirstAliasesAdminPage() {
   function openModal(action: AliasAction, alias: AliasRow) {
     setModal({ action, alias });
     setValidationResult(null);
-    setSampleQuadra("");
-    setSampleLote("");
+    setSampleQuadra(alias.sampleQuadra || "");
+    setSampleLote(alias.sampleLote || "");
     setTargetBairro(alias.targetBairro || "");
     setTargetRua(alias.targetRua || "");
     setReason("");
@@ -214,7 +218,7 @@ export default function LocalFirstAliasesAdminPage() {
     const alias = modal.alias;
 
     if ((action === "validate" || action === "approve") && (!sampleQuadra.trim() || !sampleLote.trim())) {
-      alert("sampleQuadra e sampleLote sao obrigatorios.");
+      alert("Informe uma quadra e lote reais para validar este alias no LocalFirst.");
       return;
     }
 
@@ -519,14 +523,31 @@ export default function LocalFirstAliasesAdminPage() {
 
             <form onSubmit={submitModal} className="mt-5 space-y-4">
               {(modal.action === "validate" || modal.action === "approve") && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-medium">sampleQuadra</label>
-                    <input className="mt-1 w-full rounded-xl border p-3" value={sampleQuadra} onChange={(event) => setSampleQuadra(event.target.value)} autoFocus />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">sampleLote</label>
-                    <input className="mt-1 w-full rounded-xl border p-3" value={sampleLote} onChange={(event) => setSampleLote(event.target.value)} />
+                <div className="space-y-3">
+                  {!modal.alias.sampleQuadra || !modal.alias.sampleLote ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      Informe uma quadra e lote reais para validar este alias no LocalFirst.
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                      Amostra capturada automaticamente do processamento.
+                      {modal.alias.sampleBairro || modal.alias.sampleRua ? (
+                        <span>
+                          {" "}
+                          {modal.alias.sampleBairro || "-"} / {modal.alias.sampleRua || "-"}
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-medium">sampleQuadra</label>
+                      <input className="mt-1 w-full rounded-xl border p-3" value={sampleQuadra} onChange={(event) => setSampleQuadra(event.target.value)} autoFocus />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">sampleLote</label>
+                      <input className="mt-1 w-full rounded-xl border p-3" value={sampleLote} onChange={(event) => setSampleLote(event.target.value)} />
+                    </div>
                   </div>
                 </div>
               )}

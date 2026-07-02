@@ -76,6 +76,10 @@ function selectLocalFirstAliasItem() {
     sourceRua: true,
     targetBairro: true,
     targetRua: true,
+    sampleBairro: true,
+    sampleRua: true,
+    sampleQuadra: true,
+    sampleLote: true,
     status: true,
     source: true,
     confidence: true,
@@ -129,6 +133,10 @@ export async function PATCH(req: Request, ctx: any) {
         sourceRua: true,
         targetBairro: true,
         targetRua: true,
+        sampleBairro: true,
+        sampleRua: true,
+        sampleQuadra: true,
+        sampleLote: true,
         status: true,
       },
     });
@@ -146,8 +154,8 @@ export async function PATCH(req: Request, ctx: any) {
     let data: Record<string, unknown> = {};
 
     if (action === "approve") {
-      const sampleQuadra = String(body?.sampleQuadra || "").trim();
-      const sampleLote = String(body?.sampleLote || "").trim();
+      const sampleQuadra = String(body?.sampleQuadra || alias.sampleQuadra || "").trim();
+      const sampleLote = String(body?.sampleLote || alias.sampleLote || "").trim();
 
       if (!sampleQuadra || !sampleLote) {
         return NextResponse.json(
@@ -177,6 +185,10 @@ export async function PATCH(req: Request, ctx: any) {
             ),
             lastValidationReason: result.reason,
             lastFailureReason: result.failureReason ?? null,
+            sampleBairro: alias.sampleBairro || alias.sourceBairro || null,
+            sampleRua: alias.sampleRua || alias.sourceRua || null,
+            sampleQuadra,
+            sampleLote,
           },
         });
 
@@ -203,6 +215,10 @@ export async function PATCH(req: Request, ctx: any) {
         ),
         lastValidationReason: result.reason,
         lastFailureReason: result.failureReason ?? null,
+        sampleBairro: alias.sampleBairro || alias.sourceBairro || null,
+        sampleRua: alias.sampleRua || alias.sourceRua || null,
+        sampleQuadra,
+        sampleLote,
         ...(notes.provided ? { notes: notes.value } : {}),
         ...(targetBairro.provided ? { targetBairro: targetBairro.value } : {}),
         ...(targetRua.provided ? { targetRua: targetRua.value } : {}),

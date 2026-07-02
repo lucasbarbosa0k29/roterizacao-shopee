@@ -387,6 +387,11 @@ model LocalFirstAlias {
   targetBairro String?
   targetRua    String?
 
+  sampleBairro String?
+  sampleRua    String?
+  sampleQuadra String?
+  sampleLote   String?
+
   status LocalFirstAliasStatus @default(PENDING)
   source LocalFirstAliasSource @default(AI)
 
