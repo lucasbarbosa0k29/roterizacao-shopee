@@ -4811,6 +4811,10 @@ if (conflictQL) {
 
   if (
     strictHereHouseNumberAddressOk &&
+    finalRankedKind === "geocode" &&
+    !memoryHit &&
+    !localFirstGoianiaUsedAsFinal &&
+    !localLotUsedAsFinal &&
     !conflictQL &&
     decisionReason !== "BUILDING_NUMBER_MISMATCH" &&
     decisionReason !== "BUILDING_CEP_MISMATCH" &&
