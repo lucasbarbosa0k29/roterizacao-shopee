@@ -1,3 +1,5 @@
+import { normalizeCanonicalNumericStreetName } from "@/app/lib/street-normalization";
+
 export type GeocodeConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 
 export type GeocodeConfidenceSource =
@@ -70,6 +72,31 @@ function exactMatch(a?: string, b?: string) {
   const left = normalizeText(a || "");
   const right = normalizeText(b || "");
   return !!left && !!right && left === right;
+}
+
+function canonicalStreetMatchType(a?: string, b?: string): "EXACT" | "PARTIAL" | null {
+  const left = normalizeCanonicalNumericStreetName(a || "");
+  const right = normalizeCanonicalNumericStreetName(b || "");
+  if (!left || !right) return null;
+  if (left === right) return "EXACT";
+
+  const leftTokens = left.split(/\s+/).filter(Boolean);
+  const rightTokens = right.split(/\s+/).filter(Boolean);
+  if (
+    !leftTokens.some((token) => /^[0-9]+[A-Z]?$/.test(token)) ||
+    !rightTokens.some((token) => /^[0-9]+[A-Z]?$/.test(token))
+  ) {
+    return null;
+  }
+
+  const shorter = leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longer = leftTokens.length <= rightTokens.length ? rightTokens : leftTokens;
+
+  if (shorter.length && shorter.every((token, index) => longer[index] === token)) {
+    return "PARTIAL";
+  }
+
+  return null;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -151,11 +178,13 @@ export function computeGeocodeConfidence(
   }
 
   if (expectedRua && actualRua) {
-    if (exactMatch(expectedRua, actualRua)) {
+    const canonicalRuaMatch = canonicalStreetMatchType(expectedRua, actualRua);
+
+    if (exactMatch(expectedRua, actualRua) || canonicalRuaMatch === "EXACT") {
       score += 25;
       flags.add("RUA_EXACT");
       reasons.push("Rua bate exatamente.");
-    } else if (includesEither(expectedRua, actualRua)) {
+    } else if (includesEither(expectedRua, actualRua) || canonicalRuaMatch === "PARTIAL") {
       score += 14;
       flags.add("RUA_PARTIAL");
       reasons.push("Rua bate parcialmente.");

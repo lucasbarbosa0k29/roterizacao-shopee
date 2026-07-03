@@ -589,6 +589,69 @@ function extractConservativeHereHouseNumber(bestRankedAddress: any, bestItem: an
   return { number: "", confirmed: false, source: null };
 }
 
+function normalizedIncludesEitherStrict(expected: string, actual: string) {
+  const left = normalizeKey(expected);
+  const right = normalizeKey(actual);
+  return !!left && !!right && (left === right || left.includes(right) || right.includes(left));
+}
+
+function isStrictHereHouseNumberAddressMatch(params: {
+  bestItem: any;
+  normalized: any;
+  bairroIn: string;
+  cityForDecision: string;
+  cepIn: string;
+  lat: number | null;
+  lng: number | null;
+}) {
+  if (params.lat == null || params.lng == null) return false;
+
+  const hereAddress = params.bestItem?.address || {};
+  const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, params.bestItem);
+  const hereNumber = normalizeKey(String(hereHouseNumber.number || ""));
+  const wantNumber = normalizeKey(String(params.normalized?.numero || ""));
+  const hereResultType = normalizeKey(String(params.bestItem?.resultType || ""));
+
+  if (hereResultType !== "HOUSENUMBER" || !hereHouseNumber.confirmed || !hereNumber) return false;
+  if (!wantNumber || hereNumber !== wantNumber) return false;
+
+  const wantCep = onlyDigits(params.normalized?.cep || params.cepIn || "");
+  const hereCep = onlyDigits(hereAddress?.postalCode || hereAddress?.address?.postalCode || "");
+  if (!wantCep || !hereCep || wantCep !== hereCep) return false;
+
+  const wantBairro = String(params.normalized?.bairro || params.bairroIn || "");
+  const hereBairro = String(
+    hereAddress?.district ||
+      hereAddress?.subdistrict ||
+      hereAddress?.address?.district ||
+      hereAddress?.address?.subdistrict ||
+      "",
+  );
+  if (!normalizedIncludesEitherStrict(wantBairro, hereBairro)) return false;
+
+  const hereCity = String(
+    hereAddress?.city ||
+      hereAddress?.county ||
+      hereAddress?.address?.city ||
+      hereAddress?.address?.county ||
+      "",
+  );
+  if (!normalizedIncludesEitherStrict(params.cityForDecision, hereCity)) return false;
+
+  const wantStreet = String(params.normalized?.rua || "");
+  const hereStreet = String(hereAddress?.street || hereAddress?.address?.street || "");
+  if (!wantStreet || !hereStreet) return false;
+
+  const cityKey = normalizeKey(params.cityForDecision);
+  const isGoianiaStreetDecision = cityKey.includes("GOIANIA") && !cityKey.includes("APARECIDA");
+
+  if (isGoianiaStreetDecision) {
+    return compareGoianiaStreet(wantStreet, hereStreet) === "STREET_MATCH";
+  }
+
+  return normalizedIncludesEitherStrict(wantStreet, hereStreet);
+}
+
 type MemoryKeyCandidate = {
   key: string;
   kind: "exact" | "base" | CondoMemoryKeyKind;
@@ -4615,9 +4678,11 @@ if (
   ) {
     const hereAddress = bestItem?.address || {};
     const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, bestItem);
+    const hereResultType = normalizeKey(String(bestItem?.resultType || ""));
     const hereStreet = normalizeKey(
       String(hereAddress?.street || hereAddress?.address?.street || ""),
     );
+    const rawHereStreet = String(hereAddress?.street || hereAddress?.address?.street || "");
     const hereCity = normalizeKey(
       String(
         hereAddress?.city ||
@@ -4627,30 +4692,72 @@ if (
           "",
       ),
     );
+    const hereBairro = normalizeKey(
+      String(
+        hereAddress?.district ||
+          hereAddress?.subdistrict ||
+          hereAddress?.address?.district ||
+          hereAddress?.address?.subdistrict ||
+          "",
+      ),
+    );
+    const hereCep = String(
+      hereAddress?.postalCode ||
+        hereAddress?.address?.postalCode ||
+        "",
+    ).replace(/\D+/g, "");
     const wantStreet = normalizeKey(String(normalized.rua || ""));
+    const rawWantStreet = String(normalized.rua || "");
     const wantCity = normalizeKey(String(cityForDecision || ""));
+    const wantBairro = normalizeKey(String(normalized.bairro || bairroIn || ""));
+    const wantCep = String(normalized.cep || cepIn || "").replace(/\D+/g, "");
     const wantNumber = normalizeKey(String(normalized.numero || ""));
     const hereNumber = normalizeKey(String(hereHouseNumber.number || ""));
+    const isGoianiaStreetDecision =
+      wantCity.includes("GOIANIA") && !wantCity.includes("APARECIDA");
 
     const streetOk =
       !!wantStreet &&
       !!hereStreet &&
-      (hereStreet === wantStreet || hereStreet.includes(wantStreet) || wantStreet.includes(hereStreet));
+      (isGoianiaStreetDecision
+        ? compareGoianiaStreet(rawWantStreet, rawHereStreet) === "STREET_MATCH"
+        : hereStreet === wantStreet || hereStreet.includes(wantStreet) || wantStreet.includes(hereStreet));
     const cityOk =
       !!wantCity &&
       !!hereCity &&
       (hereCity === wantCity || hereCity.includes(wantCity) || wantCity.includes(hereCity));
+    const bairroOk =
+      !!wantBairro &&
+      !!hereBairro &&
+      (hereBairro === wantBairro || hereBairro.includes(wantBairro) || wantBairro.includes(hereBairro));
+    const cepOk = !!wantCep && !!hereCep && wantCep === hereCep;
     const numberOk = !!wantNumber && !!hereNumber && wantNumber === hereNumber;
+    const strictHereHouseNumberOk =
+      hereResultType === "HOUSENUMBER" &&
+      hereHouseNumber.confirmed &&
+      !!hereNumber;
 
-    if (streetOk && numberOk && cityOk && !hereUncertain) {
+    if (
+      strictHereHouseNumberOk &&
+      streetOk &&
+      numberOk &&
+      cepOk &&
+      bairroOk &&
+      cityOk &&
+      !hereUncertain
+    ) {
       status = "OK";
       decisionReason = "OK_BUILDING_STREET_NUMBER";
     } else {
       status = "PARCIAL";
-      decisionReason = !hereHouseNumber.confirmed || !hereNumber
+      decisionReason = !strictHereHouseNumberOk
         ? "BUILDING_NUMBER_UNCONFIRMED"
         : !numberOk
           ? "BUILDING_NUMBER_MISMATCH"
+          : !cepOk
+            ? "BUILDING_CEP_MISMATCH"
+            : !bairroOk
+              ? "BUILDING_BAIRRO_MISMATCH"
           : !streetOk
             ? "BUILDING_STREET_MISMATCH"
             : !cityOk
@@ -4691,15 +4798,38 @@ if (conflictQL) {
       decisionReason = "HERE_SPREAD";
     }
   }
+
+  const strictHereHouseNumberAddressOk = isStrictHereHouseNumberAddressMatch({
+    bestItem,
+    normalized,
+    bairroIn,
+    cityForDecision,
+    cepIn,
+    lat,
+    lng,
+  });
+
+  if (
+    strictHereHouseNumberAddressOk &&
+    !conflictQL &&
+    decisionReason !== "BUILDING_NUMBER_MISMATCH" &&
+    decisionReason !== "BUILDING_CEP_MISMATCH" &&
+    decisionReason !== "BUILDING_BAIRRO_MISMATCH" &&
+    decisionReason !== "BUILDING_CITY_MISMATCH"
+  ) {
+    status = "OK";
+    decisionReason = aptLike && !hasQL ? "OK_BUILDING_STREET_NUMBER" : "OK_HERE_STRICT_STREET_NUMBER";
+  }
 // 🔒 PARTE 4.5 — TRAVA FINAL DE CONFIANÇA
 if (status === "OK") {
   const buildingValidatedOk = aptLike && !hasQL && decisionReason === "OK_BUILDING_STREET_NUMBER";
   const goianiaVerticalCondoOK = goianiaCondoVerticalExactMemoryHit;
+  const strictHereValidatedOk = decisionReason === "OK_HERE_STRICT_STREET_NUMBER";
   const missingCore =
     !goianiaVerticalCondoOK &&
     (!normalized.rua ||
-      (!buildingValidatedOk && !quadraAuto) ||
-      (!buildingValidatedOk && !loteAuto) ||
+      (!buildingValidatedOk && !strictHereValidatedOk && !quadraAuto) ||
+      (!buildingValidatedOk && !strictHereValidatedOk && !loteAuto) ||
       lat == null ||
       lng == null);
 
@@ -4713,6 +4843,8 @@ if (status === "OK") {
     decisionReason === "QL_CONFLICT" ||
     decisionReason === "HERE_SPREAD" ||
     decisionReason === "BUILDING_NUMBER_MISMATCH" ||
+    decisionReason === "BUILDING_CEP_MISMATCH" ||
+    decisionReason === "BUILDING_BAIRRO_MISMATCH" ||
     decisionReason === "BUILDING_STREET_MISMATCH" ||
     decisionReason === "BUILDING_CITY_MISMATCH";
 

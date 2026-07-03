@@ -1,4 +1,8 @@
-import { normalizeStreetNameWithoutType, normalizeStreetText } from "@/app/lib/street-normalization";
+import {
+  normalizeCanonicalNumericStreetName,
+  normalizeStreetNameWithoutType,
+  normalizeStreetText,
+} from "@/app/lib/street-normalization";
 
 export type GoianiaStreetComparison =
   | "STREET_MATCH"
@@ -91,13 +95,39 @@ export function normalizeGoianiaStreetName(input: string) {
   return normalizeStreetNameWithoutType(input);
 }
 
+export function normalizeGoianiaCanonicalStreetName(input: string) {
+  return normalizeCanonicalNumericStreetName(input);
+}
+
+function hasCanonicalStreetMatch(input: string, candidate: string) {
+  const inputTokens = input.split(/\s+/).filter(Boolean);
+  const candidateTokens = candidate.split(/\s+/).filter(Boolean);
+
+  if (!inputTokens.length || !candidateTokens.length) return false;
+  if (input === candidate) return true;
+  if (
+    !inputTokens.some((token) => /^[0-9]+[A-Z]?$/.test(token)) ||
+    !candidateTokens.some((token) => /^[0-9]+[A-Z]?$/.test(token))
+  ) {
+    return false;
+  }
+
+  const shorter = inputTokens.length <= candidateTokens.length ? inputTokens : candidateTokens;
+  const longer = inputTokens.length <= candidateTokens.length ? candidateTokens : inputTokens;
+
+  return shorter.every((token, index) => longer[index] === token);
+}
+
 export function compareGoianiaStreet(inputStreet: string, candidateStreet: string): GoianiaStreetComparison {
   if (isUnknownStreet(inputStreet) || isUnknownStreet(candidateStreet)) return "STREET_UNKNOWN";
 
   const input = normalizeGoianiaStreetName(inputStreet);
   const candidate = normalizeGoianiaStreetName(candidateStreet);
+  const canonicalInput = normalizeGoianiaCanonicalStreetName(inputStreet);
+  const canonicalCandidate = normalizeGoianiaCanonicalStreetName(candidateStreet);
 
   if (!input || !candidate) return "STREET_UNKNOWN";
+  if (hasCanonicalStreetMatch(canonicalInput, canonicalCandidate)) return "STREET_MATCH";
   if (input === candidate) return "STREET_MATCH";
   if (hasStrongCodeMatch(input, candidate)) return "STREET_MATCH";
   if (hasPartialNameMatch(input, candidate)) return "STREET_PARTIAL_MATCH";
