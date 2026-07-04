@@ -2723,10 +2723,13 @@ useEffect(() => {
       }
       // 🔒 garante que o import trouxe linhas válidas
       if (!Array.isArray(dataImport?.rows) || dataImport.rows.length === 0) {
-        alert("Import veio vazio (rows). Verifique a planilha/colunas.");
+        alert("Import veio vazio (rows). Verifique o arquivo/colunas.");
         return;
       }
-     // 2) PROCESSA (Gemini + HERE + ArcGIS)
+      if (Array.isArray(dataImport?.warnings) && dataImport.warnings.length > 0) {
+        alert(dataImport.warnings.join("\n"));
+      }
+      // 2) PROCESSA (Gemini + HERE + ArcGIS)
 // ✅ pega o jobId que veio do /api/import (ajusta automático pra vários formatos)
 const jobId =
   dataImport?.jobId ||
@@ -4370,7 +4373,7 @@ useEffect(() => {
           >
             <input
               type="file"
-              accept=".xlsx,.csv"
+              accept=".xlsx,.xls,.csv,.txt"
               className="hidden"
               disabled={access?.canStartRoute !== true}
               onChange={(e) => {

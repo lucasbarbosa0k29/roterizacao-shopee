@@ -101,7 +101,7 @@ export function RouteUploadBox({
             >
               <input
                 type="file"
-                accept=".xlsx,.csv"
+                accept=".xlsx,.xls,.csv,.txt"
                 className="hidden"
                 disabled={access?.canStartRoute === false}
                 onChange={handleFileChange}
@@ -200,7 +200,7 @@ export function RouteUploadBox({
           >
             <input
               type="file"
-              accept=".xlsx,.csv"
+              accept=".xlsx,.xls,.csv,.txt"
               className="hidden"
               disabled={access?.canStartRoute === false || loading}
               onChange={handleFileChange}
@@ -208,11 +208,11 @@ export function RouteUploadBox({
 
             {!loading ? (
               <div className="text-sm text-slate-700">
-                Toque para escolher uma planilha operacional
+                Toque para escolher um arquivo operacional
               </div>
             ) : (
               <div className="text-sm text-slate-800">
-                <div className="font-semibold">Processando planilha...</div>
+                <div className="font-semibold">Processando arquivo...</div>
                 <div className="mt-1 text-slate-600">Estamos montando sua rota.</div>
                 <div className="mt-4 overflow-hidden rounded-full bg-slate-200">
                   <div className="relative h-8 rounded-full bg-[#dbe9e5]">

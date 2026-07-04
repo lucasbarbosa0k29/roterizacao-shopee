@@ -7,11 +7,12 @@ import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";
 import { prisma } from "@/app/lib/prisma";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
+import { parseWhatsAppTxtImport } from "@/app/lib/whatsapp-txt-import";
 
 export const runtime = "nodejs";
 const MAX_ROUTE_STOPS = 200;
 const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_IMPORT_EXTENSIONS = new Set([".xlsx", ".xls", ".csv"]);
+const ALLOWED_IMPORT_EXTENSIONS = new Set([".xlsx", ".xls", ".csv", ".txt"]);
 
 function getFileExtension(fileName: string) {
   const dotIndex = fileName.lastIndexOf(".");
@@ -165,6 +166,67 @@ export async function POST(req: Request) {
           { status: 409 }
         );
       }
+    }
+
+    if (extension === ".txt") {
+      const parsedTxt = parseWhatsAppTxtImport(buffer.toString("utf8"));
+
+      if (parsedTxt.rejectedLines.length) {
+        return NextResponse.json(
+          {
+            error:
+              "Não foi possível reconhecer todas as linhas do TXT do WhatsApp. Revise o arquivo e tente novamente.",
+            code: "WHATSAPP_TXT_REJECTED_LINES",
+            rejectedLines: parsedTxt.rejectedLines,
+            warnings: parsedTxt.warnings,
+            importMetadata: {
+              source: "whatsapp_txt",
+              expectedCount: parsedTxt.expectedCount,
+              parsedCount: parsedTxt.rows.length,
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      if (parsedTxt.rows.length > MAX_ROUTE_STOPS) {
+        return NextResponse.json(
+          { error: "O TXT excede o limite máximo de 200 paradas." },
+          { status: 400 }
+        );
+      }
+
+      if (!parsedTxt.rows.length) {
+        return NextResponse.json(
+          { error: "Nenhum pacote foi reconhecido no TXT do WhatsApp." },
+          { status: 400 }
+        );
+      }
+
+      const job = await prisma.importJob.create({
+        data: {
+          userId,
+          fileHash,
+          originalName: file.name,
+          storedName: null,
+          status: "PENDING",
+          totalStops: parsedTxt.rows.length,
+          processedStops: 0,
+        },
+        select: { id: true },
+      });
+
+      return NextResponse.json({
+        jobId: job.id,
+        total: parsedTxt.rows.length,
+        rows: parsedTxt.rows,
+        warnings: parsedTxt.warnings,
+        importMetadata: {
+          source: "whatsapp_txt",
+          expectedCount: parsedTxt.expectedCount,
+          parsedCount: parsedTxt.rows.length,
+        },
+      });
     }
 
     const workbook = XLSX.read(buffer, { type: "buffer" });

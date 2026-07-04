@@ -68,7 +68,7 @@ export function useRouteImportFlow({
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
 
-      if (!file) return alert("Selecione uma planilha");
+      if (!file) return alert("Selecione um arquivo operacional");
       if (access && !access.canStartRoute) {
         router.replace("/planos");
         return;
@@ -103,8 +103,12 @@ export function useRouteImportFlow({
         }
 
         if (!Array.isArray(dataImport?.rows) || dataImport.rows.length === 0) {
-          alert("Import veio vazio (rows). Verifique a planilha/colunas.");
+          alert("Import veio vazio (rows). Verifique o arquivo/colunas.");
           return;
+        }
+
+        if (Array.isArray(dataImport?.warnings) && dataImport.warnings.length > 0) {
+          alert(dataImport.warnings.join("\n"));
         }
 
         const jobId =
