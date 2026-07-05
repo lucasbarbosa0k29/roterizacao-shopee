@@ -27,6 +27,8 @@ type Props = {
 const GOOGLE_MAPS_SCRIPT_ID = "google-maps-js-api";
 const DEFAULT_GOIANIA_CENTER: LatLng = { lat: -16.6869, lng: -49.2643 };
 const DEFAULT_APARECIDA_CENTER: LatLng = { lat: -16.8233, lng: -49.2439 };
+const GOOGLE_PIN_ZOOM = 19;
+const GOOGLE_FALLBACK_ZOOM = 13;
 const GOOGLE_MAPS_UNAVAILABLE_MESSAGE =
   "Google Maps indisponivel no momento. Verifique se o faturamento e as restricoes da chave estao ativos no Google Cloud.";
 
@@ -152,6 +154,22 @@ function sortGoogleResults(
       return a.index - b.index;
     })
     .map((item) => item.result);
+}
+
+function syncGoogleMapToCenter(args: {
+  google: any;
+  map: any;
+  marker: any;
+  center: LatLng;
+  zoom: number;
+}) {
+  const { google, map, marker, center, zoom } = args;
+  marker.setPosition(center);
+  map.setCenter(center);
+  map.setZoom(zoom);
+  google.maps.event.trigger(map, "resize");
+  map.setCenter(center);
+  map.setZoom(zoom);
 }
 
 let googleMapsPromise: Promise<any> | null = null;
@@ -293,7 +311,7 @@ function GoogleValidationMap({
         try {
           map = new google.maps.Map(divRef.current, {
             center: initial,
-            zoom: center ? 17 : 13,
+            zoom: center ? GOOGLE_PIN_ZOOM : GOOGLE_FALLBACK_ZOOM,
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: false,
@@ -336,6 +354,25 @@ function GoogleValidationMap({
 
         mapRef.current = map;
         markerRef.current = marker;
+
+        const stableZoom = center ? GOOGLE_PIN_ZOOM : GOOGLE_FALLBACK_ZOOM;
+        syncGoogleMapToCenter({ google, map, marker, center: initial, zoom: stableZoom });
+        let didPostLoadSync = false;
+        const syncAfterGoogleLoad = () => {
+          if (didPostLoadSync || cancelled || mapRef.current !== map || markerRef.current !== marker) return;
+          didPostLoadSync = true;
+          syncGoogleMapToCenter({ google, map, marker, center: initial, zoom: stableZoom });
+        };
+        google.maps.event.addListenerOnce(map, "idle", syncAfterGoogleLoad);
+        google.maps.event.addListenerOnce(map, "tilesloaded", syncAfterGoogleLoad);
+        window.requestAnimationFrame(() => {
+          if (cancelled || mapRef.current !== map || markerRef.current !== marker) return;
+          syncGoogleMapToCenter({ google, map, marker, center: initial, zoom: stableZoom });
+        });
+        window.setTimeout(() => {
+          if (cancelled || mapRef.current !== map || markerRef.current !== marker) return;
+          syncGoogleMapToCenter({ google, map, marker, center: initial, zoom: stableZoom });
+        }, 120);
       })
       .catch(() => {
         setUnavailableError();
@@ -485,9 +522,20 @@ function GoogleValidationMap({
       internalPickKeyRef.current = "";
       return;
     }
+    const google = (window as any).google;
+    if (google?.maps?.event) {
+      syncGoogleMapToCenter({
+        google,
+        map: mapRef.current,
+        marker: markerRef.current,
+        center,
+        zoom: GOOGLE_PIN_ZOOM,
+      });
+      return;
+    }
     markerRef.current.setPosition(center);
+    mapRef.current.setZoom(GOOGLE_PIN_ZOOM);
     mapRef.current.setCenter(center);
-    mapRef.current.setZoom(17);
   }, [center]);
 
   if (error) {

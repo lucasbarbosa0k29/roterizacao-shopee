@@ -448,6 +448,215 @@ const CONDO_GROUP_BLOCKED_HINT_RE =
 const CONDO_GROUP_EXPLICIT_VERTICAL_HINT_RE =
   /\b(?:AP|APT|APTO|APART|APARTAMENTO|BLOCO|TORRE|ANDAR|SALA|UNIDADE|EDIF|EDIFICIO|PREDIO|COND|CONDOMINIO|RESIDENCIAL)\b|\b(?:APT|APTO|APART|APARTAMENTO|AP|UNIDADE)\s*[-:]?\s*\d+[A-Z]?\b/i;
 
+const GOOGLE_MAPS_COMMERCIAL_HINT_RE =
+  /\b(?:RESTAURANTE|LANCHONETE|PIZZARIA|CHURRASCARIA|PADARIA|PANIFICADORA|FARMACIA|DROGARIA|MERCADO|SUPERMERCADO|ATACADAO|ATACADISTA|SHOPPING|LOJA|CLINICA|HOSPITAL|LABORATORIO|ESCOLA|COLEGIO|FACULDADE|UNIVERSIDADE|BANCO|AGENCIA|CORREIOS|CARTORIO|IGREJA|ACADEMIA|HOTEL|MOTEL|OFICINA|AUTO\s*CENTER|LAVA\s*JATO|POSTO|CONVENIENCIA|TERMINAL|RODOVIARIA|AEROPORTO|EMPRESA|ESCRITORIO|CENTRO\s+EMPRESARIAL|GALPAO|INDUSTRIA|DISTRIBUIDORA)\b/;
+const GOOGLE_MAPS_VERTICAL_HINT_RE =
+  /\b(?:CONDOMINIO|COND|EDIFICIO|EDIF|PREDIO|TORRE|BLOCO|APARTAMENTO|APART|APTO|APT|SALA|SALA\s+COMERCIAL|CONJUNTO|BOX|QUIOSQUE)\b|\bAP\s*[-:]?\s*\d+[A-Z]?\b/;
+const GOOGLE_MAPS_STRONG_METADATA_RE =
+  /\b(?:POI|GOOGLE_PLACE|COMMERCIAL|COMERCIAL|BUSINESS|EMPRESA|COMERCIO|CONDOMINIUM|CONDOMINIO|CONDO|EDIFICIO|BUILDING)\b/;
+const GOOGLE_MAPS_ADDRESS_WORD_RE =
+  /\b(?:SETOR|JARDIM|VILA|PARQUE|BAIRRO|RUA|AVENIDA|AV|ALAMEDA|TRAVESSA|CASA|QD|QUADRA|LT|LOTE|RESIDENCIAL)\b/;
+const GOOGLE_MAPS_STREET_PREFIX_RE =
+  /^(?:RUA|R|AVENIDA|AV|ALAMEDA|TRAVESSA|TV|PRACA|PCA|RODOVIA|ROD)\b/;
+const GOOGLE_MAPS_STREET_NUMBER_RE = /(?:^|\s)\d+[A-Z]?(?:\s|$)/;
+const GOOGLE_MAPS_BAIRRO_RESIDENCIAL_RE =
+  /\bRESIDENCIAL\s+(?:VILLAGE\s+GARAVELO|ITAIPU|SOLAR|MORUMBI|CAMPOS\s+DOURADOS)\b/;
+
+function isValidQuadraLotePair(quadra: any, lote: any) {
+  const q = normKey(String(quadra || ""));
+  const l = normKey(String(lote || ""));
+  if (!q || !l) return false;
+  if (["0", "00", "000", "S N", "SN", "S/N"].includes(q)) return false;
+  if (["0", "00", "000", "S N", "SN", "S/N"].includes(l)) return false;
+  return /[A-Z0-9]/.test(q) && /[A-Z0-9]/.test(l);
+}
+
+function hasValidQuadraLoteInText(text: string) {
+  const normalized = normKey(text);
+  const qdThenLt = normalized.match(/\bQD\s*([A-Z0-9\/\-]+)\b[\s\S]{0,40}\bLT\s*([A-Z0-9\/\-]+)\b/);
+  const ltThenQd = normalized.match(/\bLT\s*([A-Z0-9\/\-]+)\b[\s\S]{0,40}\bQD\s*([A-Z0-9\/\-]+)\b/);
+  if (qdThenLt) return isValidQuadraLotePair(qdThenLt[1], qdThenLt[2]);
+  if (ltThenQd) return isValidQuadraLotePair(ltThenQd[2], ltThenQd[1]);
+  return false;
+}
+
+function collectGoogleMapDecisionTexts(row: any, manual?: Partial<ManualEdit> | null) {
+  const directKeys = [
+    "original",
+    "normalizedLine",
+    "address",
+    "addressDisplay",
+    "addressForExport",
+    "resolvedAddress",
+    "normalizedAddress",
+    "notes",
+    "notesAuto",
+    "complemento",
+    "complement",
+    "cliente",
+    "client",
+    "customer",
+    "name",
+    "nome",
+    "razaoSocial",
+    "logradouro",
+    "rua",
+    "street",
+    "bairro",
+    "district",
+    "city",
+    "cidade",
+    "cep",
+    "postalCode",
+    "source",
+    "matchType",
+    "decisionReason",
+  ];
+
+  const metadataKeys = [
+    "source",
+    "matchType",
+    "decisionReason",
+    "resultType",
+    "type",
+    "category",
+    "kind",
+    "label",
+    "matchedLayer",
+  ];
+
+  const texts: string[] = [];
+  const metadata: string[] = [];
+
+  function add(value: any, target: string[]) {
+    const text = String(value || "").trim();
+    if (text) target.push(text);
+  }
+
+  for (const key of directKeys) {
+    add(row?.[key], texts);
+    add((row?.normalized as any)?.[key], texts);
+    add((row?.memoryDebug as any)?.[key], metadata);
+  }
+
+  for (const key of metadataKeys) {
+    add(row?.[key], metadata);
+    add((row?.normalized as any)?.[key], metadata);
+  }
+
+  add(manual?.address, texts);
+  add(manual?.resolvedAddress, texts);
+  add(manual?.normalizedAddress, texts);
+  add(manual?.notes, texts);
+
+  const likelyMetadataObjects = [
+    row?.poi,
+    row?.poiShadow,
+    row?.goianiaPoiShadow,
+    row?.commercialFallback,
+    row?.condominium,
+    row?.condo,
+    row?.building,
+    row?.memoryDebug,
+    row?.googleResult,
+    row?.hereDiscover,
+  ];
+
+  for (const obj of likelyMetadataObjects) {
+    if (!obj || typeof obj !== "object") continue;
+    for (const key of metadataKeys) add((obj as any)[key], metadata);
+    add((obj as any).name || (obj as any).originalName || (obj as any).normalizedName, texts);
+    add((obj as any).address || (obj as any).formattedAddress, texts);
+  }
+
+  return {
+    text: Array.from(new Set(texts)).join(" "),
+    metadataText: Array.from(new Set(metadata)).join(" "),
+    bairro: String(row?.bairro || row?.district || "").trim(),
+    city: String(row?.city || row?.cidade || "").trim(),
+    cep: String(row?.cep || row?.postalCode || "").trim(),
+  };
+}
+
+function stripKnownAddressContext(text: string, context: { bairro?: string; city?: string; cep?: string }) {
+  let next = ` ${normKey(text)} `;
+  for (const value of [context.bairro, context.city, context.cep]) {
+    const normalized = normKey(String(value || ""));
+    if (!normalized) continue;
+    next = next.replace(new RegExp(`\\b${escapeRegExp(normalized)}\\b`, "g"), " ");
+  }
+  return next.replace(/\s{2,}/g, " ").trim();
+}
+
+function isPlainStreetNumberAddressText(text: string) {
+  const normalized = normKey(text);
+  if (!GOOGLE_MAPS_STREET_PREFIX_RE.test(normalized)) return false;
+  if (!GOOGLE_MAPS_STREET_NUMBER_RE.test(normalized)) return false;
+  if (GOOGLE_MAPS_COMMERCIAL_HINT_RE.test(normalized)) return false;
+  if (GOOGLE_MAPS_VERTICAL_HINT_RE.test(normalized)) return false;
+  return true;
+}
+
+function shouldOpenGoogleMaps(row: any, manual?: Partial<ManualEdit> | null) {
+  const rowQuadra = row?.quadraAuto ?? row?.quadra ?? row?.normalized?.quadra;
+  const rowLote = row?.loteAuto ?? row?.lote ?? row?.normalized?.lote;
+  if (isValidQuadraLotePair(manual?.quadra || rowQuadra, manual?.lote || rowLote)) {
+    return false;
+  }
+
+  const decision = collectGoogleMapDecisionTexts(row, manual);
+  const metadata = normKey(decision.metadataText);
+  const fullText = normKey(decision.text);
+  const addressOnly = stripKnownAddressContext(fullText, decision);
+
+  if (!fullText && !metadata) return false;
+  if (hasValidQuadraLoteInText(fullText)) return false;
+  if (GOOGLE_MAPS_BAIRRO_RESIDENCIAL_RE.test(normKey(decision.bairro))) return false;
+
+  const commercialMatches = addressOnly.match(GOOGLE_MAPS_COMMERCIAL_HINT_RE) || [];
+  const verticalMatches = addressOnly.match(GOOGLE_MAPS_VERTICAL_HINT_RE) || [];
+  const hasStrongMetadata = GOOGLE_MAPS_STRONG_METADATA_RE.test(metadata);
+
+  if (isPlainStreetNumberAddressText(addressOnly) && !hasStrongMetadata) return false;
+
+  const onlyCommonAddressWords =
+    !!addressOnly &&
+    GOOGLE_MAPS_ADDRESS_WORD_RE.test(addressOnly) &&
+    !GOOGLE_MAPS_COMMERCIAL_HINT_RE.test(addressOnly) &&
+    !GOOGLE_MAPS_VERTICAL_HINT_RE.test(addressOnly) &&
+    !hasStrongMetadata;
+
+  if (onlyCommonAddressWords) return false;
+  if (/\bRESIDENCIAL\b/.test(addressOnly) && !GOOGLE_MAPS_VERTICAL_HINT_RE.test(addressOnly)) return false;
+
+  if (hasStrongMetadata) return true;
+  if (commercialMatches.length > 0) return true;
+  if (verticalMatches.length > 0) return true;
+
+  return false;
+}
+
+function shouldForceHereForSimpleStreetAddress(row: any, manual?: Partial<ManualEdit> | null) {
+  const rowQuadra = row?.quadraAuto ?? row?.quadra ?? row?.normalized?.quadra;
+  const rowLote = row?.loteAuto ?? row?.lote ?? row?.normalized?.lote;
+  if (isValidQuadraLotePair(manual?.quadra || rowQuadra, manual?.lote || rowLote)) {
+    return false;
+  }
+
+  const decision = collectGoogleMapDecisionTexts(row, manual);
+  const metadata = normKey(decision.metadataText);
+  const fullText = normKey(decision.text);
+  const addressOnly = stripKnownAddressContext(fullText, decision);
+
+  if (!addressOnly) return false;
+  if (hasValidQuadraLoteInText(fullText)) return false;
+  if (GOOGLE_MAPS_STRONG_METADATA_RE.test(metadata)) return false;
+  if (GOOGLE_MAPS_COMMERCIAL_HINT_RE.test(addressOnly)) return false;
+  if (GOOGLE_MAPS_VERTICAL_HINT_RE.test(addressOnly)) return false;
+
+  return isPlainStreetNumberAddressText(addressOnly);
+}
+
 function escapeRegExp(value: string) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -3054,8 +3263,16 @@ function clearReview(groupId: string) {
     setPickedQuadra(String(manualEdits[idx]?.quadra || getRowQuadra(idx) || ""));
     setPickedLote(String(manualEdits[idx]?.lote || getRowLote(idx) || ""));
     setTrindadeManualPick(null);
-    setManualMapProvider(getInitialManualMapProvider(rows[idx]?.city));
     const manual = manualEdits[idx];
+    const shouldUseGoogleMaps = shouldOpenGoogleMaps(rows[idx], manual);
+    const shouldUseHereForSimpleStreet = shouldForceHereForSimpleStreetAddress(rows[idx], manual);
+    setManualMapProvider(
+      shouldUseGoogleMaps
+        ? "google"
+        : shouldUseHereForSimpleStreet
+          ? "here"
+          : getInitialManualMapProvider(rows[idx]?.city)
+    );
     const baseLat = manual?.lat ?? rows[idx]?.lat ?? null;
     const baseLng = manual?.lng ?? rows[idx]?.lng ?? null;
 
@@ -3068,7 +3285,7 @@ function clearReview(groupId: string) {
     setSuggestItems([]);
     setSuggestActive(-1);
     setGoogleSearchMessage("");
-    setGoogleSearchQuery("");
+    setGoogleSearchQuery(shouldUseGoogleMaps ? current : "");
     setGoogleSearchResults([]);
     setGoogleSearchLoading(false);
 
