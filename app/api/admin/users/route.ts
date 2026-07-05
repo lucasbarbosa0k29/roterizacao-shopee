@@ -155,6 +155,15 @@ export async function POST(req: Request) {
         },
       });
 
+      await tx.routeCredit.create({
+        data: {
+          userId: createdUser.id,
+          delta: 2,
+          reason: "ADJUSTMENT",
+          notes: "Créditos grátis de cadastro",
+        },
+      });
+
       await logAdminAction(tx, {
         adminId: actorId,
         targetUserId: createdUser.id,
