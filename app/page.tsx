@@ -4883,14 +4883,10 @@ useEffect(() => {
                                       type="button"
                                       onClick={() => enterGroupModeWithFirst(baseIdx)}
                                     data-tour="mobile-stop-group-button"
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+                                    className="inline-flex h-10 min-w-[58px] items-center justify-center whitespace-nowrap rounded-xl border border-slate-200 bg-white px-2 text-[11px] font-semibold leading-none text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
                                     title="Agrupar paradas"
                                   >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                      <path d="M4 7h8M16 7h4M4 17h4M12 17h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                      <circle cx="14" cy="7" r="2" stroke="currentColor" strokeWidth="2" />
-                                      <circle cx="10" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
-                                    </svg>
+                                    Agrupar
                                   </button>
                                 )}
 
@@ -5114,14 +5110,10 @@ onContextMenu={(e) => {
                                        type="button"
                                        onClick={() => enterGroupModeWithFirst(baseIdx)}
                                    data-tour="manual-group-button"
-                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+                                    className="inline-flex h-10 min-w-[62px] items-center justify-center whitespace-nowrap rounded-xl border border-slate-200 bg-white px-2.5 text-[11px] font-semibold leading-none text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
                                     title="Agrupar paradas"
                                   >
-                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M4 7h8M16 7h4M4 17h4M12 17h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                        <circle cx="14" cy="7" r="2" stroke="currentColor" strokeWidth="2" />
-                                        <circle cx="10" cy="17" r="2" stroke="currentColor" strokeWidth="2" />
-                                      </svg>
+                                      Agrupar
                                    </button>
                                 )}
 
