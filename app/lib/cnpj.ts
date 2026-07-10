@@ -1,0 +1,222 @@
+export type CnpjProvider = "BRASILAPI" | "RECEITAWS";
+export type CnpjVerificationStatus = "VERIFIED" | "PENDING_VERIFICATION";
+export type CnpjVerificationReason = "API_UNAVAILABLE" | "NOT_FOUND" | "RATE_LIMIT";
+
+export type NormalizedCnpjCompany = {
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  situacaoCadastral: string;
+  cidade: string | null;
+  uf: string | null;
+  provider: CnpjProvider | null;
+  cnpjVerificationStatus: CnpjVerificationStatus;
+  cnpjVerificationReason: CnpjVerificationReason | null;
+  cnpjVerifiedAt: Date | null;
+  rawData: unknown;
+};
+
+type CnpjValidationCode = "INVALID" | "INACTIVE";
+
+export class CnpjValidationError extends Error {
+  code: CnpjValidationCode;
+
+  constructor(code: CnpjValidationCode, message: string) {
+    super(message);
+    this.name = "CnpjValidationError";
+    this.code = code;
+  }
+}
+
+class CnpjLookupError extends Error {
+  reason: CnpjVerificationReason;
+
+  constructor(reason: CnpjVerificationReason) {
+    super(reason);
+    this.name = "CnpjLookupError";
+    this.reason = reason;
+  }
+}
+
+const CNPJ_TIMEOUT_MS = 6000;
+
+export function cleanCnpj(cnpj: string) {
+  return String(cnpj ?? "").replace(/\D/g, "");
+}
+
+export function isValidCnpj(cnpj: string) {
+  const digits = cleanCnpj(cnpj);
+  if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false;
+
+  const calcDigit = (base: string, weights: number[]) => {
+    const sum = weights.reduce((acc, weight, index) => acc + Number(base[index]) * weight, 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  const firstDigit = calcDigit(digits.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const secondDigit = calcDigit(digits.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+
+  return digits.endsWith(`${firstDigit}${secondDigit}`);
+}
+
+async function fetchJsonWithTimeout(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CNPJ_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (response.status === 404) return { kind: "not_found" as const };
+    if (response.status === 429) return { kind: "rate_limit" as const };
+    if (response.status >= 500) return { kind: "unavailable" as const };
+    if (!response.ok) return { kind: "unavailable" as const };
+
+    const data = await response.json().catch(() => null);
+    return { kind: "ok" as const, data };
+  } catch {
+    return { kind: "unavailable" as const };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeStatus(value: unknown) {
+  return hasText(value) ? value.trim().toUpperCase() : "";
+}
+
+export async function fetchBrasilApiCnpj(cnpj: string): Promise<NormalizedCnpjCompany | null> {
+  const digits = cleanCnpj(cnpj);
+  const result = await fetchJsonWithTimeout(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+
+  if (result.kind !== "ok") {
+    if (result.kind === "not_found") return null;
+    if (result.kind === "rate_limit") throw new CnpjLookupError("RATE_LIMIT");
+    throw new CnpjLookupError("API_UNAVAILABLE");
+  }
+
+  const data = result.data as Record<string, unknown> | null;
+  const razaoSocial = data?.razao_social;
+  const situacaoCadastral = data?.descricao_situacao_cadastral;
+
+  if (!data || !hasText(razaoSocial) || !hasText(situacaoCadastral)) return null;
+
+  return {
+    cnpj: digits,
+    razaoSocial: razaoSocial.trim(),
+    nomeFantasia: hasText(data.nome_fantasia) ? data.nome_fantasia.trim() : null,
+    situacaoCadastral: normalizeStatus(situacaoCadastral),
+    cidade: hasText(data.municipio) ? data.municipio.trim() : null,
+    uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
+    provider: "BRASILAPI",
+    cnpjVerificationStatus: "VERIFIED",
+    cnpjVerificationReason: null,
+    cnpjVerifiedAt: new Date(),
+    rawData: data,
+  };
+}
+
+export async function fetchReceitaWsCnpj(cnpj: string): Promise<NormalizedCnpjCompany | null> {
+  const digits = cleanCnpj(cnpj);
+  const result = await fetchJsonWithTimeout(`https://www.receitaws.com.br/v1/cnpj/${digits}`);
+
+  if (result.kind !== "ok") {
+    if (result.kind === "not_found") return null;
+    if (result.kind === "rate_limit") throw new CnpjLookupError("RATE_LIMIT");
+    throw new CnpjLookupError("API_UNAVAILABLE");
+  }
+
+  const data = result.data as Record<string, unknown> | null;
+  const razaoSocial = data?.nome;
+  const situacaoCadastral = data?.situacao;
+
+  if (!data || data.status === "ERROR") return null;
+  if (!hasText(razaoSocial) || !hasText(situacaoCadastral)) return null;
+
+  return {
+    cnpj: digits,
+    razaoSocial: razaoSocial.trim(),
+    nomeFantasia: hasText(data.fantasia) ? data.fantasia.trim() : null,
+    situacaoCadastral: normalizeStatus(situacaoCadastral),
+    cidade: hasText(data.municipio) ? data.municipio.trim() : null,
+    uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
+    provider: "RECEITAWS",
+    cnpjVerificationStatus: "VERIFIED",
+    cnpjVerificationReason: null,
+    cnpjVerifiedAt: new Date(),
+    rawData: data,
+  };
+}
+
+function choosePendingReason(reasons: CnpjVerificationReason[]): CnpjVerificationReason {
+  if (reasons.includes("RATE_LIMIT")) return "RATE_LIMIT";
+  if (reasons.includes("API_UNAVAILABLE")) return "API_UNAVAILABLE";
+  return "NOT_FOUND";
+}
+
+function buildPendingCompany(cnpj: string, reason: CnpjVerificationReason): NormalizedCnpjCompany {
+  return {
+    cnpj,
+    razaoSocial: "Pendente de verificação",
+    nomeFantasia: null,
+    situacaoCadastral: "PENDING_VERIFICATION",
+    cidade: null,
+    uf: null,
+    provider: null,
+    cnpjVerificationStatus: "PENDING_VERIFICATION",
+    cnpjVerificationReason: reason,
+    cnpjVerifiedAt: null,
+    rawData: { reason },
+  };
+}
+
+export async function validateCnpjCompany(cnpj: string): Promise<NormalizedCnpjCompany> {
+  const digits = cleanCnpj(cnpj);
+  if (!isValidCnpj(digits)) {
+    throw new CnpjValidationError("INVALID", "CNPJ inválido. Verifique os números informados.");
+  }
+
+  const pendingReasons: CnpjVerificationReason[] = [];
+
+  try {
+    const brasilApiCompany = await fetchBrasilApiCnpj(digits);
+    if (brasilApiCompany) {
+      if (brasilApiCompany.situacaoCadastral !== "ATIVA") {
+        throw new CnpjValidationError("INACTIVE", "Este CNPJ não está ativo na Receita Federal.");
+      }
+      return brasilApiCompany;
+    }
+    pendingReasons.push("NOT_FOUND");
+  } catch (error) {
+    if (error instanceof CnpjValidationError && error.code === "INACTIVE") throw error;
+    if (error instanceof CnpjLookupError) pendingReasons.push(error.reason);
+    else pendingReasons.push("API_UNAVAILABLE");
+  }
+
+  try {
+    const receitaWsCompany = await fetchReceitaWsCnpj(digits);
+    if (receitaWsCompany) {
+      if (receitaWsCompany.situacaoCadastral !== "ATIVA") {
+        throw new CnpjValidationError("INACTIVE", "Este CNPJ não está ativo na Receita Federal.");
+      }
+      return receitaWsCompany;
+    }
+    pendingReasons.push("NOT_FOUND");
+  } catch (error) {
+    if (error instanceof CnpjValidationError && error.code === "INACTIVE") throw error;
+    if (error instanceof CnpjLookupError) pendingReasons.push(error.reason);
+    else pendingReasons.push("API_UNAVAILABLE");
+  }
+
+  return buildPendingCompany(digits, choosePendingReason(pendingReasons));
+}

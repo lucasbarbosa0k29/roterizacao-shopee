@@ -23,6 +23,15 @@
 # misc
 .DS_Store
 *.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.keystore
+*.jks
+android.keystore
+local.properties
 
 # debug
 npm-debug.log*

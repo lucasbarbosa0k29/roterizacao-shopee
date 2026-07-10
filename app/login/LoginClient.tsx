@@ -13,6 +13,27 @@ const highlights = [
   "Exportação final para o Circuit",
 ];
 
+type AuthMode = "login" | "signup";
+
+function maskCnpj(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+function maskWhatsapp(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function WhatsAppIcon() {
   return (
     <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dcf8d7] text-[#147d4f] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
@@ -29,12 +50,21 @@ export default function LoginClient() {
   const callbackUrl = searchParams.get("callbackUrl") || "/importar-planilha";
   const isTwaModeDetected = useStandaloneDisplayMode();
   const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [cnpjResponsibilityAccepted, setCnpjResponsibilityAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -44,6 +74,7 @@ export default function LoginClient() {
     e.preventDefault();
     setLoading(true);
     setErr(null);
+    setInfo(null);
 
     const res = await signIn("credentials", {
       redirect: false,
@@ -62,7 +93,90 @@ export default function LoginClient() {
     router.push(callbackUrl);
   }
 
+  async function onSignupSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setInfo(null);
+
+    if (!password || !confirmPassword || password !== confirmPassword) {
+      setErr("As senhas informadas não coincidem.");
+      return;
+    }
+
+    if (!cnpjResponsibilityAccepted) {
+      setErr("Você precisa confirmar que está autorizado a utilizar este CNPJ.");
+      return;
+    }
+
+    if (!termsAccepted) {
+      setErr("Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.");
+      return;
+    }
+
+    setLoading(true);
+
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email: email.trim().toLowerCase(),
+        whatsapp,
+        password,
+        cnpj,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setLoading(false);
+      setErr(typeof data?.error === "string" ? data.error : "Não foi possível criar sua conta.");
+      return;
+    }
+
+    const pendingCnpjMessage =
+      data?.cnpjVerificationStatus === "PENDING_VERIFICATION"
+        ? "Cadastro criado com sucesso. Seu CNPJ ficou pendente de verificação, mas você já pode acessar o Rotta normalmente."
+        : null;
+
+    if (pendingCnpjMessage) {
+      setInfo(pendingCnpjMessage);
+    }
+
+    const loginRes = await signIn("credentials", {
+      redirect: false,
+      email: email.trim().toLowerCase(),
+      password,
+      callbackUrl,
+    });
+
+    setLoading(false);
+
+    if (!loginRes || loginRes.error) {
+      setMode("login");
+      setCnpjResponsibilityAccepted(false);
+      setTermsAccepted(false);
+      setPassword("");
+      setConfirmPassword("");
+      setErr(
+        pendingCnpjMessage
+          ? `${pendingCnpjMessage} Entre com seu e-mail e senha para continuar.`
+          : "Conta criada. Entre com seu e-mail e senha para continuar."
+      );
+      return;
+    }
+
+    setCnpjResponsibilityAccepted(false);
+    setTermsAccepted(false);
+    setPassword("");
+    setConfirmPassword("");
+    router.push(callbackUrl);
+  }
+
   if (showTwaLogin) {
+    const isSignup = mode === "signup";
+
     return (
       <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(30,64,75,0.55),transparent_34%),linear-gradient(160deg,#020b10_0%,#07161d_38%,#0c2a31_100%)] px-4 py-8 text-white">
         <div className="pointer-events-none absolute inset-0 bg-[url('/rottafundo.png')] bg-[length:1000px_auto] bg-right-bottom bg-no-repeat opacity-[0.12]" />
@@ -80,7 +194,56 @@ export default function LoginClient() {
               </p>
             </div>
 
-            <form onSubmit={onSubmit} className="mt-8 space-y-4">
+            <div className="mt-7 grid grid-cols-2 rounded-2xl border border-white/10 bg-white/6 p-1 text-sm font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setErr(null);
+                  setInfo(null);
+                  setCnpjResponsibilityAccepted(false);
+                  setTermsAccepted(false);
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+                className={`rounded-xl px-3 py-2 transition ${!isSignup ? "bg-white text-slate-950" : "text-white/70"}`}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setErr(null);
+                  setInfo(null);
+                  setCnpjResponsibilityAccepted(false);
+                  setTermsAccepted(false);
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+                className={`rounded-xl px-3 py-2 transition ${isSignup ? "bg-white text-slate-950" : "text-white/70"}`}
+              >
+                Criar conta
+              </button>
+            </div>
+
+            <form onSubmit={isSignup ? onSignupSubmit : onSubmit} className="mt-6 space-y-4">
+              {isSignup && (
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                    Nome completo
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                    placeholder="Seu nome"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
                   E-mail
@@ -94,6 +257,81 @@ export default function LoginClient() {
                   required
                 />
               </div>
+
+              {isSignup && (
+                <>
+                  <div>
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                      WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                      placeholder="(62) 99999-9999"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(maskWhatsapp(e.target.value))}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                      CNPJ
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                      placeholder="00.000.000/0000-00"
+                      value={cnpj}
+                      onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+                      required
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm leading-5 text-white/78">
+                    <input
+                      type="checkbox"
+                      checked={cnpjResponsibilityAccepted}
+                      onChange={(e) => setCnpjResponsibilityAccepted(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#2dd4bf]"
+                    />
+                    <span>
+                      Declaro que este CNPJ é meu. O uso indevido de CNPJ de terceiros poderá resultar no bloqueio permanente da conta, sem aviso prévio.
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm leading-5 text-white/78">
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#2dd4bf]"
+                    />
+                    <span>
+                      Li e aceito os{" "}
+                      <a
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-cyan-100 underline underline-offset-2"
+                      >
+                        Termos de Uso
+                      </a>{" "}
+                      e a{" "}
+                      <a
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-cyan-100 underline underline-offset-2"
+                      >
+                        Política de Privacidade
+                      </a>{" "}
+                      do Rotta.
+                    </span>
+                  </label>
+                </>
+              )}
 
               <div>
                 <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
@@ -109,9 +347,31 @@ export default function LoginClient() {
                 />
               </div>
 
+              {isSignup && (
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
+                    Confirmar senha
+                  </label>
+                  <input
+                    type="password"
+                    className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
+                    placeholder="Confirme sua senha"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
               {err && (
                 <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                   {err}
+                </div>
+              )}
+
+              {info && (
+                <div className="rounded-2xl border border-emerald-300/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+                  {info}
                 </div>
               )}
 
@@ -120,7 +380,7 @@ export default function LoginClient() {
                 disabled={loading}
                 className="w-full rounded-2xl bg-[linear-gradient(135deg,#17313b_0%,#2a6c66_100%)] px-4 py-3.5 font-semibold text-white shadow-[0_18px_34px_rgba(23,49,59,0.34)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? "Entrando..." : "Entrar"}
+                {loading ? (isSignup ? "Criando..." : "Entrando...") : isSignup ? "Criar conta" : "Entrar"}
               </button>
             </form>
 
@@ -142,6 +402,8 @@ export default function LoginClient() {
       </div>
     );
   }
+
+  const isSignup = mode === "signup";
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-950 bg-[radial-gradient(circle_at_18%_12%,rgba(45,212,191,0.24),transparent_30%),radial-gradient(circle_at_82%_74%,rgba(31,90,107,0.34),transparent_34%),linear-gradient(135deg,#030a0e_0%,#07161d_42%,#102a32_100%)]">
@@ -205,7 +467,55 @@ export default function LoginClient() {
                   </p>
                 </div>
 
-                <form onSubmit={onSubmit} className="mt-8 space-y-5">
+                <div className="mt-7 grid grid-cols-2 rounded-2xl border border-slate-200 bg-slate-50 p-1 text-sm font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("login");
+                      setErr(null);
+                      setInfo(null);
+                      setCnpjResponsibilityAccepted(false);
+                      setTermsAccepted(false);
+                      setPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className={`rounded-xl px-3 py-2 transition ${!isSignup ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signup");
+                      setErr(null);
+                      setInfo(null);
+                      setCnpjResponsibilityAccepted(false);
+                      setTermsAccepted(false);
+                      setPassword("");
+                      setConfirmPassword("");
+                    }}
+                    className={`rounded-xl px-3 py-2 transition ${isSignup ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"}`}
+                  >
+                    Criar conta
+                  </button>
+                </div>
+
+                <form onSubmit={isSignup ? onSignupSubmit : onSubmit} className="mt-6 space-y-5">
+                  {isSignup && (
+                    <div>
+                      <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Nome completo
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
+                        placeholder="Seu nome"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                       Usuário (email)
@@ -219,6 +529,81 @@ export default function LoginClient() {
                       required
                     />
                   </div>
+
+                  {isSignup && (
+                    <>
+                      <div>
+                        <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          WhatsApp
+                        </label>
+                        <input
+                          type="tel"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
+                          placeholder="(62) 99999-9999"
+                          value={whatsapp}
+                          onChange={(e) => setWhatsapp(maskWhatsapp(e.target.value))}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          CNPJ
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
+                          placeholder="00.000.000/0000-00"
+                          value={cnpj}
+                          onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+                          required
+                        />
+                      </div>
+
+                      <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-5 text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={cnpjResponsibilityAccepted}
+                          onChange={(e) => setCnpjResponsibilityAccepted(e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#1f5a6b]"
+                        />
+                        <span>
+                          Declaro que este CNPJ é meu. O uso indevido de CNPJ de terceiros poderá resultar no bloqueio permanente da conta, sem aviso prévio.
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-5 text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={(e) => setTermsAccepted(e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#1f5a6b]"
+                        />
+                        <span>
+                          Li e aceito os{" "}
+                          <a
+                            href="/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-[#1f5a6b] underline underline-offset-2"
+                          >
+                            Termos de Uso
+                          </a>{" "}
+                          e a{" "}
+                          <a
+                            href="/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-[#1f5a6b] underline underline-offset-2"
+                          >
+                            Política de Privacidade
+                          </a>{" "}
+                          do Rotta.
+                        </span>
+                      </label>
+                    </>
+                  )}
 
                   <div>
                     <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -234,9 +619,31 @@ export default function LoginClient() {
                     />
                   </div>
 
+                  {isSignup && (
+                    <div>
+                      <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Confirmar senha
+                      </label>
+                      <input
+                        type="password"
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
+                        placeholder="Confirme sua senha"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
                   {err && (
                     <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                       {err}
+                    </div>
+                  )}
+
+                  {info && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      {info}
                     </div>
                   )}
 
@@ -245,7 +652,7 @@ export default function LoginClient() {
                     disabled={loading}
                     className="w-full rounded-2xl bg-[linear-gradient(135deg,#17313b_0%,#1f5a6b_100%)] px-4 py-3.5 font-semibold text-white shadow-[0_18px_34px_rgba(23,49,59,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {loading ? "Entrando..." : "Entrar"}
+                    {loading ? (isSignup ? "Criando..." : "Entrando...") : isSignup ? "Criar conta" : "Entrar"}
                   </button>
                 </form>
 

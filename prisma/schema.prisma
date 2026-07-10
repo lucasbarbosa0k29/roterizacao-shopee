@@ -67,11 +67,47 @@ enum PaymentStatus {
   FULFILLED
 }
 
+enum CnpjProvider {
+  BRASILAPI
+  RECEITAWS
+}
+
+enum CnpjVerificationStatus {
+  VERIFIED
+  PENDING_VERIFICATION
+}
+
+model Company {
+  id                 String       @id @default(cuid())
+  cnpj               String       @unique
+  razaoSocial        String
+  nomeFantasia       String?
+  situacaoCadastral  String
+  cidade             String?
+  uf                 String?
+  provider           CnpjProvider?
+  cnpjVerificationStatus CnpjVerificationStatus @default(PENDING_VERIFICATION)
+  cnpjVerificationReason String?
+  cnpjVerifiedAt     DateTime?
+  rawData            Json?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  users User[]
+
+  @@index([createdAt])
+  @@index([situacaoCadastral])
+  @@index([cnpjVerificationStatus])
+  @@index([uf, cidade])
+}
+
 model User {
   id                String    @id @default(cuid())
   name              String?
   email             String    @unique
   password          String
+  whatsapp          String?   @unique
+  companyId         String?
   role              Role      @default(USER)
   active            Boolean   @default(true)
   accessBlockedAt   DateTime?
@@ -79,6 +115,7 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  company            Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   importJobs          ImportJob[]
   subscriptions       UserSubscription[]   @relation("UserSubscriptions")
   routeUsages         RouteUsage[]
@@ -90,6 +127,7 @@ model User {
 
   @@index([role])
   @@index([active])
+  @@index([companyId])
   @@index([createdAt])
   @@index([accessBlockedAt])
 }

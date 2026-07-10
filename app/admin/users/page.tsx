@@ -53,10 +53,21 @@ const ACTIONS_MENU_ESTIMATED_HEIGHT = 520;
 const ACTIONS_MENU_GAP = 8;
 const ACTIONS_MENU_MARGIN = 8;
 
+function maskWhatsapp(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
   const [creating, setCreating] = useState(false);
@@ -256,6 +267,7 @@ export default function AdminUsersPage() {
         body: JSON.stringify({
           name: name.trim(),
           email: emailClean,
+          whatsapp,
           password,
           role,
         }),
@@ -271,6 +283,7 @@ export default function AdminUsersPage() {
 
       setName("");
       setEmail("");
+      setWhatsapp("");
       setPassword("");
       setRole("USER");
 
@@ -528,6 +541,19 @@ export default function AdminUsersPage() {
               type="email"
               required
               autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">WhatsApp (opcional)</label>
+            <input
+              className="mt-1 w-full rounded-xl border p-3"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(maskWhatsapp(e.target.value))}
+              type="tel"
+              inputMode="numeric"
+              placeholder="(62) 99999-9999"
+              autoComplete="tel"
             />
           </div>
 

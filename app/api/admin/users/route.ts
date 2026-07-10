@@ -8,6 +8,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
+import {
+  DUPLICATE_WHATSAPP_MESSAGE,
+  INVALID_WHATSAPP_MESSAGE,
+  normalizeBrazilianWhatsapp,
+} from "@/app/lib/whatsapp";
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -107,6 +112,8 @@ export async function POST(req: Request) {
 
     const name = String(body?.name ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
+    const whatsappInput = String(body?.whatsapp ?? "").trim();
+    const whatsapp = whatsappInput ? normalizeBrazilianWhatsapp(whatsappInput) : null;
     const password = String(body?.password ?? "");
     const roleReq = String(body?.role ?? "USER").toUpperCase() === "ADMIN" ? "ADMIN" : "USER";
     const canCreateAdmin = isSuperAdmin(session?.user as any);
@@ -119,9 +126,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Senha precisa ter no mínimo 6 caracteres." }, { status: 400 });
     }
 
+    if (whatsappInput && !whatsapp) {
+      return NextResponse.json({ error: INVALID_WHATSAPP_MESSAGE }, { status: 400 });
+    }
+
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
       return NextResponse.json({ error: "Esse email já está cadastrado." }, { status: 409 });
+    }
+
+    if (whatsapp) {
+      const whatsappExists = await prisma.user.findFirst({ where: { whatsapp }, select: { id: true } });
+      if (whatsappExists) {
+        return NextResponse.json({ error: DUPLICATE_WHATSAPP_MESSAGE }, { status: 409 });
+      }
     }
 
     if (roleReq === "ADMIN" && !canCreateAdmin) {
@@ -141,6 +159,7 @@ export async function POST(req: Request) {
         data: {
           name: name || null,
           email,
+          whatsapp,
           password: hash,
           role: roleReq as any,
           active: true,
@@ -189,6 +208,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, user });
   } catch (e: any) {
+    if (e?.code === "P2002") {
+      const target = Array.isArray(e?.meta?.target) ? e.meta.target : [];
+      if (target.includes("whatsapp")) {
+        return NextResponse.json({ error: DUPLICATE_WHATSAPP_MESSAGE }, { status: 409 });
+      }
+    }
+
     console.error("Erro admin create user:", e);
     return NextResponse.json({ error: "Erro ao criar usuário." }, { status: 500 });
   }
