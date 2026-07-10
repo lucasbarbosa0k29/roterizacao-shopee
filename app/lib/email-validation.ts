@@ -1,4 +1,5 @@
 import { resolveMx } from "node:dns/promises";
+import { isFakeDomain } from "fakefilter";
 
 export const INVALID_EMAIL_MESSAGE = "Informe um e-mail válido.";
 export const DISPOSABLE_EMAIL_MESSAGE = "E-mails temporários não são permitidos.";
@@ -8,7 +9,7 @@ const EMAIL_MAX_LENGTH = 254;
 const EMAIL_LOCAL_PART_MAX_LENGTH = 64;
 const DNS_TIMEOUT_MS = 3000;
 
-const DISPOSABLE_EMAIL_DOMAINS = new Set([
+const ADDITIONAL_DISPOSABLE_EMAIL_DOMAINS = new Set([
   "10minutemail.com",
   "10minutemail.net",
   "20minutemail.com",
@@ -40,15 +41,6 @@ const DISPOSABLE_EMAIL_DOMAINS = new Set([
   "trashmail.com",
   "yopmail.com",
 ]);
-
-const DISPOSABLE_EMAIL_DOMAIN_SUFFIXES = [
-  ".mailinator.com",
-  ".tempmail.com",
-  ".tempmail.net",
-  ".tempmail.org",
-  ".temp-mail.org",
-  ".yopmail.com",
-];
 
 export type EmailValidationResult =
   | { ok: true; email: string; domain: string }
@@ -90,9 +82,19 @@ function hasValidEmailShape(email: string) {
 }
 
 function isDisposableEmailDomain(domain: string) {
-  if (DISPOSABLE_EMAIL_DOMAINS.has(domain)) return true;
-  if (domain.startsWith("tempmail.")) return true;
-  return DISPOSABLE_EMAIL_DOMAIN_SUFFIXES.some((suffix) => domain.endsWith(suffix));
+  const normalizedDomain = domain.trim().toLowerCase();
+  if (Boolean(isFakeDomain(normalizedDomain))) return true;
+  if (ADDITIONAL_DISPOSABLE_EMAIL_DOMAINS.has(normalizedDomain)) return true;
+  if (normalizedDomain.startsWith("tempmail.")) return true;
+
+  const labels = normalizedDomain.split(".");
+  for (let index = 1; index < labels.length - 1; index += 1) {
+    const parentDomain = labels.slice(index).join(".");
+    if (Boolean(isFakeDomain(parentDomain))) return true;
+    if (ADDITIONAL_DISPOSABLE_EMAIL_DOMAINS.has(parentDomain)) return true;
+  }
+
+  return false;
 }
 
 async function lookupMxRecords(domain: string): Promise<MxLookupResult> {
