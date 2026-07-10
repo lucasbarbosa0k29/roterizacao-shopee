@@ -1,10 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  resolveCnpjVerificationOutcome,
-  type CnpjProviderResult,
-  type NormalizedCnpjCompany,
-} from "@/app/lib/cnpj";
+import type { CnpjProviderResult, NormalizedCnpjCompany } from "./cnpj";
+
+const { resolveCnpjVerificationOutcome } = await import(new URL("./cnpj.ts", import.meta.url).href);
 
 function makeCompany(provider: "BRASILAPI" | "RECEITAWS", situacaoCadastral: string): NormalizedCnpjCompany {
   return {
@@ -32,16 +30,6 @@ test("BrasilAPI FOUND ATIVA => VERIFIED", () => {
   assert.equal(outcome.company.provider, "BRASILAPI");
 });
 
-test("BrasilAPI NOT_FOUND + ReceitaWS FOUND => VERIFIED", () => {
-  const brasilApi: CnpjProviderResult = { kind: "NOT_FOUND" };
-  const receitaWs: CnpjProviderResult = { kind: "FOUND", company: makeCompany("RECEITAWS", "ATIVA") };
-
-  const outcome = resolveCnpjVerificationOutcome("12345678000195", brasilApi, receitaWs);
-
-  assert.equal(outcome.kind, "VERIFIED");
-  assert.equal(outcome.company.provider, "RECEITAWS");
-});
-
 test("BrasilAPI FOUND INATIVA => bloqueia", () => {
   const brasilApi: CnpjProviderResult = { kind: "FOUND", company: makeCompany("BRASILAPI", "BAIXADA") };
   const receitaWs: CnpjProviderResult = { kind: "UNAVAILABLE" };
@@ -50,6 +38,28 @@ test("BrasilAPI FOUND INATIVA => bloqueia", () => {
 
   assert.equal(outcome.kind, "INACTIVE");
   assert.equal(outcome.provider, "BRASILAPI");
+});
+
+test("FOUND ATIVA + NOT_FOUND => VERIFIED", () => {
+  const outcome = resolveCnpjVerificationOutcome(
+    "12345678000195",
+    { kind: "FOUND", company: makeCompany("BRASILAPI", "ATIVA") },
+    { kind: "NOT_FOUND" }
+  );
+
+  assert.equal(outcome.kind, "VERIFIED");
+  assert.equal(outcome.company.provider, "BRASILAPI");
+});
+
+test("NOT_FOUND + FOUND ATIVA => VERIFIED", () => {
+  const outcome = resolveCnpjVerificationOutcome(
+    "12345678000195",
+    { kind: "NOT_FOUND" },
+    { kind: "FOUND", company: makeCompany("RECEITAWS", "ATIVA") }
+  );
+
+  assert.equal(outcome.kind, "VERIFIED");
+  assert.equal(outcome.company.provider, "RECEITAWS");
 });
 
 test("BrasilAPI NOT_FOUND + ReceitaWS NOT_FOUND => bloqueia", () => {
@@ -62,26 +72,24 @@ test("BrasilAPI NOT_FOUND + ReceitaWS NOT_FOUND => bloqueia", () => {
   assert.equal(outcome.kind, "NOT_FOUND");
 });
 
-test("BrasilAPI NOT_FOUND + ReceitaWS UNAVAILABLE => PENDING", () => {
+test("BrasilAPI NOT_FOUND + ReceitaWS UNAVAILABLE => bloqueia", () => {
   const outcome = resolveCnpjVerificationOutcome(
     "12345678000195",
     { kind: "NOT_FOUND" },
     { kind: "UNAVAILABLE" }
   );
 
-  assert.equal(outcome.kind, "PENDING_VERIFICATION");
-  assert.equal(outcome.reason, "API_UNAVAILABLE");
+  assert.equal(outcome.kind, "NOT_FOUND");
 });
 
-test("BrasilAPI UNAVAILABLE + ReceitaWS NOT_FOUND => PENDING", () => {
+test("BrasilAPI UNAVAILABLE + ReceitaWS NOT_FOUND => bloqueia", () => {
   const outcome = resolveCnpjVerificationOutcome(
     "12345678000195",
     { kind: "UNAVAILABLE" },
     { kind: "NOT_FOUND" }
   );
 
-  assert.equal(outcome.kind, "PENDING_VERIFICATION");
-  assert.equal(outcome.reason, "API_UNAVAILABLE");
+  assert.equal(outcome.kind, "NOT_FOUND");
 });
 
 test("BrasilAPI UNAVAILABLE + ReceitaWS UNAVAILABLE => PENDING", () => {
@@ -104,4 +112,14 @@ test("BrasilAPI RATE_LIMIT + ReceitaWS UNAVAILABLE => PENDING", () => {
 
   assert.equal(outcome.kind, "PENDING_VERIFICATION");
   assert.equal(outcome.reason, "RATE_LIMIT");
+});
+
+test("RATE_LIMIT + NOT_FOUND => bloqueia", () => {
+  const outcome = resolveCnpjVerificationOutcome(
+    "12345678000195",
+    { kind: "RATE_LIMIT" },
+    { kind: "NOT_FOUND" }
+  );
+
+  assert.equal(outcome.kind, "NOT_FOUND");
 });

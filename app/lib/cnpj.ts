@@ -236,29 +236,14 @@ export function resolveCnpjVerificationOutcome(
     return { kind: "VERIFIED", company: receitaWsResult.company };
   }
 
-  if (brasilApiResult.kind === "NOT_FOUND" && receitaWsResult.kind === "NOT_FOUND") {
+  if (brasilApiResult.kind === "NOT_FOUND" || receitaWsResult.kind === "NOT_FOUND") {
     return { kind: "NOT_FOUND" };
-  }
-
-  if (
-    brasilApiResult.kind === "NOT_FOUND" ||
-    receitaWsResult.kind === "NOT_FOUND" ||
-    brasilApiResult.kind === "RATE_LIMIT" ||
-    receitaWsResult.kind === "RATE_LIMIT" ||
-    brasilApiResult.kind === "UNAVAILABLE" ||
-    receitaWsResult.kind === "UNAVAILABLE"
-  ) {
-    return {
-      kind: "PENDING_VERIFICATION",
-      company: buildPendingCompany(cnpj, choosePendingReason([brasilApiResult, receitaWsResult])),
-      reason: choosePendingReason([brasilApiResult, receitaWsResult]),
-    };
   }
 
   return {
     kind: "PENDING_VERIFICATION",
-    company: buildPendingCompany(cnpj, "API_UNAVAILABLE"),
-    reason: "API_UNAVAILABLE",
+    company: buildPendingCompany(cnpj, choosePendingReason([brasilApiResult, receitaWsResult])),
+    reason: choosePendingReason([brasilApiResult, receitaWsResult]),
   };
 }
 
