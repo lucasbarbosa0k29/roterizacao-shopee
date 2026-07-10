@@ -16,7 +16,19 @@ export type NormalizedCnpjCompany = {
   rawData: unknown;
 };
 
-type CnpjValidationCode = "INVALID" | "INACTIVE";
+export type CnpjProviderResult =
+  | { kind: "FOUND"; company: NormalizedCnpjCompany }
+  | { kind: "NOT_FOUND" }
+  | { kind: "RATE_LIMIT" }
+  | { kind: "UNAVAILABLE" };
+
+export type CnpjVerificationOutcome =
+  | { kind: "VERIFIED"; company: NormalizedCnpjCompany }
+  | { kind: "PENDING_VERIFICATION"; company: NormalizedCnpjCompany; reason: CnpjVerificationReason }
+  | { kind: "INACTIVE"; provider: CnpjProvider; company: NormalizedCnpjCompany }
+  | { kind: "NOT_FOUND" };
+
+type CnpjValidationCode = "INVALID";
 
 export class CnpjValidationError extends Error {
   code: CnpjValidationCode;
@@ -28,17 +40,9 @@ export class CnpjValidationError extends Error {
   }
 }
 
-class CnpjLookupError extends Error {
-  reason: CnpjVerificationReason;
-
-  constructor(reason: CnpjVerificationReason) {
-    super(reason);
-    this.name = "CnpjLookupError";
-    this.reason = reason;
-  }
-}
-
 const CNPJ_TIMEOUT_MS = 6000;
+const CNPJ_NOT_FOUND_MESSAGE =
+  "CNPJ não localizado nas bases consultadas. Se o seu MEI/CNPJ foi aberto recentemente, entre em contato com o suporte pelo WhatsApp.";
 
 export function cleanCnpj(cnpj: string) {
   return String(cnpj ?? "").replace(/\D/g, "");
@@ -60,7 +64,13 @@ export function isValidCnpj(cnpj: string) {
   return digits.endsWith(`${firstDigit}${secondDigit}`);
 }
 
-async function fetchJsonWithTimeout(url: string) {
+type JsonLookupResult =
+  | { kind: "OK"; data: unknown }
+  | { kind: "NOT_FOUND" }
+  | { kind: "RATE_LIMIT" }
+  | { kind: "UNAVAILABLE" };
+
+async function fetchJsonWithTimeout(url: string): Promise<JsonLookupResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CNPJ_TIMEOUT_MS);
 
@@ -73,15 +83,15 @@ async function fetchJsonWithTimeout(url: string) {
       cache: "no-store",
     });
 
-    if (response.status === 404) return { kind: "not_found" as const };
-    if (response.status === 429) return { kind: "rate_limit" as const };
-    if (response.status >= 500) return { kind: "unavailable" as const };
-    if (!response.ok) return { kind: "unavailable" as const };
+    if (response.status === 404) return { kind: "NOT_FOUND" };
+    if (response.status === 429) return { kind: "RATE_LIMIT" };
+    if (response.status >= 500) return { kind: "UNAVAILABLE" };
+    if (!response.ok) return { kind: "UNAVAILABLE" };
 
     const data = await response.json().catch(() => null);
-    return { kind: "ok" as const, data };
+    return { kind: "OK", data };
   } catch {
-    return { kind: "unavailable" as const };
+    return { kind: "UNAVAILABLE" };
   } finally {
     clearTimeout(timeout);
   }
@@ -95,73 +105,29 @@ function normalizeStatus(value: unknown) {
   return hasText(value) ? value.trim().toUpperCase() : "";
 }
 
-export async function fetchBrasilApiCnpj(cnpj: string): Promise<NormalizedCnpjCompany | null> {
-  const digits = cleanCnpj(cnpj);
-  const result = await fetchJsonWithTimeout(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
-
-  if (result.kind !== "ok") {
-    if (result.kind === "not_found") return null;
-    if (result.kind === "rate_limit") throw new CnpjLookupError("RATE_LIMIT");
-    throw new CnpjLookupError("API_UNAVAILABLE");
-  }
-
-  const data = result.data as Record<string, unknown> | null;
-  const razaoSocial = data?.razao_social;
-  const situacaoCadastral = data?.descricao_situacao_cadastral;
-
-  if (!data || !hasText(razaoSocial) || !hasText(situacaoCadastral)) return null;
-
+function buildCompany(params: {
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  situacaoCadastral: string;
+  cidade: string | null;
+  uf: string | null;
+  provider: CnpjProvider;
+  rawData: unknown;
+}): NormalizedCnpjCompany {
   return {
-    cnpj: digits,
-    razaoSocial: razaoSocial.trim(),
-    nomeFantasia: hasText(data.nome_fantasia) ? data.nome_fantasia.trim() : null,
-    situacaoCadastral: normalizeStatus(situacaoCadastral),
-    cidade: hasText(data.municipio) ? data.municipio.trim() : null,
-    uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
-    provider: "BRASILAPI",
+    cnpj: params.cnpj,
+    razaoSocial: params.razaoSocial,
+    nomeFantasia: params.nomeFantasia,
+    situacaoCadastral: params.situacaoCadastral,
+    cidade: params.cidade,
+    uf: params.uf,
+    provider: params.provider,
     cnpjVerificationStatus: "VERIFIED",
     cnpjVerificationReason: null,
     cnpjVerifiedAt: new Date(),
-    rawData: data,
+    rawData: params.rawData,
   };
-}
-
-export async function fetchReceitaWsCnpj(cnpj: string): Promise<NormalizedCnpjCompany | null> {
-  const digits = cleanCnpj(cnpj);
-  const result = await fetchJsonWithTimeout(`https://www.receitaws.com.br/v1/cnpj/${digits}`);
-
-  if (result.kind !== "ok") {
-    if (result.kind === "not_found") return null;
-    if (result.kind === "rate_limit") throw new CnpjLookupError("RATE_LIMIT");
-    throw new CnpjLookupError("API_UNAVAILABLE");
-  }
-
-  const data = result.data as Record<string, unknown> | null;
-  const razaoSocial = data?.nome;
-  const situacaoCadastral = data?.situacao;
-
-  if (!data || data.status === "ERROR") return null;
-  if (!hasText(razaoSocial) || !hasText(situacaoCadastral)) return null;
-
-  return {
-    cnpj: digits,
-    razaoSocial: razaoSocial.trim(),
-    nomeFantasia: hasText(data.fantasia) ? data.fantasia.trim() : null,
-    situacaoCadastral: normalizeStatus(situacaoCadastral),
-    cidade: hasText(data.municipio) ? data.municipio.trim() : null,
-    uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
-    provider: "RECEITAWS",
-    cnpjVerificationStatus: "VERIFIED",
-    cnpjVerificationReason: null,
-    cnpjVerifiedAt: new Date(),
-    rawData: data,
-  };
-}
-
-function choosePendingReason(reasons: CnpjVerificationReason[]): CnpjVerificationReason {
-  if (reasons.includes("RATE_LIMIT")) return "RATE_LIMIT";
-  if (reasons.includes("API_UNAVAILABLE")) return "API_UNAVAILABLE";
-  return "NOT_FOUND";
 }
 
 function buildPendingCompany(cnpj: string, reason: CnpjVerificationReason): NormalizedCnpjCompany {
@@ -180,43 +146,147 @@ function buildPendingCompany(cnpj: string, reason: CnpjVerificationReason): Norm
   };
 }
 
-export async function validateCnpjCompany(cnpj: string): Promise<NormalizedCnpjCompany> {
+function choosePendingReason(results: CnpjProviderResult[]): CnpjVerificationReason {
+  if (results.some((result) => result.kind === "RATE_LIMIT")) return "RATE_LIMIT";
+  return "API_UNAVAILABLE";
+}
+
+function isFoundResult(result: CnpjProviderResult): result is Extract<CnpjProviderResult, { kind: "FOUND" }> {
+  return result.kind === "FOUND";
+}
+
+function isInactiveCompany(company: NormalizedCnpjCompany) {
+  return company.situacaoCadastral !== "ATIVA";
+}
+
+async function lookupBrasilApi(cnpj: string): Promise<CnpjProviderResult> {
+  const digits = cleanCnpj(cnpj);
+  const result = await fetchJsonWithTimeout(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+
+  if (result.kind !== "OK") return result;
+
+  const data = result.data as Record<string, unknown> | null;
+  const razaoSocial = data?.razao_social;
+  const situacaoCadastral = data?.descricao_situacao_cadastral;
+
+  if (!data || !hasText(razaoSocial) || !hasText(situacaoCadastral)) {
+    return { kind: "UNAVAILABLE" };
+  }
+
+  return {
+    kind: "FOUND",
+    company: buildCompany({
+      cnpj: digits,
+      razaoSocial: razaoSocial.trim(),
+      nomeFantasia: hasText(data.nome_fantasia) ? data.nome_fantasia.trim() : null,
+      situacaoCadastral: normalizeStatus(situacaoCadastral),
+      cidade: hasText(data.municipio) ? data.municipio.trim() : null,
+      uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
+      provider: "BRASILAPI",
+      rawData: data,
+    }),
+  };
+}
+
+async function lookupReceitaWs(cnpj: string): Promise<CnpjProviderResult> {
+  const digits = cleanCnpj(cnpj);
+  const result = await fetchJsonWithTimeout(`https://www.receitaws.com.br/v1/cnpj/${digits}`);
+
+  if (result.kind !== "OK") return result;
+
+  const data = result.data as Record<string, unknown> | null;
+  const razaoSocial = data?.nome;
+  const situacaoCadastral = data?.situacao;
+
+  if (!data) return { kind: "UNAVAILABLE" };
+  if (data.status === "ERROR") return { kind: "NOT_FOUND" };
+  if (!hasText(razaoSocial) || !hasText(situacaoCadastral)) return { kind: "UNAVAILABLE" };
+
+  return {
+    kind: "FOUND",
+    company: buildCompany({
+      cnpj: digits,
+      razaoSocial: razaoSocial.trim(),
+      nomeFantasia: hasText(data.fantasia) ? data.fantasia.trim() : null,
+      situacaoCadastral: normalizeStatus(situacaoCadastral),
+      cidade: hasText(data.municipio) ? data.municipio.trim() : null,
+      uf: hasText(data.uf) ? data.uf.trim().toUpperCase() : null,
+      provider: "RECEITAWS",
+      rawData: data,
+    }),
+  };
+}
+
+export function resolveCnpjVerificationOutcome(
+  cnpj: string,
+  brasilApiResult: CnpjProviderResult,
+  receitaWsResult: CnpjProviderResult
+): CnpjVerificationOutcome {
+  if (isFoundResult(brasilApiResult)) {
+    if (isInactiveCompany(brasilApiResult.company)) {
+      return { kind: "INACTIVE", provider: brasilApiResult.company.provider ?? "BRASILAPI", company: brasilApiResult.company };
+    }
+    return { kind: "VERIFIED", company: brasilApiResult.company };
+  }
+
+  if (isFoundResult(receitaWsResult)) {
+    if (isInactiveCompany(receitaWsResult.company)) {
+      return { kind: "INACTIVE", provider: receitaWsResult.company.provider ?? "RECEITAWS", company: receitaWsResult.company };
+    }
+    return { kind: "VERIFIED", company: receitaWsResult.company };
+  }
+
+  if (brasilApiResult.kind === "NOT_FOUND" && receitaWsResult.kind === "NOT_FOUND") {
+    return { kind: "NOT_FOUND" };
+  }
+
+  if (
+    brasilApiResult.kind === "NOT_FOUND" ||
+    receitaWsResult.kind === "NOT_FOUND" ||
+    brasilApiResult.kind === "RATE_LIMIT" ||
+    receitaWsResult.kind === "RATE_LIMIT" ||
+    brasilApiResult.kind === "UNAVAILABLE" ||
+    receitaWsResult.kind === "UNAVAILABLE"
+  ) {
+    return {
+      kind: "PENDING_VERIFICATION",
+      company: buildPendingCompany(cnpj, choosePendingReason([brasilApiResult, receitaWsResult])),
+      reason: choosePendingReason([brasilApiResult, receitaWsResult]),
+    };
+  }
+
+  return {
+    kind: "PENDING_VERIFICATION",
+    company: buildPendingCompany(cnpj, "API_UNAVAILABLE"),
+    reason: "API_UNAVAILABLE",
+  };
+}
+
+export async function validateCnpjCompany(cnpj: string): Promise<CnpjVerificationOutcome> {
   const digits = cleanCnpj(cnpj);
   if (!isValidCnpj(digits)) {
     throw new CnpjValidationError("INVALID", "CNPJ inválido. Verifique os números informados.");
   }
 
-  const pendingReasons: CnpjVerificationReason[] = [];
-
-  try {
-    const brasilApiCompany = await fetchBrasilApiCnpj(digits);
-    if (brasilApiCompany) {
-      if (brasilApiCompany.situacaoCadastral !== "ATIVA") {
-        throw new CnpjValidationError("INACTIVE", "Este CNPJ não está ativo na Receita Federal.");
-      }
-      return brasilApiCompany;
+  const brasilApiResult = await lookupBrasilApi(digits);
+  if (isFoundResult(brasilApiResult)) {
+    if (isInactiveCompany(brasilApiResult.company)) {
+      return { kind: "INACTIVE", provider: brasilApiResult.company.provider ?? "BRASILAPI", company: brasilApiResult.company };
     }
-    pendingReasons.push("NOT_FOUND");
-  } catch (error) {
-    if (error instanceof CnpjValidationError && error.code === "INACTIVE") throw error;
-    if (error instanceof CnpjLookupError) pendingReasons.push(error.reason);
-    else pendingReasons.push("API_UNAVAILABLE");
+    return { kind: "VERIFIED", company: brasilApiResult.company };
   }
 
-  try {
-    const receitaWsCompany = await fetchReceitaWsCnpj(digits);
-    if (receitaWsCompany) {
-      if (receitaWsCompany.situacaoCadastral !== "ATIVA") {
-        throw new CnpjValidationError("INACTIVE", "Este CNPJ não está ativo na Receita Federal.");
-      }
-      return receitaWsCompany;
+  const receitaWsResult = await lookupReceitaWs(digits);
+  if (isFoundResult(receitaWsResult)) {
+    if (isInactiveCompany(receitaWsResult.company)) {
+      return { kind: "INACTIVE", provider: receitaWsResult.company.provider ?? "RECEITAWS", company: receitaWsResult.company };
     }
-    pendingReasons.push("NOT_FOUND");
-  } catch (error) {
-    if (error instanceof CnpjValidationError && error.code === "INACTIVE") throw error;
-    if (error instanceof CnpjLookupError) pendingReasons.push(error.reason);
-    else pendingReasons.push("API_UNAVAILABLE");
+    return { kind: "VERIFIED", company: receitaWsResult.company };
   }
 
-  return buildPendingCompany(digits, choosePendingReason(pendingReasons));
+  return resolveCnpjVerificationOutcome(digits, brasilApiResult, receitaWsResult);
+}
+
+export function getCnpjNotFoundMessage() {
+  return CNPJ_NOT_FOUND_MESSAGE;
 }

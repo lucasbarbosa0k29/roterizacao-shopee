@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
 const WHATSAPP_SUPPORT_URL = "https://wa.me/5562996344134";
+const CNPJ_NOT_FOUND_MESSAGE =
+  "CNPJ não localizado nas bases consultadas. Se o seu MEI/CNPJ foi aberto recentemente, entre em contato com o suporte pelo WhatsApp.";
 
 const highlights = [
   "Importação assistida de planilhas",
@@ -131,6 +133,11 @@ export default function LoginClient() {
 
     if (!res.ok) {
       setLoading(false);
+      if (data?.code === "CNPJ_NOT_FOUND") {
+        setErr(CNPJ_NOT_FOUND_MESSAGE);
+        return;
+      }
+
       setErr(typeof data?.error === "string" ? data.error : "Não foi possível criar sua conta.");
       return;
     }

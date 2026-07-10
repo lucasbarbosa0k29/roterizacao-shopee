@@ -7,6 +7,7 @@ import { prisma } from "@/app/lib/prisma";
 import {
   cleanCnpj,
   CnpjValidationError,
+  getCnpjNotFoundMessage,
   isValidCnpj,
   validateCnpjCompany,
 } from "@/app/lib/cnpj";
@@ -22,8 +23,8 @@ const INVALID_CNPJ_MESSAGE = "CNPJ inválido. Verifique os números informados."
 const PENDING_CNPJ_MESSAGE =
   "Cadastro criado. Não conseguimos confirmar seu CNPJ agora, possivelmente por ser MEI recente. Ele ficará pendente de verificação.";
 
-function errorResponse(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+function errorResponse(message: string, status: number, code?: string) {
+  return NextResponse.json({ error: message, ...(code ? { code } : {}) }, { status });
 }
 
 export async function POST(req: Request) {
@@ -78,7 +79,17 @@ export async function POST(req: Request) {
       return errorResponse(DUPLICATE_WHATSAPP_MESSAGE, 409);
     }
 
-    const companyData = await validateCnpjCompany(cnpj);
+    const companyDecision = await validateCnpjCompany(cnpj);
+
+    if (companyDecision.kind === "NOT_FOUND") {
+      return errorResponse(getCnpjNotFoundMessage(), 400, "CNPJ_NOT_FOUND");
+    }
+
+    if (companyDecision.kind === "INACTIVE") {
+      return errorResponse("Este CNPJ não está ativo na Receita Federal.", 400, "CNPJ_INACTIVE");
+    }
+
+    const companyData = companyDecision.company;
     const hash = await bcrypt.hash(password, 10);
 
     const user = await prisma.$transaction(async (tx) => {
