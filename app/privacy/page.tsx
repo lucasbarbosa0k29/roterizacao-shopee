@@ -63,7 +63,7 @@ const sections = [
   {
     title: "9. Direitos do usuário",
     paragraphs: [
-      "O usuário poderá solicitar acesso, correção ou exclusão de seus dados pessoais, conforme aplicável, entrando em contato pelo e-mail financeiro@usarotta.com.br.",
+      "O usuário poderá solicitar acesso, correção ou exclusão de seus dados pessoais, conforme aplicável, entrando em contato pelo e-mail suporte.usarotta@gmail.com.",
       "Alguns dados poderão ser mantidos quando necessário para cumprimento de obrigações legais, prevenção a fraudes, resolução de disputas ou segurança da plataforma.",
       "O tratamento de dados pessoais será realizado em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD), observadas as bases legais aplicáveis.",
     ],
@@ -84,7 +84,7 @@ const sections = [
   {
     title: "12. Contato",
     paragraphs: [
-      "Em caso de dúvidas sobre esta Política de Privacidade ou sobre o tratamento de dados, entre em contato pelo e-mail financeiro@usarotta.com.br.",
+      "Em caso de dúvidas sobre esta Política de Privacidade ou sobre o tratamento de dados, entre em contato pelo e-mail suporte.usarotta@gmail.com.",
     ],
   },
 ];

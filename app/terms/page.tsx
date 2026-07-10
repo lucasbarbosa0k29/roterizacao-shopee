@@ -89,7 +89,7 @@ const sections = [
   {
     title: "12. Contato",
     paragraphs: [
-      "Em caso de dúvidas, solicitações ou suporte, entre em contato através do e-mail financeiro@usarotta.com.br.",
+      "Em caso de dúvidas, solicitações ou suporte, entre em contato através do e-mail suporte.usarotta@gmail.com.",
     ],
   },
   {
