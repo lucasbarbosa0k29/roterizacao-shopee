@@ -5577,6 +5577,13 @@ if (shouldAutoSaveAddressMemory) {
         rankingV2StreetCompatibility: localFirstGoianiaShadow.rankingV2StreetCompatibility ?? null,
         rankingV2Reason: localFirstGoianiaShadow.rankingV2Reason ?? null,
         rankingV2BlockedReason: localFirstGoianiaShadow.rankingV2BlockedReason ?? null,
+        rankingV2PartitionScopeMode: localFirstGoianiaShadow.rankingV2PartitionScan?.mode ?? null,
+        rankingV2UsedStreetAfterEmptyBairro:
+          !!localFirstGoianiaShadow.rankingV2PartitionScan?.usedStreetAfterEmptyBairro,
+        rankingV2StreetFallbackPartitionsCount:
+          localFirstGoianiaShadow.rankingV2PartitionScan?.streetFallbackPartitionsCount ?? 0,
+        rankingV2StreetFallbackPartitionKeys:
+          localFirstGoianiaShadow.rankingV2PartitionScan?.streetFallbackPartitionKeys ?? [],
         inferredQdLt: !!normalized.inferredQdLt,
         inferredPattern: normalized.inferredPattern ?? null,
         parserRule: normalized.parserRule ?? null,

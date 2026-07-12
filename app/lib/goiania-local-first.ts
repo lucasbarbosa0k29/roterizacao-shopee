@@ -107,12 +107,15 @@ type StreetToPartitionsIndex = {
 };
 
 type RankingV2PartitionScanDiagnostics = {
-  mode: "bairro" | "bairro_street_intersection" | "street" | "wide" | "none";
+  mode: "bairro" | "bairro_street_intersection" | "street" | "street_after_empty_bairro" | "wide" | "none";
   scannedPartitions: number;
   bairroCandidatesCount: number;
   streetCandidatesCount: number;
   intersectionCount: number;
   limited: boolean;
+  usedStreetAfterEmptyBairro: boolean;
+  streetFallbackPartitionsCount: number;
+  streetFallbackPartitionKeys: string[];
 };
 
 type RankingV2Candidate = {
@@ -641,10 +644,17 @@ function buildGoianiaRankingV2PartitionKeys(args: {
   const intersection = candidatePartitionKeys.filter((partitionKey) => streetPartitionSet.has(partitionKey));
   let partitionKeys: string[] = [];
   let scanMode: RankingV2PartitionScanDiagnostics["mode"] = "none";
+  let usedStreetAfterEmptyBairro = false;
 
   if (hasUsefulBairro && hasUsefulStreet) {
-    partitionKeys = intersection.length ? intersection : candidatePartitionKeys;
-    scanMode = intersection.length ? "bairro_street_intersection" : "bairro";
+    if (candidatePartitionKeys.length > 0) {
+      partitionKeys = intersection.length ? intersection : candidatePartitionKeys;
+      scanMode = intersection.length ? "bairro_street_intersection" : "bairro";
+    } else {
+      partitionKeys = streetPartitionKeys.slice(0, Math.min(20, GOIANIA_LOCALFIRST_MAX_PARTITIONS_PER_LOOKUP));
+      scanMode = "street_after_empty_bairro";
+      usedStreetAfterEmptyBairro = true;
+    }
   } else if (hasUsefulBairro) {
     partitionKeys = candidatePartitionKeys;
     scanMode = "bairro";
@@ -673,6 +683,9 @@ function buildGoianiaRankingV2PartitionKeys(args: {
       streetCandidatesCount: streetPartitionKeys.length,
       intersectionCount: intersection.length,
       limited: limited.limited,
+      usedStreetAfterEmptyBairro,
+      streetFallbackPartitionsCount: usedStreetAfterEmptyBairro ? limited.partitionKeys.length : 0,
+      streetFallbackPartitionKeys: usedStreetAfterEmptyBairro ? limited.partitionKeys : [],
     },
   };
 }
