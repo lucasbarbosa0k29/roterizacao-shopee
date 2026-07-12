@@ -51,6 +51,10 @@ import {
   type GoianiaLocalFirstShadow,
 } from "@/app/lib/goiania-local-first";
 import {
+  resolveGoianiaJardimCerradoRegional,
+  type JardimCerradoRegionalDebug,
+} from "@/app/lib/goiania-jardim-cerrado-regional-resolver";
+import {
   compareGoianiaStreet,
   normalizeGoianiaStreetName,
   type GoianiaStreetComparison,
@@ -426,6 +430,11 @@ type MemoryDebugRow = {
   localFirstGoianiaWouldBypass?: boolean;
   localFirstGoianiaBypassReason?: string | null;
   localFirstGoianiaUsedAsFinal?: boolean;
+  goianiaJardimCerradoRegional?: JardimCerradoRegionalDebug;
+  goianiaJardimCerradoRegionalApplied?: boolean;
+  goianiaJardimCerradoRegionalUsedAsFinal?: boolean;
+  goianiaJardimCerradoRegionalAnchorOnly?: boolean;
+  goianiaJardimCerradoRegionalReason?: string | null;
   poiShadowFound?: boolean;
   poiShadowConfidence?: "POI_HIGH" | "POI_MEDIUM" | "POI_LOW" | "NO_POI";
   poiShadowCategory?: string | null;
@@ -3201,6 +3210,37 @@ async function processOne(
   const normalizedLine = buildNormalizedLine(normalized, fallbackLine);
 
   const cityForDecision = normalized.cidade || cityIn || "";
+  const goianiaJardimCerradoRegional = resolveGoianiaJardimCerradoRegional({
+    city: cityForDecision,
+    address: addressRaw,
+    bairro: normalized.bairro || bairroIn,
+    complemento: String(row?.complemento ?? row?.compl ?? row?.comp ?? row?.complement ?? ""),
+    observacao: String(
+      row?.observacao ??
+        row?.observação ??
+        row?.obs ??
+        row?.observacoes ??
+        row?.observações ??
+        "",
+    ),
+    referencia: String(
+      row?.referencia ??
+        row?.referência ??
+        row?.reference ??
+        row?.ponto_referencia ??
+        row?.pontoReferencia ??
+        "",
+    ),
+    normalizedLine,
+    normalized,
+  });
+  if (goianiaJardimCerradoRegional.applied && goianiaJardimCerradoRegional.candidate) {
+    normalized.bairro = goianiaJardimCerradoRegional.candidate.bairro || normalized.bairro;
+    normalized.quadra = goianiaJardimCerradoRegional.candidate.quadra || normalized.quadra;
+    if (!goianiaJardimCerradoRegional.anchorOnly && goianiaJardimCerradoRegional.candidate.lote) {
+      normalized.lote = goianiaJardimCerradoRegional.candidate.lote;
+    }
+  }
   const poiShadow = lookupGoianiaPoiShadow({
     city: cityForDecision,
     address: addressRaw,
@@ -3243,6 +3283,8 @@ async function processOne(
   let localFirstGoianiaWouldBypass = false;
   let localFirstGoianiaBypassReason: string | null = null;
   let localFirstGoianiaUsedAsFinal = false;
+  let goianiaJardimCerradoRegionalUsedAsFinal = false;
+  let goianiaJardimCerradoRegionalAnchorOnly = false;
   let localFirstBypassHere = false;
 
   const resolveGoianiaLocalFirstBypassReason = () => {
@@ -3448,7 +3490,62 @@ async function processOne(
   const scored: RankedHereEntry[] = [];
 
   if (
+    !memoryHit &&
+    !approxMemoryHit &&
+    goianiaJardimCerradoRegional.applied &&
+    !goianiaJardimCerradoRegional.anchorOnly &&
+    goianiaJardimCerradoRegional.candidate
+  ) {
+    const regionalCandidate = goianiaJardimCerradoRegional.candidate;
+    const localAddressLabel = cleanAddressForHere(
+      [
+        regionalCandidate.streetLabel || normalized.rua || "Goiânia",
+        `Quadra ${regionalCandidate.quadra}`,
+        regionalCandidate.lote ? `Lote ${regionalCandidate.lote}` : "",
+        regionalCandidate.bairro || normalized.bairro || bairroIn,
+        normalized.cidade || cityIn || "Goiânia",
+        normalized.estado || "GO",
+        normalizeCep(normalized.cep || cepIn),
+      ]
+        .filter(Boolean)
+        .join(", "),
+    );
+
+    bestItem = {
+      title: localAddressLabel,
+      id: `goiania-jardim-cerrado-regional:${regionalCandidate.sourceKey || `${regionalCandidate.etapa}:${regionalCandidate.quadra}`}`,
+      resultType: goianiaJardimCerradoRegional.anchorOnly ? "street" : "houseNumber",
+      address: {
+        label: localAddressLabel,
+        countryCode: "BRA",
+        countryName: "Brasil",
+        stateCode: "GO",
+        state: "Goiás",
+        city: normalized.cidade || cityIn || "Goiânia",
+        district: regionalCandidate.bairro || normalized.bairro || bairroIn || "",
+        street: regionalCandidate.streetLabel || normalized.rua || "",
+        postalCode: normalizeCep(normalized.cep || cepIn),
+      },
+      position: {
+        lat: regionalCandidate.lat,
+        lng: regionalCandidate.lng,
+      },
+    };
+    bestHereScore = goianiaJardimCerradoRegional.anchorOnly ? 980 : 995;
+    finalRankedKind = "local";
+    lat = regionalCandidate.lat;
+    lng = regionalCandidate.lng;
+    decisionReason = goianiaJardimCerradoRegional.anchorOnly
+      ? "GOIANIA_JARDIM_CERRADO_QUADRA_ANCHOR"
+      : "GOIANIA_JARDIM_CERRADO_EXACT_LOTE";
+    localFirstBypassHere = true;
+    goianiaJardimCerradoRegionalUsedAsFinal = true;
+    goianiaJardimCerradoRegionalAnchorOnly = goianiaJardimCerradoRegional.anchorOnly;
+  }
+
+  if (
     (goianiaLocalFirstBypassEnabled || localFirstGoianiaCanFinalizeWithoutFlag) &&
+    !goianiaJardimCerradoRegionalUsedAsFinal &&
     localFirstGoianiaWouldBypass &&
     localFirstGoianiaCandidate
   ) {
@@ -4605,12 +4702,141 @@ async function processOne(
     hereUncertain = hereSpreadMeters > 250;
   }
 
+  if (
+    !memoryHit &&
+    !approxMemoryHit &&
+    !localFirstBypassHere &&
+    goianiaJardimCerradoRegional.applied &&
+    goianiaJardimCerradoRegional.anchorOnly &&
+    goianiaJardimCerradoRegional.candidate
+  ) {
+    const regionalCandidate = goianiaJardimCerradoRegional.candidate;
+    const hereAddress = bestItem?.address || {};
+    const herePosition = bestItem?.position || null;
+    const hereResultType = normalizeKey(String(bestItem?.resultType || ""));
+    const hereStreet = String(hereAddress?.street || "");
+    const inputStreet = normalized.rua || goianiaJardimCerradoRegional.ruaJc || "";
+    const hereStreetCompatibility =
+      inputStreet && hereStreet ? compareGoianiaStreet(inputStreet, hereStreet) : "STREET_UNKNOWN";
+    const hereStreetCompatible =
+      hereStreetCompatibility === "STREET_MATCH" ||
+      hereStreetCompatibility === "STREET_PARTIAL_MATCH";
+    const expectedCep = normalizeCep(normalized.cep || cepIn);
+    const hereCep = normalizeCep(String(hereAddress?.postalCode || ""));
+    const hereCepCompatible = !!expectedCep && !!hereCep && expectedCep === hereCep;
+    const hereHasHouseNumber = hereResultType === "HOUSENUMBER";
+    const hereProtectedByStreetCep = hereHasHouseNumber && hereStreetCompatible && hereCepCompatible;
+    const regionalStreetMismatch =
+      goianiaJardimCerradoRegional.streetCompatibility === "STREET_MISMATCH";
+    const hereCityKey = normalizeKey(String(hereAddress?.city || hereAddress?.county || ""));
+    const hereBairroText = normalizeKey(
+      [
+        hereAddress?.district,
+        hereAddress?.subdistrict,
+        hereAddress?.label,
+        bestItem?.title,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    const hereCityMismatch =
+      !!hereCityKey &&
+      (!hereCityKey.includes("GOIANIA") || hereCityKey.includes("APARECIDA") || hereCityKey.includes("TRINDADE"));
+    const hereOutsideCerrado =
+      !!hereBairroText &&
+      !hereBairroText.includes("CERRADO") &&
+      !hereBairroText.includes("JC ");
+    const hereEtapaMatch =
+      hereBairroText.match(/\bJARDI(?:M|NS)\s+(?:DO\s+)?CERRADO\s+0?([1-9]|10|11)\b/) ||
+      hereBairroText.match(/\bCERRADO\s+0?([1-9]|10|11)\b/);
+    const hereOtherEtapa =
+      !!hereEtapaMatch?.[1] &&
+      String(Number(hereEtapaMatch[1])) !== String(regionalCandidate.etapa);
+    const distanceToRegionalM =
+      herePosition?.lat != null && herePosition?.lng != null
+        ? haversineMeters(
+            { lat: regionalCandidate.lat, lng: regionalCandidate.lng },
+            { lat: Number(herePosition.lat), lng: Number(herePosition.lng) },
+          )
+        : null;
+    const hereWeakResult =
+      !bestItem ||
+      !herePosition ||
+      bestHereScore < 90 ||
+      hereResultType === "LOCALITY" ||
+      hereResultType === "ADMINISTRATIVEAREA" ||
+      hereResultType === "PLACE";
+    const hereClearlyWorse =
+      hereWeakResult ||
+      hereCityMismatch ||
+      hereOtherEtapa ||
+      (hereOutsideCerrado && !hereProtectedByStreetCep) ||
+      (typeof distanceToRegionalM === "number" && distanceToRegionalM > 1000 && !hereHasHouseNumber);
+    const regionalBlockedByStreetMismatch =
+      regionalStreetMismatch && hereStreetCompatible;
+    const shouldUseRegionalAnchor =
+      !hereProtectedByStreetCep &&
+      !regionalBlockedByStreetMismatch &&
+      hereClearlyWorse;
+
+    if (shouldUseRegionalAnchor) {
+      const localAddressLabel = cleanAddressForHere(
+        [
+          regionalCandidate.streetLabel || normalized.rua || "Goiânia",
+          `Quadra ${regionalCandidate.quadra}`,
+          regionalCandidate.bairro || normalized.bairro || bairroIn,
+          normalized.cidade || cityIn || "Goiânia",
+          normalized.estado || "GO",
+          normalizeCep(normalized.cep || cepIn),
+        ]
+          .filter(Boolean)
+          .join(", "),
+      );
+
+      bestItem = {
+        title: localAddressLabel,
+        id: `goiania-jardim-cerrado-regional:${regionalCandidate.sourceKey || `${regionalCandidate.etapa}:${regionalCandidate.quadra}`}`,
+        resultType: "street",
+        address: {
+          label: localAddressLabel,
+          countryCode: "BRA",
+          countryName: "Brasil",
+          stateCode: "GO",
+          state: "Goiás",
+          city: normalized.cidade || cityIn || "Goiânia",
+          district: regionalCandidate.bairro || normalized.bairro || bairroIn || "",
+          street: regionalCandidate.streetLabel || normalized.rua || "",
+          postalCode: normalizeCep(normalized.cep || cepIn),
+        },
+        position: {
+          lat: regionalCandidate.lat,
+          lng: regionalCandidate.lng,
+        },
+      };
+      bestHereScore = Math.max(bestHereScore, 970);
+      finalRankedKind = "local";
+      lat = regionalCandidate.lat;
+      lng = regionalCandidate.lng;
+      decisionReason = "GOIANIA_JARDIM_CERRADO_QUADRA_ANCHOR_WEAK_HERE";
+      goianiaJardimCerradoRegionalUsedAsFinal = true;
+      goianiaJardimCerradoRegionalAnchorOnly = true;
+    }
+  }
+
   const bestScore = bestHereScore;
 
  // 4) Aparecida: usa seu mapa real (ArcGIS) pra quadra/lote/bairro (só se tiver lat/lng)
 let quadraAuto = normalized.quadra || "";
 let loteAuto = normalized.lote || "";
 let bairroAuto = normalized.bairro || bairroIn || "";
+
+if (goianiaJardimCerradoRegional.applied && goianiaJardimCerradoRegional.candidate) {
+  quadraAuto = goianiaJardimCerradoRegional.candidate.quadra || quadraAuto;
+  if (!goianiaJardimCerradoRegional.anchorOnly && goianiaJardimCerradoRegional.candidate.lote) {
+    loteAuto = goianiaJardimCerradoRegional.candidate.lote;
+  }
+  bairroAuto = goianiaJardimCerradoRegional.candidate.bairro || bairroAuto;
+}
 
 // ✅ usa o ArcGIS do PASSO 3 (top3) quando tiver.
 // se não tiver, faz 1 chamada usando o lat/lng final.
@@ -4813,6 +5039,7 @@ if (conflictQL) {
     strictHereHouseNumberAddressOk &&
     finalRankedKind === "geocode" &&
     !memoryHit &&
+    !goianiaJardimCerradoRegionalUsedAsFinal &&
     !localFirstGoianiaUsedAsFinal &&
     !localLotUsedAsFinal &&
     !conflictQL &&
@@ -4892,7 +5119,9 @@ if (status === "OK") {
       : null;
 
   const geocodeConfidenceDiag = computeGeocodeConfidence({
-    source: localFirstGoianiaUsedAsFinal
+    source: goianiaJardimCerradoRegionalUsedAsFinal
+      ? "LOCAL_GOIANIA_FIRST"
+      : localFirstGoianiaUsedAsFinal
       ? "LOCAL_GOIANIA_FIRST"
       : memoryHit
       ? memoryHitKind === "base"
@@ -4940,6 +5169,7 @@ if (status === "OK") {
     GOOGLE_COMMERCIAL_FALLBACK_ENABLED &&
     !memoryHit &&
     !localLotUsedAsFinal &&
+    !goianiaJardimCerradoRegionalUsedAsFinal &&
     !localFirstGoianiaUsedAsFinal &&
     ["PARCIAL", "HERE_SPREAD", "MISSING_CORE"].includes(googleCommercialFallbackStatusBefore)
   ) {
@@ -5221,7 +5451,12 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
 }
 
 const autoSaveCurrentBehaviorWouldSave =
-  !localFirstGoianiaUsedAsFinal && !memoryHit && lat != null && lng != null && status === "OK";
+  !localFirstGoianiaUsedAsFinal &&
+  !goianiaJardimCerradoRegionalAnchorOnly &&
+  !memoryHit &&
+  lat != null &&
+  lng != null &&
+  status === "OK";
 const autoSaveAudit = auditAutoSaveMemory({
   currentBehaviorWouldSave: autoSaveCurrentBehaviorWouldSave,
   status,
@@ -5379,6 +5614,11 @@ if (shouldAutoSaveAddressMemory) {
         localFirstGoianiaWouldBypass,
         localFirstGoianiaBypassReason,
         localFirstGoianiaUsedAsFinal,
+        goianiaJardimCerradoRegional,
+        goianiaJardimCerradoRegionalApplied: goianiaJardimCerradoRegional.applied,
+        goianiaJardimCerradoRegionalUsedAsFinal,
+        goianiaJardimCerradoRegionalAnchorOnly,
+        goianiaJardimCerradoRegionalReason: goianiaJardimCerradoRegional.reason,
       }
     : {};
 
@@ -5403,6 +5643,8 @@ if (shouldAutoSaveAddressMemory) {
     const trindadeCurrentResultForShadow = {
       source: memoryHit
         ? "MEMORY"
+        : goianiaJardimCerradoRegionalUsedAsFinal
+          ? "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
         : localFirstGoianiaUsedAsFinal
           ? "LOCALFIRST_GOIANIA"
           : finalRankedKind === "discover"
@@ -5413,6 +5655,8 @@ if (shouldAutoSaveAddressMemory) {
       matchedKey: matchedMemoryKey || null,
       matchType: memoryHit
         ? "MEMORY"
+        : goianiaJardimCerradoRegionalUsedAsFinal
+          ? "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
         : localFirstGoianiaUsedAsFinal
           ? "LOCALFIRST_GOIANIA"
           : finalRankedKind === "discover"
@@ -5676,6 +5920,8 @@ if (shouldAutoSaveAddressMemory) {
 
   const finalSource = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
+    : goianiaJardimCerradoRegionalUsedAsFinal
+      ? "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
       ? "LOCALFIRST_GOIANIA"
       : memoryHit
@@ -5685,6 +5931,8 @@ if (shouldAutoSaveAddressMemory) {
           : "HERE_GEOCODE";
   const finalMatchType = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
+    : goianiaJardimCerradoRegionalUsedAsFinal
+      ? goianiaJardimCerradoRegional.matchType || "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
       ? "LOCALFIRST_GOIANIA"
       : memoryHit
@@ -5708,6 +5956,7 @@ if (shouldAutoSaveAddressMemory) {
       lng == null ||
       (typeof poiShadowDistanceToFinalM === "number" && poiShadowDistanceToFinalM > 120) ||
       (finalSource !== "MEMORY" &&
+        finalSource !== "LOCALFIRST_GOIANIA_JARDIM_CERRADO" &&
         finalSource !== "LOCALFIRST_GOIANIA" &&
         finalSource !== "LOCALFIRST_TRINDADE"));
 
