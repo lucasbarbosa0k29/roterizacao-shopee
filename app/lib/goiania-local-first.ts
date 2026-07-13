@@ -5,6 +5,10 @@ import {
   normalizeGoianiaStreetName,
   type GoianiaStreetComparison,
 } from "@/app/lib/goiania-street-normalization";
+import {
+  resolveParqueAtheneuStreetLotLocalFirst,
+  type ParqueAtheneuStreetLotBlockedReason,
+} from "@/app/lib/goiania-atheneu-street-lot";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 import type {
   LocalFirstCandidateValidationInput,
@@ -22,6 +26,7 @@ export type GoianiaLocalFirstMatchType =
   | "structural_alias_exact"
   | "alias_bairro_exact"
   | "ranking_v2_exact"
+  | "atheneu_street_lot_exact"
   | "same_quadra"
   | "not_found"
   | "missing_parts"
@@ -75,6 +80,15 @@ export type GoianiaLocalFirstShadow = {
   rankingV21SelectedBecauseBairro?: boolean;
   rankingV21BlockedBecauseBairroConflict?: boolean;
   rankingV2PartitionScan?: RankingV2PartitionScanDiagnostics;
+  parqueAtheneuStreetLotAttempted?: boolean;
+  parqueAtheneuStreetLotFound?: boolean;
+  parqueAtheneuStreetLotUsedAsFinal?: boolean;
+  parqueAtheneuStreetLotKey?: string | null;
+  parqueAtheneuStreetLotCandidatesCount?: number;
+  parqueAtheneuStreetLotStreetCompatibility?: GoianiaStreetComparison | null;
+  parqueAtheneuStreetLotConfidence?: "HIGH" | null;
+  parqueAtheneuStreetLotBlockedReason?: ParqueAtheneuStreetLotBlockedReason | null;
+  parqueAtheneuStreetLotDistanceToStreetM?: number | null;
   candidate: {
     bairro: string;
     quadra: string;
@@ -1679,6 +1693,7 @@ function resolveGoianiaLocalFirstCore(args: {
   quadra: string;
   lote: string;
   rua?: string;
+  originalAddress?: string | null;
 }): GoianiaLocalFirstShadow {
   if (!isGoianiaCity(args.city)) {
     return {
@@ -1699,31 +1714,82 @@ function resolveGoianiaLocalFirstCore(args: {
   const loteKey = normalizeKey(args.lote);
   const key = buildKey(args.bairro, args.quadra, args.lote);
 
-  if (!quadraKey || !loteKey) {
-    return negativeShadowResult({
-      matchType: "missing_parts",
-      reason: "missing_bairro_quadra_or_lote",
-      key,
+  const atheneuStreetLot = resolveParqueAtheneuStreetLotLocalFirst({
+    city: args.city,
+    bairro: args.bairro,
+    quadra: args.quadra,
+    lote: args.lote,
+    rua: args.rua || "",
+    originalAddress: args.originalAddress,
+  });
+
+  const attachAtheneuStreetLot = (result: GoianiaLocalFirstShadow): GoianiaLocalFirstShadow => ({
+    ...result,
+    parqueAtheneuStreetLotAttempted: atheneuStreetLot.attempted,
+    parqueAtheneuStreetLotFound: atheneuStreetLot.found,
+    parqueAtheneuStreetLotUsedAsFinal: false,
+    parqueAtheneuStreetLotKey: atheneuStreetLot.key,
+    parqueAtheneuStreetLotCandidatesCount: atheneuStreetLot.candidatesCount,
+    parqueAtheneuStreetLotStreetCompatibility: atheneuStreetLot.streetCompatibility,
+    parqueAtheneuStreetLotConfidence: atheneuStreetLot.confidence,
+    parqueAtheneuStreetLotBlockedReason: atheneuStreetLot.blockedReason,
+    parqueAtheneuStreetLotDistanceToStreetM: atheneuStreetLot.distanceToStreetM,
+  });
+
+  if (atheneuStreetLot.found && atheneuStreetLot.candidate) {
+    return attachAtheneuStreetLot({
+      attempted: true,
+      found: true,
+      matchType: "atheneu_street_lot_exact",
+      confidence: atheneuStreetLot.confidence,
+      distanceM: atheneuStreetLot.distanceToStreetM,
+      candidatesCount: 1,
+      reason: "LOCAL_GOIANIA_ATHENEU_STREET_LOT_EXACT",
+      key: atheneuStreetLot.key,
+      localFirstStreetCompatibility: atheneuStreetLot.streetCompatibility,
+      localFirstStreetScoreAdjustment: 0,
+      localFirstScoreBeforeStreet: null,
+      localFirstScoreAfterStreet: null,
+      localFirstStreetLabel: atheneuStreetLot.candidate.street,
+      candidate: {
+        bairro: "Atheneu",
+        quadra: "",
+        lote: atheneuStreetLot.candidate.lot,
+        streetLabel: atheneuStreetLot.candidate.street,
+        lat: atheneuStreetLot.candidate.lat,
+        lng: atheneuStreetLot.candidate.lng,
+        sourceIndex: atheneuStreetLot.candidate.sourceIndex,
+      },
     });
+  }
+
+  if (!quadraKey || !loteKey) {
+    return attachAtheneuStreetLot(negativeShadowResult({
+      matchType: "missing_parts",
+      reason: atheneuStreetLot.attempted && atheneuStreetLot.blockedReason
+        ? `atheneu_street_lot_${atheneuStreetLot.blockedReason.toLowerCase()}`
+        : "missing_bairro_quadra_or_lote",
+      key,
+    }));
   }
 
   if (!bairroKey) {
     if (compact(args.rua || "")) {
-      return lookupGoianiaRankingV2({
+      return attachAtheneuStreetLot(lookupGoianiaRankingV2({
         inputBairroKey: "",
         quadraKey,
         loteKey,
         rawLote: args.lote,
         inputStreet: args.rua,
         key,
-      });
+      }));
     }
 
-    return negativeShadowResult({
+    return attachAtheneuStreetLot(negativeShadowResult({
       matchType: "missing_parts",
       reason: "missing_bairro_quadra_or_lote",
       key,
-    });
+    }));
   }
 
   const originalResult = lookupGoianiaLocalFirstByKeys({
@@ -1759,14 +1825,14 @@ function resolveGoianiaLocalFirstCore(args: {
       fallbackResult.matchType === "compound_lot_canonical" ||
       fallbackResult.matchType === "compound_lot"
     ) {
-      return {
+      return attachAtheneuStreetLot({
         ...fallbackResult,
         matchType: "partition_fallback_exact",
         reason: "goiania_partition_fallback_exact",
         fallbackFrom: partitionFallback.from,
         fallbackTo: partitionFallback.to,
         fallbackStreetCompatibility: fallbackResult.localFirstStreetCompatibility ?? null,
-      };
+      });
     }
   }
 
@@ -1778,7 +1844,7 @@ function resolveGoianiaLocalFirstCore(args: {
       inputStreet: args.rua,
     });
 
-    if (structuralAliasResult) return structuralAliasResult;
+    if (structuralAliasResult) return attachAtheneuStreetLot(structuralAliasResult);
   }
 
   if (
@@ -1788,7 +1854,7 @@ function resolveGoianiaLocalFirstCore(args: {
     originalResult.matchType === "compound_lot_canonical" ||
     originalResult.matchType === "compound_lot"
   ) {
-    return originalResult;
+    return attachAtheneuStreetLot(originalResult);
   }
 
   const resolveRankingV2 = () =>
@@ -1802,7 +1868,7 @@ function resolveGoianiaLocalFirstCore(args: {
     });
 
   const bairroWithoutPrefix = stripBairroPrefix(bairroKey);
-  if (!bairroWithoutPrefix) return resolveRankingV2();
+  if (!bairroWithoutPrefix) return attachAtheneuStreetLot(resolveRankingV2());
 
   const prefixResult = lookupGoianiaLocalFirstByKeys({
     bairroKey: bairroWithoutPrefix,
@@ -1823,13 +1889,13 @@ function resolveGoianiaLocalFirstCore(args: {
     prefixResult.matchType === "compound_lot_canonical" ||
     prefixResult.matchType === "compound_lot"
   ) {
-    return prefixResult;
+    return attachAtheneuStreetLot(prefixResult);
   }
 
   const rankingV2Result = resolveRankingV2();
 
   if (rankingV2Result.found) {
-    return rankingV2Result;
+    return attachAtheneuStreetLot(rankingV2Result);
   }
 
   const aliasBairroResult = lookupGoianiaBairroAliasV1({
@@ -1840,14 +1906,14 @@ function resolveGoianiaLocalFirstCore(args: {
   });
 
   if (aliasBairroResult?.found) {
-    return aliasBairroResult;
+    return attachAtheneuStreetLot(aliasBairroResult);
   }
 
   if (rankingV2Result.rankingV2Attempted) {
-    return aliasBairroResult || rankingV2Result;
+    return attachAtheneuStreetLot(aliasBairroResult || rankingV2Result);
   }
 
-  return originalResult;
+  return attachAtheneuStreetLot(originalResult);
 }
 
 function isGoianiaPositiveMatchType(matchType: GoianiaLocalFirstMatchType) {
@@ -1860,7 +1926,8 @@ function isGoianiaPositiveMatchType(matchType: GoianiaLocalFirstMatchType) {
     matchType === "partition_fallback_exact" ||
     matchType === "structural_alias_exact" ||
     matchType === "alias_bairro_exact" ||
-    matchType === "ranking_v2_exact"
+    matchType === "ranking_v2_exact" ||
+    matchType === "atheneu_street_lot_exact"
   );
 }
 
@@ -1991,6 +2058,24 @@ function mapGoianiaLocalFirstValidation(
       rankingV21BlockedBecauseBairroConflict:
         result.rankingV21BlockedBecauseBairroConflict ?? false,
       rankingV2PartitionScan: result.rankingV2PartitionScan ?? null,
+      parqueAtheneuStreetLotAttempted:
+        result.parqueAtheneuStreetLotAttempted ?? false,
+      parqueAtheneuStreetLotFound:
+        result.parqueAtheneuStreetLotFound ?? false,
+      parqueAtheneuStreetLotUsedAsFinal:
+        result.parqueAtheneuStreetLotUsedAsFinal ?? false,
+      parqueAtheneuStreetLotKey:
+        result.parqueAtheneuStreetLotKey ?? null,
+      parqueAtheneuStreetLotCandidatesCount:
+        result.parqueAtheneuStreetLotCandidatesCount ?? 0,
+      parqueAtheneuStreetLotStreetCompatibility:
+        result.parqueAtheneuStreetLotStreetCompatibility ?? null,
+      parqueAtheneuStreetLotConfidence:
+        result.parqueAtheneuStreetLotConfidence ?? null,
+      parqueAtheneuStreetLotBlockedReason:
+        result.parqueAtheneuStreetLotBlockedReason ?? null,
+      parqueAtheneuStreetLotDistanceToStreetM:
+        result.parqueAtheneuStreetLotDistanceToStreetM ?? null,
       inputHadRua: args.inputHadRua,
       streetRequired: true,
     },
@@ -2003,6 +2088,7 @@ export function lookupGoianiaLocalFirstShadow(args: {
   quadra: string;
   lote: string;
   rua?: string;
+  originalAddress?: string | null;
 }): GoianiaLocalFirstShadow {
   if (!isGoianiaLocalFirstEnabled()) return disabledShadow();
   return resolveGoianiaLocalFirstCore(args);
@@ -2020,6 +2106,7 @@ export function resolveGoianiaLocalFirstCandidate(
       quadra: args.quadra,
       lote: args.lote,
       rua: args.rua ?? undefined,
+      originalAddress: args.originalAddress,
     }),
     { inputHadRua },
   );

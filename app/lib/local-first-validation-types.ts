@@ -17,6 +17,7 @@ export type LocalFirstCandidateValidationInput = {
   rua?: string | null;
   quadra: string;
   lote: string;
+  originalAddress?: string | null;
 };
 
 export type LocalFirstValidatedCandidate = {

@@ -430,6 +430,15 @@ type MemoryDebugRow = {
   localFirstGoianiaWouldBypass?: boolean;
   localFirstGoianiaBypassReason?: string | null;
   localFirstGoianiaUsedAsFinal?: boolean;
+  parqueAtheneuStreetLotAttempted?: boolean;
+  parqueAtheneuStreetLotFound?: boolean;
+  parqueAtheneuStreetLotUsedAsFinal?: boolean;
+  parqueAtheneuStreetLotKey?: string | null;
+  parqueAtheneuStreetLotCandidatesCount?: number;
+  parqueAtheneuStreetLotStreetCompatibility?: GoianiaStreetComparison | null;
+  parqueAtheneuStreetLotConfidence?: "HIGH" | null;
+  parqueAtheneuStreetLotBlockedReason?: string | null;
+  parqueAtheneuStreetLotDistanceToStreetM?: number | null;
   goianiaJardimCerradoRegional?: JardimCerradoRegionalDebug;
   goianiaJardimCerradoRegionalApplied?: boolean;
   goianiaJardimCerradoRegionalUsedAsFinal?: boolean;
@@ -3262,6 +3271,7 @@ async function processOne(
     quadra: normalized.quadra,
     lote: normalized.lote,
     rua: normalized.rua,
+    originalAddress: addressRaw,
   });
   const localFirstGoianiaCandidate = localFirstGoianiaShadow.candidate;
   let localFirstGoianiaCandidateEligible = false;
@@ -3289,10 +3299,11 @@ async function processOne(
 
   const resolveGoianiaLocalFirstBypassReason = () => {
     const cityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
+    const isAtheneuStreetLotExact = localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact";
     if (!cityKey.includes("GOIANIA") || cityKey.includes("APARECIDA")) return "CITY_NOT_GOIANIA";
     if (!(normalized.bairro || bairroIn)) return "MISSING_BAIRRO";
-    if (!normalized.quadra) return "MISSING_QUADRA";
-    if (!normalized.lote) return "MISSING_LOTE";
+    if (!normalized.quadra && !isAtheneuStreetLotExact) return "MISSING_QUADRA";
+    if (!normalized.lote && !isAtheneuStreetLotExact) return "MISSING_LOTE";
     if (localFirstGoianiaShadow.matchType === "same_quadra") return "SAME_QUADRA";
     if (localFirstGoianiaShadow.matchType === "missing_parts") return "MISSING_PARTS";
     if (localFirstGoianiaShadow.matchType === "bairro_not_found") return "BAIRRO_NOT_FOUND";
@@ -3326,7 +3337,8 @@ async function processOne(
       localFirstGoianiaShadow.matchType !== "partition_fallback_exact" &&
       localFirstGoianiaShadow.matchType !== "structural_alias_exact" &&
       localFirstGoianiaShadow.matchType !== "alias_bairro_exact" &&
-      localFirstGoianiaShadow.matchType !== "ranking_v2_exact"
+      localFirstGoianiaShadow.matchType !== "ranking_v2_exact" &&
+      localFirstGoianiaShadow.matchType !== "atheneu_street_lot_exact"
     ) {
       return "NO_LOCAL_CANDIDATE";
     }
@@ -3354,6 +3366,14 @@ async function processOne(
         return "NO_LOCAL_CANDIDATE";
       }
       if ((localFirstGoianiaShadow.rankingV2CandidatesCount ?? 0) < 1) {
+        return "NO_LOCAL_CANDIDATE";
+      }
+    }
+    if (localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact") {
+      if (localFirstGoianiaShadow.parqueAtheneuStreetLotStreetCompatibility !== "STREET_MATCH") {
+        return "NO_LOCAL_CANDIDATE";
+      }
+      if (localFirstGoianiaShadow.parqueAtheneuStreetLotCandidatesCount !== 1) {
         return "NO_LOCAL_CANDIDATE";
       }
     }
@@ -3386,7 +3406,8 @@ async function processOne(
   localFirstGoianiaWouldBypass = localFirstGoianiaBypassReason === "WOULD_BYPASS";
   const localFirstGoianiaCanFinalizeWithoutFlag =
     goianiaRankingV2FinalEnabled &&
-    localFirstGoianiaShadow.matchType === "ranking_v2_exact" &&
+    (localFirstGoianiaShadow.matchType === "ranking_v2_exact" ||
+      localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact") &&
     localFirstGoianiaWouldBypass;
   localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
   if (isLocalFirstAliasShadowEnabled() && runState && !localFirstGoianiaWouldBypass) {
@@ -3551,10 +3572,13 @@ async function processOne(
   ) {
     const localCandidateLat = localFirstGoianiaCandidate.lat as number;
     const localCandidateLng = localFirstGoianiaCandidate.lng as number;
+    const localCandidateQuadraLabel = localFirstGoianiaCandidate.quadra
+      ? `Quadra ${localFirstGoianiaCandidate.quadra}`
+      : "";
     const localAddressLabel = cleanAddressForHere(
       [
         localFirstGoianiaCandidate.streetLabel || normalized.rua || "Goiânia",
-        `Quadra ${localFirstGoianiaCandidate.quadra}`,
+        localCandidateQuadraLabel,
         `Lote ${localFirstGoianiaCandidate.lote}`,
         localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn,
         normalized.cidade || cityIn || "Goiânia",
@@ -3589,7 +3613,10 @@ async function processOne(
     finalRankedKind = "local";
     lat = localCandidateLat;
     lng = localCandidateLng;
-    decisionReason = "LOCAL_GOIANIA_FIRST_SAFE_BYPASS";
+    decisionReason =
+      localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact"
+        ? "LOCAL_GOIANIA_ATHENEU_STREET_LOT_EXACT"
+        : "LOCAL_GOIANIA_FIRST_SAFE_BYPASS";
     localFirstBypassHere = true;
     localFirstGoianiaUsedAsFinal = true;
   }
@@ -4824,10 +4851,15 @@ async function processOne(
   }
 
   const bestScore = bestHereScore;
+  const parqueAtheneuResolvedLote =
+    localFirstGoianiaUsedAsFinal &&
+    localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact"
+      ? localFirstGoianiaCandidate?.lote || ""
+      : "";
 
  // 4) Aparecida: usa seu mapa real (ArcGIS) pra quadra/lote/bairro (só se tiver lat/lng)
 let quadraAuto = normalized.quadra || "";
-let loteAuto = normalized.lote || "";
+let loteAuto = normalized.lote || parqueAtheneuResolvedLote || "";
 let bairroAuto = normalized.bairro || bairroIn || "";
 
 if (goianiaJardimCerradoRegional.applied && goianiaJardimCerradoRegional.candidate) {
@@ -4992,8 +5024,21 @@ if (
     }
   }
 
+const goianiaAtheneuStreetLotOk =
+  localFirstGoianiaUsedAsFinal &&
+  localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact" &&
+  !!normalized.rua &&
+  !!loteAuto &&
+  lat != null &&
+  lng != null;
+
 // ✅ Para endereços normais: se faltar algo, rebaixa para PARCIAL
-if (!aptLike && status === "OK" && (!normalized.rua || !quadraAuto || !loteAuto || lat == null || lng == null)) {
+if (
+  !aptLike &&
+  status === "OK" &&
+  !goianiaAtheneuStreetLotOk &&
+  (!normalized.rua || !quadraAuto || !loteAuto || lat == null || lng == null)
+) {
   status = "PARCIAL";
 }
 
@@ -5058,6 +5103,7 @@ if (status === "OK") {
   const strictHereValidatedOk = decisionReason === "OK_HERE_STRICT_STREET_NUMBER";
   const missingCore =
     !goianiaVerticalCondoOK &&
+    !goianiaAtheneuStreetLotOk &&
     (!normalized.rua ||
       (!buildingValidatedOk && !strictHereValidatedOk && !quadraAuto) ||
       (!buildingValidatedOk && !strictHereValidatedOk && !loteAuto) ||
@@ -5375,10 +5421,13 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
   const localCandidateLat = localFirstGoianiaCandidate.lat as number;
   const localCandidateLng = localFirstGoianiaCandidate.lng as number;
   const localCandidateDistanceM = localFirstGoianiaShadow.distanceM as number;
+  const localCandidateQuadraLabel = localFirstGoianiaCandidate.quadra
+    ? `Quadra ${localFirstGoianiaCandidate.quadra}`
+    : "";
   const localAddressLabel = cleanAddressForHere(
     [
       localFirstGoianiaCandidate.streetLabel || normalized.rua || "Goiânia",
-      `Quadra ${localFirstGoianiaCandidate.quadra}`,
+      localCandidateQuadraLabel,
       `Lote ${localFirstGoianiaCandidate.lote}`,
       localFirstGoianiaCandidate.bairro || normalized.bairro || bairroIn,
       normalized.cidade || cityIn || "Goiânia",
@@ -5433,7 +5482,8 @@ if (localFirstGoianiaCandidateEligible && localFirstGoianiaCandidate) {
       localFirstGoianiaShadow.matchType === "partition_fallback_exact" ||
       localFirstGoianiaShadow.matchType === "structural_alias_exact" ||
       localFirstGoianiaShadow.matchType === "alias_bairro_exact" ||
-      localFirstGoianiaShadow.matchType === "ranking_v2_exact"
+      localFirstGoianiaShadow.matchType === "ranking_v2_exact" ||
+      localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact"
         ? 10
         : 0
     ) +
@@ -5584,6 +5634,25 @@ if (shouldAutoSaveAddressMemory) {
           localFirstGoianiaShadow.rankingV2PartitionScan?.streetFallbackPartitionsCount ?? 0,
         rankingV2StreetFallbackPartitionKeys:
           localFirstGoianiaShadow.rankingV2PartitionScan?.streetFallbackPartitionKeys ?? [],
+        parqueAtheneuStreetLotAttempted:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotAttempted ?? false,
+        parqueAtheneuStreetLotFound:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotFound ?? false,
+        parqueAtheneuStreetLotUsedAsFinal:
+          localFirstGoianiaUsedAsFinal &&
+          localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact",
+        parqueAtheneuStreetLotKey:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotKey ?? null,
+        parqueAtheneuStreetLotCandidatesCount:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotCandidatesCount ?? 0,
+        parqueAtheneuStreetLotStreetCompatibility:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotStreetCompatibility ?? null,
+        parqueAtheneuStreetLotConfidence:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotConfidence ?? null,
+        parqueAtheneuStreetLotBlockedReason:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotBlockedReason ?? null,
+        parqueAtheneuStreetLotDistanceToStreetM:
+          localFirstGoianiaShadow.parqueAtheneuStreetLotDistanceToStreetM ?? null,
         inferredQdLt: !!normalized.inferredQdLt,
         inferredPattern: normalized.inferredPattern ?? null,
         parserRule: normalized.parserRule ?? null,
@@ -5930,7 +5999,9 @@ if (shouldAutoSaveAddressMemory) {
     : goianiaJardimCerradoRegionalUsedAsFinal
       ? "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
-      ? "LOCALFIRST_GOIANIA"
+      ? localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact"
+        ? "LOCALFIRST_GOIANIA_ATHENEU_STREET_LOT"
+        : "LOCALFIRST_GOIANIA"
       : memoryHit
         ? "MEMORY"
         : finalRankedKind === "discover"
@@ -5941,7 +6012,9 @@ if (shouldAutoSaveAddressMemory) {
     : goianiaJardimCerradoRegionalUsedAsFinal
       ? goianiaJardimCerradoRegional.matchType || "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
-      ? "LOCALFIRST_GOIANIA"
+      ? localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact"
+        ? "LOCAL_GOIANIA_ATHENEU_STREET_LOT"
+        : "LOCALFIRST_GOIANIA"
       : memoryHit
         ? "MEMORY"
       : finalRankedKind === "discover"
