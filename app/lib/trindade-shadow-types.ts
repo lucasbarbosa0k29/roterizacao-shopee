@@ -51,6 +51,13 @@ export type TrindadeStreetBairroResolution = {
   usedAlias: boolean;
   streetAliasUsed?: boolean;
   bairroAliasUsed?: boolean;
+  bairroStructuralAliasUsed?: boolean;
+  bairroStructuralInput?: string | null;
+  bairroStructuralKey?: string | null;
+  bairroStructuralCanonical?: string | null;
+  bairroStructuralCandidatesCount?: number;
+  bairroStructuralRule?: string | null;
+  bairroStructuralCollision?: boolean;
   exactStreetMatch?: boolean;
   exactBairroMatch?: boolean;
   uniqueCandidate?: boolean;

@@ -60,6 +60,23 @@ type TrindadeAliasesFile = {
   [key: string]: unknown;
 };
 
+type BairroStructuralAliasIndex = {
+  unique: Map<string, LocalFirstRecord>;
+  collisions: Map<string, LocalFirstRecord[]>;
+  generatedKeysCount: number;
+};
+
+type BairroResolution = {
+  record: LocalFirstRecord | null;
+  structuralAliasUsed: boolean;
+  structuralInput: string | null;
+  structuralKey: string | null;
+  structuralCanonical: string | null;
+  structuralCandidatesCount: number;
+  structuralRule: string | null;
+  structuralCollision: boolean;
+};
+
 type LoadedTrindadeLocalFirst = {
   manifest: Record<string, unknown> | null;
   lotes: LocalFirstIndex | null;
@@ -84,6 +101,7 @@ const cache: LoadedTrindadeLocalFirst = {
 
 const nameIndexCache = {
   bairros: null as Map<string, LocalFirstRecord> | null,
+  bairroStructural: null as BairroStructuralAliasIndex | null,
   loteamentos: null as Map<string, LocalFirstRecord> | null,
   logradouros: null as Map<string, LocalFirstRecord[]> | null,
 };
@@ -98,6 +116,8 @@ export function getTrindadeLocalFirstCacheSnapshot() {
     loaded: !!cache.manifest || !!cache.lotes || !!cache.quadras || !!cache.logradouros || !!cache.bairros || !!cache.loteamentos || !!cache.aliases,
     nameIndexSizes: {
       bairros: nameIndexCache.bairros?.size ?? 0,
+      bairroStructuralUnique: nameIndexCache.bairroStructural?.unique.size ?? 0,
+      bairroStructuralCollisions: nameIndexCache.bairroStructural?.collisions.size ?? 0,
       loteamentos: nameIndexCache.loteamentos?.size ?? 0,
       logradouros: nameIndexCache.logradouros?.size ?? 0,
     },
@@ -389,6 +409,163 @@ function applyBairroAliases(index: Map<string, LocalFirstRecord>) {
     if (existing && existing !== target) continue;
     if (!existing) index.set(aliasKey, target);
   }
+}
+
+function getBairroCanonicalName(record: LocalFirstRecord | null | undefined) {
+  return normalizeBairroAliasKey(String(record?.name?.nmbairro || record?.normalizedKey || ""));
+}
+
+function getBairroRecordIdentity(record: LocalFirstRecord) {
+  return record.key || preserveCode(record.id || record.code?.idbairro || record.code?.cdbairro || "");
+}
+
+function addBairroParkParqueVariants(keys: Set<string>, value: string) {
+  if (/\bPARK\b/.test(value)) keys.add(value.replace(/\bPARK\b/g, "PARQUE"));
+  if (/\bPARQUE\b/.test(value)) keys.add(value.replace(/\bPARQUE\b/g, "PARK"));
+}
+
+function expandBairroStructuralAbbreviations(value: string) {
+  return value
+    .replace(/\bRESID\b/g, "RESIDENCIAL")
+    .replace(/\bCOND\b/g, "CONDOMINIO")
+    .replace(/\bJD\b/g, "JARDIM")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildBairroStructuralAliasKeys(record: LocalFirstRecord) {
+  const base = getBairroCanonicalName(record);
+  const keys = new Set<string>();
+  if (!base) return keys;
+
+  keys.add(base);
+  const prefixStripped = base.replace(/^(?:SETOR RESIDENCIAL|SETOR|RESIDENCIAL)\s+/, "").trim();
+  if (prefixStripped && prefixStripped !== base) keys.add(prefixStripped);
+
+  for (const key of [...keys]) {
+    addBairroParkParqueVariants(keys, key);
+  }
+  for (const key of [...keys]) {
+    const expanded = expandBairroStructuralAbbreviations(key);
+    if (expanded && expanded !== key) keys.add(expanded);
+  }
+  for (const key of [...keys]) {
+    addBairroParkParqueVariants(keys, key);
+  }
+
+  return keys;
+}
+
+function addUniqueBairroRecord(records: LocalFirstRecord[], record: LocalFirstRecord) {
+  const key = getBairroRecordIdentity(record);
+  if (!key) return;
+  if (!records.some((existing) => getBairroRecordIdentity(existing) === key)) records.push(record);
+}
+
+function addProtectedPrefixCollisions(buckets: Map<string, LocalFirstRecord[]>) {
+  const protectedPrefixes = ["VILA", "JARDIM", "CHACARA", "CONDOMINIO", "LOTEAMENTO"];
+  const canonicalByName = new Map<string, LocalFirstRecord>();
+  for (const record of getRecords(cache.bairros)) {
+    const canonical = getBairroCanonicalName(record);
+    if (canonical && !canonicalByName.has(canonical)) canonicalByName.set(canonical, record);
+  }
+
+  for (const [key, records] of buckets) {
+    if (!key) continue;
+    for (const prefix of protectedPrefixes) {
+      const protectedRecord = canonicalByName.get(`${prefix} ${key}`) || null;
+      if (protectedRecord) addUniqueBairroRecord(records, protectedRecord);
+    }
+  }
+}
+
+function buildBairroStructuralAliasIndex(): BairroStructuralAliasIndex {
+  if (nameIndexCache.bairroStructural) return nameIndexCache.bairroStructural;
+  ensureLoaded();
+
+  const buckets = new Map<string, LocalFirstRecord[]>();
+  let generatedKeysCount = 0;
+  for (const record of getRecords(cache.bairros)) {
+    for (const key of buildBairroStructuralAliasKeys(record)) {
+      const bucket = buckets.get(key) || [];
+      addUniqueBairroRecord(bucket, record);
+      buckets.set(key, bucket);
+      generatedKeysCount += 1;
+    }
+  }
+  addProtectedPrefixCollisions(buckets);
+
+  const unique = new Map<string, LocalFirstRecord>();
+  const collisions = new Map<string, LocalFirstRecord[]>();
+  for (const [key, records] of buckets) {
+    if (records.length === 1) unique.set(key, records[0]);
+    if (records.length > 1) collisions.set(key, records);
+  }
+
+  nameIndexCache.bairroStructural = { unique, collisions, generatedKeysCount };
+  return nameIndexCache.bairroStructural;
+}
+
+function emptyBairroResolution(record: LocalFirstRecord | null = null): BairroResolution {
+  return {
+    record,
+    structuralAliasUsed: false,
+    structuralInput: null,
+    structuralKey: null,
+    structuralCanonical: null,
+    structuralCandidatesCount: 0,
+    structuralRule: null,
+    structuralCollision: false,
+  };
+}
+
+function getBairroStructuralDebug(resolution: BairroResolution) {
+  return {
+    bairroStructuralAliasUsed: resolution.structuralAliasUsed,
+    bairroStructuralInput: resolution.structuralInput,
+    bairroStructuralKey: resolution.structuralKey,
+    bairroStructuralCanonical: resolution.structuralCanonical,
+    bairroStructuralCandidatesCount: resolution.structuralCandidatesCount,
+    bairroStructuralRule: resolution.structuralRule,
+    bairroStructuralCollision: resolution.structuralCollision,
+  };
+}
+
+function resolveBairroByName(inputBairro: string): BairroResolution {
+  const normalized = normalizeBairroAliasKey(inputBairro);
+  if (!normalized) return emptyBairroResolution();
+
+  const manualOrExactRecord = buildBairroNameIndex().get(normalized) || null;
+  if (manualOrExactRecord) return emptyBairroResolution(manualOrExactRecord);
+
+  const structuralIndex = buildBairroStructuralAliasIndex();
+  const collision = structuralIndex.collisions.get(normalized) || null;
+  if (collision) {
+    return {
+      record: null,
+      structuralAliasUsed: false,
+      structuralInput: inputBairro,
+      structuralKey: normalized,
+      structuralCanonical: null,
+      structuralCandidatesCount: collision.length,
+      structuralRule: "bairro_structural_alias_v1",
+      structuralCollision: true,
+    };
+  }
+
+  const structuralRecord = structuralIndex.unique.get(normalized) || null;
+  if (!structuralRecord) return emptyBairroResolution();
+
+  return {
+    record: structuralRecord,
+    structuralAliasUsed: true,
+    structuralInput: inputBairro,
+    structuralKey: normalized,
+    structuralCanonical: getBairroCanonicalName(structuralRecord),
+    structuralCandidatesCount: 1,
+    structuralRule: "bairro_structural_alias_v1",
+    structuralCollision: false,
+  };
 }
 
 function uniqueLogradouroRecords(records: LocalFirstRecord[]) {
@@ -926,15 +1103,15 @@ function findBairroCandidate(input: ReturnType<typeof normalizeTrindadeInput>) {
     };
   }
 
-  const nameIndex = buildBairroNameIndex();
-  const byName = nameIndex.get(normalizeBairroAliasKey(input.bairro)) || null;
-  if (byName) {
+  const bairroResolution = resolveBairroByName(input.bairro);
+  if (bairroResolution.record) {
     return {
-      record: byName,
+      record: bairroResolution.record,
       matchedLayer: "bairros" as const,
       fallbackUsed: true,
-      reason: "bairro alias/name fallback",
-      key: byName.key,
+      reason: bairroResolution.structuralAliasUsed ? "bairro structural alias fallback" : "bairro alias/name fallback",
+      key: bairroResolution.record.key,
+      ...getBairroStructuralDebug(bairroResolution),
     };
   }
 
@@ -995,6 +1172,8 @@ function buildStreetBairroResolution(
   const streetTypeAliasUsed =
     !!input.rawTipologradouro &&
     normalizeStreetType(input.rawTipologradouro) !== normalizeText(input.rawTipologradouro);
+  const bairroResolution = normalizedBairro ? resolveBairroByName(input.bairro) : emptyBairroResolution();
+  const bairroStructuralDebug = getBairroStructuralDebug(bairroResolution);
 
   if (!normalizedStreet) {
     return {
@@ -1011,6 +1190,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: false,
       exactBairroMatch: false,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "missing normalized street",
     };
   }
@@ -1042,6 +1222,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: false,
       exactBairroMatch: false,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "no street candidate",
     };
   }
@@ -1061,16 +1242,14 @@ function buildStreetBairroResolution(
       exactStreetMatch: !streetTypeAliasUsed,
       exactBairroMatch: false,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "missing bairro",
     };
   }
 
-  const bairroIndex = buildBairroNameIndex();
-  const bairroRecord = bairroIndex.get(normalizedBairro) || null;
-  const canonicalBairroName = normalizeBairroAliasKey(
-    String(bairroRecord?.name?.nmbairro || bairroRecord?.normalizedKey || ""),
-  );
-  const bairroAliasUsed = !!bairroRecord && canonicalBairroName !== normalizedBairro;
+  const bairroRecord = bairroResolution.record;
+  const canonicalBairroName = getBairroCanonicalName(bairroRecord);
+  const bairroAliasUsed = !!bairroRecord && (canonicalBairroName !== normalizedBairro || bairroResolution.structuralAliasUsed);
   const bairroId = preserveCode(bairroRecord?.code?.idbairro || bairroRecord?.id || "");
 
   const pairCandidates = streetCandidates.filter((record) => {
@@ -1100,6 +1279,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: !streetTypeAliasUsed,
       exactBairroMatch: !bairroAliasUsed,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "street candidate without bairro pair",
     };
   }
@@ -1120,6 +1300,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: !streetTypeAliasUsed,
       exactBairroMatch: !bairroAliasUsed,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "ambiguous street+bairro candidates",
     };
   }
@@ -1145,6 +1326,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: !streetTypeAliasUsed,
       exactBairroMatch: false,
       uniqueCandidate: false,
+      ...bairroStructuralDebug,
       reason: "bairro alias without quadra lote",
     };
   }
@@ -1164,6 +1346,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: true,
       exactBairroMatch: true,
       uniqueCandidate: true,
+      ...bairroStructuralDebug,
       reason: "exact rua+bairro unique candidate",
     };
   }
@@ -1183,6 +1366,7 @@ function buildStreetBairroResolution(
       exactStreetMatch: !streetTypeAliasUsed,
       exactBairroMatch: !bairroAliasUsed,
       uniqueCandidate: true,
+      ...bairroStructuralDebug,
       reason: "unique candidate but weak relation",
     };
   }
@@ -1201,6 +1385,7 @@ function buildStreetBairroResolution(
     exactStreetMatch: !streetTypeAliasUsed,
     exactBairroMatch: !bairroAliasUsed,
     uniqueCandidate: true,
+    ...bairroStructuralDebug,
     reason: streetTypeAliasUsed
       ? "street alias with exact bairro"
       : "exact street with bairro alias",
