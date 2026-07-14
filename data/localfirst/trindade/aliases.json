@@ -165,6 +165,54 @@
     },
     {
       "type": "bairro",
+      "input": "GUARUJA PARK",
+      "normalized": "GUARUJA PARK",
+      "value": "SETOR GUARUJA PARK",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "LAGUNA PARK",
+      "normalized": "LAGUNA PARK",
+      "value": "SETOR LAGUNA PARK",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "bairro",
+      "input": "LAGUNA PARQUE",
+      "normalized": "LAGUNA PARQUE",
+      "value": "SETOR LAGUNA PARK",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "RUA DOUTOR MOACYR RIBEIRO DE FREITAS",
+      "normalized": "RUA DOUTOR MOACYR RIBEIRO DE FREITAS",
+      "value": "RUA DR MOACYR RIBEIRO DE FREITAS",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "RUA URIAS A NEVES",
+      "normalized": "RUA URIAS A NEVES",
+      "value": "RUA URIAS ALVARENGA NEVES",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "logradouro",
+      "input": "RUA ANTONIO ALGUSTO DE MELO",
+      "normalized": "RUA ANTONIO ALGUSTO DE MELO",
+      "value": "RUA ANTONIO AUGUSTO DE MELO",
+      "confidence": 0.95,
+      "notes": "trindade gearlinson audit safe"
+    },
+    {
+      "type": "bairro",
       "input": "JARDIM IMPERIAL 2",
       "normalized": "JARDIM IMPERIAL 2",
       "value": "JARDIM IMPERIAL",

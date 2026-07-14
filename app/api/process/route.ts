@@ -1130,6 +1130,10 @@ type QuadraLoteSmartResult = {
   parserInputOriginal?: string | null;
 };
 
+type TrindadeCompactDdQuadraLoteResult = QuadraLoteSmartResult & {
+  rua: string;
+};
+
 function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
   return {
     quadra: "",
@@ -1141,6 +1145,44 @@ function emptyQuadraLoteSmartResult(): QuadraLoteSmartResult {
     parserConfidence: null,
     campoOrigem: null,
     parserInputOriginal: null,
+  };
+}
+
+function extractTrindadeCompactDdQuadraLote(raw: string): TrindadeCompactDdQuadraLoteResult | null {
+  const text = String(raw || "").trim();
+  if (!text) return null;
+
+  const match = text.match(
+    /\b((?:RUA|R\.?|AVENIDA|AV\.?|AV|ALAMEDA|TRAVESSA|TV\.?|TV|VIELA|VIA)\s+.*?\d[A-Z]?)\s*DD\s*([0-9]{1,4}[A-Z]?)\s*LT\.?\s*([0-9]{1,4}[A-Z]?)\b/i,
+  );
+  if (!match) return null;
+
+  const rua = String(match[1] || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^RUA\b/i, "Rua")
+    .replace(/^R\.?\b/i, "R")
+    .replace(/^AVENIDA\b/i, "Avenida")
+    .replace(/^AV\.?\b/i, "Av.")
+    .replace(/^ALAMEDA\b/i, "Alameda")
+    .replace(/^TRAVESSA\b/i, "Travessa")
+    .replace(/^TV\.?\b/i, "Tv.")
+    .replace(/^VIELA\b/i, "Viela")
+    .replace(/^VIA\b/i, "Via");
+
+  if (!rua) return null;
+
+  return {
+    rua,
+    quadra: String(match[2] || "").toUpperCase().replace(/[^A-Z0-9\-]/g, ""),
+    lote: String(match[3] || "").toUpperCase().replace(/[^A-Z0-9\-]/g, ""),
+    inferredQdLt: false,
+    inferredPattern: null,
+    parserRule: "trindade_compact_dd_qd_lt",
+    parserSource: "address",
+    parserConfidence: "HIGH",
+    campoOrigem: "address",
+    parserInputOriginal: text,
   };
 }
 
@@ -2887,6 +2929,10 @@ async function processOne(
   const rx = extractByRegex(addressRaw);
   const localRuaBeforeGemini = stripQuadraLoteFromStreet(rx.rua || "").trim();
   const cityForGeminiSkipKey = normalizeKey(cityIn);
+  const isTrindadeForLocalParser = cityForGeminiSkipKey.includes("TRINDADE");
+  const trindadeCompactDdParser = isTrindadeForLocalParser
+    ? extractTrindadeCompactDdQuadraLote(addressRaw)
+    : null;
   const isGoianiaForGeminiSkip =
     cityForGeminiSkipKey.includes("GOIANIA") &&
     !cityForGeminiSkipKey.includes("APARECIDA");
@@ -2912,7 +2958,7 @@ async function processOne(
   });
 
   // 1.1) fallback regex se Gemini falhar
- const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || "").trim();
+  const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || trindadeCompactDdParser?.rua || "").trim();
 
   const complementoIn = pickContextText(row, [
     "Complemento",
@@ -2988,12 +3034,12 @@ async function processOne(
     smartQL.parserRule?.startsWith("context_qd_lt_conflict_")
       ? smartQL
       : smartQL.quadra && smartQL.lote
-      ? smartQL
-      : bairroSmartQL.quadra && bairroSmartQL.lote
-        ? bairroSmartQL
-        : obsSmartQL.quadra && obsSmartQL.lote
-          ? { ...obsSmartQL, parserSource: "observacao" }
-          : emptyQuadraLoteSmartResult();
+        ? smartQL
+        : bairroSmartQL.quadra && bairroSmartQL.lote
+          ? bairroSmartQL
+          : obsSmartQL.quadra && obsSmartQL.lote
+            ? { ...obsSmartQL, parserSource: "observacao" }
+            : trindadeCompactDdParser ?? emptyQuadraLoteSmartResult();
   const contextParserConflict = smartQL.parserRule?.startsWith("context_qd_lt_conflict_") ?? false;
   const invalidGoianiaParserValue = (value: string) =>
     isGoianiaForGeminiSkip && /^(?:OTE|LTE|LT|L|LOTE|E)$/i.test(String(value || "").trim());
@@ -3032,18 +3078,18 @@ async function processOne(
     contextParserConflict
       ? ""
       : mergeParserCandidateValue(smartQL.quadra, bairroSmartQL.quadra, obsSmartQL.quadra),
-    rx.quadra || "",
+    rx.quadra || trindadeCompactDdParser?.quadra || "",
   ).trim();
   const finalLote = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
     contextParserConflict
       ? ""
       : mergeParserCandidateValue(smartQL.lote, bairroSmartQL.lote, obsSmartQL.lote),
-    rx.lote || "",
+    rx.lote || trindadeCompactDdParser?.lote || "",
   ).trim();
 
   const finalParserDebug =
-    isGoianiaForGeminiSkip &&
+    (isGoianiaForGeminiSkip || !!trindadeCompactDdParser) &&
     ((finalQuadra && finalLote) || smartParserSource.parserRule?.startsWith("context_qd_lt_conflict_"))
       ? {
           inferredQdLt: !!smartParserSource.inferredQdLt,

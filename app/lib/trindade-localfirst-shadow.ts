@@ -391,18 +391,29 @@ function applyBairroAliases(index: Map<string, LocalFirstRecord>) {
   }
 }
 
+function uniqueLogradouroRecords(records: LocalFirstRecord[]) {
+  const unique = new Map<string, LocalFirstRecord>();
+  for (const record of records) {
+    const key = record.key || String(record.id || "");
+    if (!key) continue;
+    unique.set(key, record);
+  }
+  return [...unique.values()];
+}
+
 function applyLogradouroAliases(index: Map<string, LocalFirstRecord[]>) {
   for (const alias of getTopLevelAliases("logradouro")) {
     const aliasKey = resolveLogradouroAliasKey(alias);
     const targetKey = resolveLogradouroTargetKey(alias);
     if (!aliasKey || !targetKey) continue;
 
-    const targetBucket = index.get(targetKey) || [];
+    const targetBucket = uniqueLogradouroRecords(index.get(targetKey) || []);
     if (targetBucket.length !== 1) continue;
 
     const target = targetBucket[0];
     const existingBucket = index.get(aliasKey) || null;
-    if (existingBucket && (existingBucket.length !== 1 || existingBucket[0] !== target)) continue;
+    const existingUniqueBucket = existingBucket ? uniqueLogradouroRecords(existingBucket) : null;
+    if (existingUniqueBucket && (existingUniqueBucket.length !== 1 || existingUniqueBucket[0] !== target)) continue;
     if (!existingBucket) index.set(aliasKey, [target]);
   }
 }
@@ -1118,6 +1129,25 @@ function buildStreetBairroResolution(
   const candidateTipologradouro = preserveCode(candidate.name?.tipologradouro || "");
   const candidateWeak = !!candidate.relation?.weak || !!candidate.relation?.fallbackRequired;
   const usedAlias = streetTypeAliasUsed || bairroAliasUsed;
+
+  if (bairroAliasUsed && normalizedBairro === "GUARUJA PARK" && !input.quadra && !input.lote) {
+    return {
+      level: "NONE",
+      cdlogradouro: null,
+      tipologradouro: null,
+      bairroKey: null,
+      normalizedStreet,
+      normalizedBairro,
+      candidatesCount: 0,
+      usedAlias,
+      streetAliasUsed: streetTypeAliasUsed,
+      bairroAliasUsed,
+      exactStreetMatch: !streetTypeAliasUsed,
+      exactBairroMatch: false,
+      uniqueCandidate: false,
+      reason: "bairro alias without quadra lote",
+    };
+  }
 
   if (!usedAlias && !candidateWeak) {
     return {
