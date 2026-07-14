@@ -23,6 +23,7 @@ import {
 import {
   computeGeocodeConfidence,
   type GeocodeConfidenceLevel,
+  type GeocodeConfidenceResult,
 } from "@/app/lib/geocode-confidence";
 import {
   incrementDailyMetric,
@@ -668,6 +669,174 @@ function isStrictHereHouseNumberAddressMatch(params: {
   }
 
   return normalizedIncludesEitherStrict(wantStreet, hereStreet);
+}
+
+function isHereHouseNumberGenericDistrictValid(params: {
+  bestItem: any;
+  normalized: any;
+  cityForDecision: string;
+  cepIn: string;
+  geocodeConfidenceFlags: string[];
+  lat: number | null;
+  lng: number | null;
+}) {
+  if (params.lat == null || params.lng == null) return false;
+  if (!normalizeKey(params.cityForDecision || "").includes("TRINDADE")) return false;
+  const flags = new Set(params.geocodeConfidenceFlags || []);
+
+  const hereAddress = params.bestItem?.address || {};
+  const hereHouseNumber = extractConservativeHereHouseNumber(hereAddress, params.bestItem);
+  const hereNumber = normalizeKey(String(hereHouseNumber.number || ""));
+  const wantNumber = normalizeKey(String(params.normalized?.numero || ""));
+  const hereResultType = normalizeKey(String(params.bestItem?.resultType || ""));
+  if (hereResultType !== "HOUSENUMBER" || !hereHouseNumber.confirmed || !hereNumber || hereNumber !== wantNumber) {
+    return false;
+  }
+
+  const hereCity = String(
+    hereAddress?.city ||
+      hereAddress?.county ||
+      hereAddress?.address?.city ||
+      hereAddress?.address?.county ||
+      "",
+  );
+  if (!normalizedIncludesEitherStrict(params.cityForDecision, hereCity)) return false;
+
+  const wantStreet = String(params.normalized?.rua || "");
+  const hereStreet = String(hereAddress?.street || hereAddress?.address?.street || "");
+  if (!wantStreet || !hereStreet || (!normalizedIncludesEitherStrict(wantStreet, hereStreet) && !flags.has("RUA_EXACT"))) {
+    return false;
+  }
+
+  const wantCep = onlyDigits(params.normalized?.cep || params.cepIn || "");
+  const hereCep = onlyDigits(hereAddress?.postalCode || hereAddress?.address?.postalCode || "");
+  if (!wantCep || !hereCep || wantCep !== hereCep) return false;
+
+  const hereBairro = String(
+    hereAddress?.district ||
+      hereAddress?.subdistrict ||
+      hereAddress?.address?.district ||
+      hereAddress?.address?.subdistrict ||
+      "",
+  );
+  const cityAsDistrict = normalizedIncludesEitherStrict(params.cityForDecision, hereBairro);
+  if (!cityAsDistrict) return false;
+
+  const allowedFlags = new Set([
+    "SOURCE_HERE_GEOCODE",
+    "HAS_COORDS",
+    "RUA_EXACT",
+    "RUA_PARTIAL",
+    "CIDADE_MATCH",
+    "BAIRRO_MISMATCH",
+    "CEP_MATCH",
+    "NO_QUADRA",
+    "NO_LOTE",
+    "HAS_QUADRA",
+    "HAS_LOTE",
+    "RESULT_HOUSENUMBER",
+  ]);
+  for (const flag of flags) {
+    if (!allowedFlags.has(flag)) return false;
+  }
+
+  return (
+    flags.has("RUA_EXACT") &&
+    flags.has("CIDADE_MATCH") &&
+    flags.has("BAIRRO_MISMATCH") &&
+    flags.has("CEP_MATCH") &&
+    !flags.has("RUA_MISMATCH") &&
+    !flags.has("CIDADE_MISMATCH") &&
+    !flags.has("CEP_MISMATCH") &&
+    !flags.has("HERE_SPREAD_HIGH") &&
+    !flags.has("HERE_UNCERTAIN")
+  );
+}
+
+function isSafeTrindadeLocalFirstFinal(params: {
+  audit: Record<string, any> | null;
+  finalSource: string;
+  lat: number | null;
+  lng: number | null;
+}) {
+  if (params.finalSource !== "LOCALFIRST_TRINDADE") return false;
+  if (!Number.isFinite(Number(params.lat)) || !Number.isFinite(Number(params.lng))) return false;
+
+  const audit = params.audit || null;
+  const streetBairro = audit?.streetBairroResolution || null;
+  const matchedLayer = String(audit?.matchedLayer || "");
+  const matchedLayerSafe = matchedLayer === "lotes" || matchedLayer === "logradouros";
+  const bairroResolved =
+    streetBairro?.exactBairroMatch === true ||
+    streetBairro?.bairroAliasUsed === true ||
+    streetBairro?.bairroStructuralAliasUsed === true;
+  const streetResolved =
+    streetBairro?.exactStreetMatch === true ||
+    streetBairro?.streetAliasUsed === true;
+  const bairroCollision = streetBairro?.bairroStructuralCollision === true;
+  const uniqueCandidate =
+    streetBairro?.uniqueCandidate === true &&
+    Number(streetBairro?.candidatesCount || 0) === 1;
+  const relationshipConfirmed = String(streetBairro?.level || "") === "STRONG_STREET_BAIRRO";
+  const promotionEligible = audit?.promotionSimulation?.eligible === true;
+  const fallbackUnsafe =
+    String(audit?.matchType || "") === "MATCH_FALLBACK" &&
+    (!promotionEligible || !relationshipConfirmed || !uniqueCandidate);
+
+  return (
+    audit?.localFirstAppliedAsFinal === true &&
+    audit?.cityDetected === true &&
+    audit?.localFirstFound === true &&
+    audit?.safetyGate?.pass === true &&
+    matchedLayerSafe &&
+    bairroResolved &&
+    streetResolved &&
+    relationshipConfirmed &&
+    uniqueCandidate &&
+    !bairroCollision &&
+    !fallbackUnsafe
+  );
+}
+
+function buildTrindadeLocalFirstValidatedConfidence(): GeocodeConfidenceResult {
+  return {
+    confidence: 96,
+    level: "HIGH",
+    hardMismatch: false,
+    flags: [
+      "SOURCE_LOCALFIRST_TRINDADE",
+      "HAS_COORDS",
+      "TRINDADE_LOCALFIRST_FINAL",
+      "TRINDADE_RUA_BAIRRO_CONFIRMED",
+      "TRINDADE_UNIQUE_CANDIDATE",
+    ],
+    reasons: [
+      "LocalFirst Trindade aplicado como resultado final.",
+      "Rua e bairro confirmados por relacionamento local.",
+      "Candidato unico e safety gate aprovado.",
+    ],
+  };
+}
+
+function buildHereHouseNumberValidatedConfidence(): GeocodeConfidenceResult {
+  return {
+    confidence: 92,
+    level: "HIGH",
+    hardMismatch: false,
+    flags: [
+      "SOURCE_HERE_GEOCODE",
+      "HAS_COORDS",
+      "RUA_EXACT",
+      "CIDADE_MATCH",
+      "CEP_MATCH",
+      "RESULT_HOUSENUMBER",
+      "HERE_GENERIC_DISTRICT_IGNORED",
+    ],
+    reasons: [
+      "HERE retornou houseNumber com rua, numero, cidade e CEP compativeis.",
+      "District generico igual a cidade foi ignorado como divergencia de bairro.",
+    ],
+  };
 }
 
 type MemoryKeyCandidate = {
@@ -6066,6 +6235,36 @@ if (shouldAutoSaveAddressMemory) {
       : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
           : "HERE_GEOCODE";
+  let finalGeocodeConfidenceDiag = geocodeConfidenceDiag;
+  const trindadeLocalFirstValidated = isSafeTrindadeLocalFirstFinal({
+    audit: trindadeShadowAudit,
+    finalSource,
+    lat,
+    lng,
+  });
+  const hereHouseNumberGenericDistrictValidated =
+    !trindadeLocalFirstValidated &&
+    finalSource === "HERE_GEOCODE" &&
+    isHereHouseNumberGenericDistrictValid({
+      bestItem,
+      normalized,
+      cityForDecision,
+      cepIn,
+      geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      lat,
+      lng,
+    });
+
+  if (trindadeLocalFirstValidated) {
+    status = "OK";
+    decisionReason = "OK_LOCALFIRST_TRINDADE_RUA_BAIRRO";
+    finalGeocodeConfidenceDiag = buildTrindadeLocalFirstValidatedConfidence();
+  } else if (hereHouseNumberGenericDistrictValidated) {
+    status = "OK";
+    decisionReason = "OK_HERE_HOUSENUMBER_GENERIC_DISTRICT";
+    finalGeocodeConfidenceDiag = buildHereHouseNumberValidatedConfidence();
+  }
+
   const poiShadowUseful = poiShadow.confidence === "POI_HIGH" && poiShadow.found;
   const poiShadowDistanceToFinalM =
     poiShadowUseful &&
@@ -6151,11 +6350,11 @@ if (shouldAutoSaveAddressMemory) {
           googleCommercialFallbackTitle,
         }
       : {}),
-    geocodeConfidence: geocodeConfidenceDiag.confidence,
-    geocodeConfidenceLevel: geocodeConfidenceDiag.level,
-    geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
-    geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
-    geocodeConfidenceReasons: geocodeConfidenceDiag.reasons,
+    geocodeConfidence: finalGeocodeConfidenceDiag.confidence,
+    geocodeConfidenceLevel: finalGeocodeConfidenceDiag.level,
+    geocodeConfidenceHardMismatch: finalGeocodeConfidenceDiag.hardMismatch,
+    geocodeConfidenceFlags: finalGeocodeConfidenceDiag.flags,
+    geocodeConfidenceReasons: finalGeocodeConfidenceDiag.reasons,
     goianiaHereStreetCompatibility,
     goianiaHereInputStreetNormalized: goianiaInputStreetNormalized,
     goianiaHereCandidateStreetNormalized,
@@ -6283,8 +6482,8 @@ if (shouldAutoSaveAddressMemory) {
         poiShadowMatchedTokens: poiShadow.matchedTokens,
         poiShadowDistanceToFinalM,
         currentDecisionReason: decisionReason,
-        geocodeConfidenceLevel: geocodeConfidenceDiag.level,
-        geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+        geocodeConfidenceLevel: finalGeocodeConfidenceDiag.level,
+        geocodeConfidenceFlags: finalGeocodeConfidenceDiag.flags,
       },
     });
   }
@@ -6315,10 +6514,10 @@ if (shouldAutoSaveAddressMemory) {
           }
         : {}),
       usedApproxMemory: !!approxMemoryHit,
-      geocodeConfidence: geocodeConfidenceDiag.confidence,
-      geocodeConfidenceLevel: geocodeConfidenceDiag.level,
-      geocodeConfidenceHardMismatch: geocodeConfidenceDiag.hardMismatch,
-      geocodeConfidenceFlags: geocodeConfidenceDiag.flags,
+      geocodeConfidence: finalGeocodeConfidenceDiag.confidence,
+      geocodeConfidenceLevel: finalGeocodeConfidenceDiag.level,
+      geocodeConfidenceHardMismatch: finalGeocodeConfidenceDiag.hardMismatch,
+      geocodeConfidenceFlags: finalGeocodeConfidenceDiag.flags,
       goianiaHereStreetCompatibility,
       goianiaHereInputStreetNormalized: goianiaInputStreetNormalized,
       goianiaHereCandidateStreetNormalized,
