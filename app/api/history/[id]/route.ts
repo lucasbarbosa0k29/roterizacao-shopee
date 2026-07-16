@@ -5,6 +5,7 @@ import {
   deleteJobResult,
   isManagedJobResultPath,
   loadJobResult,
+  saveJobResult,
 } from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
@@ -332,13 +333,24 @@ export async function PATCH(
       return NextResponse.json({ ok: true });
     }
 
-    const incoming = (body as any)?.workspace ?? body;
+    const bodyRecord = body as Record<string, unknown>;
+    const incoming =
+      bodyRecord.workspace && typeof bodyRecord.workspace === "object" && !Array.isArray(bodyRecord.workspace)
+        ? (bodyRecord.workspace as Record<string, unknown>)
+        : bodyRecord;
+    const incomingRows = Array.isArray(bodyRecord.rows)
+      ? bodyRecord.rows
+      : Array.isArray(incoming.rows)
+        ? incoming.rows
+        : null;
     const incomingWorkspace = normalizeWorkspaceJson(incoming);
 
     const current = await prisma.importJob.findFirst({
       where: { id: safeId, userId },
       select: {
         workspaceJson: true,
+        resultPath: true,
+        resultJson: true,
       },
     });
 
@@ -353,11 +365,49 @@ export async function PATCH(
 
     const payload = mergeWorkspaceJson(currentWorkspace, incomingWorkspace);
 
+    const data: Prisma.ImportJobUpdateManyMutationInput = {
+      workspaceJson: payload as Prisma.InputJsonValue,
+    };
+
+    if (incomingRows) {
+      let storedResultJson = current.resultJson;
+
+      if (current.resultPath && isManagedJobResultPath(current.resultPath)) {
+        try {
+          storedResultJson = await loadJobResult(current.resultPath);
+        } catch (error) {
+          console.error("Erro ao carregar resultado para atualizar rows:", error);
+          storedResultJson = current.resultJson;
+        }
+      }
+
+      const currentResultEnvelope = normalizeResultJson(storedResultJson) ?? buildEmptyResultEnvelope();
+      const nextResultEnvelope = {
+        ...currentResultEnvelope,
+        rows: incomingRows,
+        manualEdits: payload.manualEdits,
+        manualGroups: payload.manualGroups,
+        autoGrouped: payload.autoGrouped,
+        autoBreakIds: payload.autoBreakIds,
+        condoGrouped: payload.condoGrouped,
+        condoBreakIds: payload.condoBreakIds,
+        groupItemExclusions: payload.groupItemExclusions,
+        routeSummary: payload.routeSummary,
+        name: payload.name,
+        updatedAtMs: payload.updatedAtMs,
+      };
+
+      if (current.resultPath && isManagedJobResultPath(current.resultPath)) {
+        data.resultPath = await saveJobResult(safeId, nextResultEnvelope);
+      }
+
+      data.resultJson = nextResultEnvelope as Prisma.InputJsonValue;
+      data.resultSavedAt = new Date();
+    }
+
     const updated = await prisma.importJob.updateMany({
       where: { id: safeId, userId },
-      data: {
-        workspaceJson: payload as any,
-      },
+      data,
     });
 
     if (!updated.count) {

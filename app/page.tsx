@@ -9,6 +9,7 @@ import {
   listHistoryDb,
   updateHistoryDb,
 } from "./lib/history-db";
+import { applyManualCoordinateToState } from "./lib/manual-correction-persistence";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -3311,32 +3312,41 @@ function clearReview(groupId: string) {
     afterConfirm?: () => void;
     manualEditPatch?: Partial<ManualEdit>;
   }) {
-    const { address: _discardedAddress, ...manualEditPatch } = args.manualEditPatch || {};
-
-    setManualEdits((prev) => {
-      const next = { ...prev };
-      for (const idx of args.idxsToApply) {
-        const current = prev[idx] || {};
-        next[idx] = {
-          ...current,
-          ...manualEditPatch,
-          lat: args.coord.lat,
-          lng: args.coord.lng,
-          confirmed: true,
-        };
-      }
-      return next;
+    const nextState = applyManualCoordinateToState<RowItem, ManualEdit>({
+      rows,
+      manualEdits,
+      idxsToApply: args.idxsToApply,
+      coord: args.coord,
+      manualEditPatch: args.manualEditPatch,
     });
 
-    setRows((prev) => {
-      const next = [...prev];
-      for (const idx of args.idxsToApply) {
-        const r = next[idx];
-        if (!r) continue;
-        next[idx] = { ...r, lat: args.coord.lat, lng: args.coord.lng, status: "CONFIRMADO" };
-      }
-      return next;
-    });
+    setManualEdits(nextState.manualEdits);
+    setRows(nextState.rows);
+
+    const saveHistoryId = historyId || jobId || null;
+    if (saveHistoryId) {
+      const updatedAtMs = Date.now();
+      lastWorkspaceUpdatedAtRef.current = updatedAtMs;
+      latestWorkspaceSaveRef.current = {
+        historyId: saveHistoryId,
+        payload: {
+          version: 1,
+          rows: nextState.rows,
+          manualEdits: nextState.manualEdits,
+          manualGroups,
+          autoGrouped,
+          autoBreakIds: Array.from(autoBreakIds),
+          condoGrouped,
+          condoBreakIds: Array.from(condoBreakIds),
+          groupItemExclusions,
+          routeSummary,
+          name: historyName || file?.name || "Planilha",
+          updatedAtMs,
+        },
+      };
+
+      await flushWorkspaceNow();
+    }
 
     args.afterConfirm?.();
 
