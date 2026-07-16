@@ -51,6 +51,8 @@ let sharedSelectedLotGraphic: any = null;
 let sharedGraphic: any = null;
 let sharedPoint: any = null;
 let sharedSearch: any = null;
+let sharedClickHandle: any = null;
+let latestOnPick: Props["onPick"] | null = null;
 let mapInitialized = false;
 
 // controle anti-flash
@@ -92,19 +94,63 @@ function configureMobilePopup(view: any) {
   } catch {}
 }
 
+function refreshSharedView() {
+  if (!sharedView) return;
+
+  try {
+    sharedView.resize?.();
+  } catch {}
+
+  try {
+    sharedView.requestRender?.();
+  } catch {}
+}
+
+function attachSharedView(container: HTMLDivElement | null) {
+  if (!container || !sharedView) return;
+
+  try {
+    if (sharedView.container !== container) {
+      sharedView.container = container;
+    }
+    configureMobilePopup(sharedView);
+    requestAnimationFrame(refreshSharedView);
+  } catch {}
+}
+
+function detachSharedView(container: HTMLDivElement | null) {
+  if (!container || !sharedView) return;
+
+  try {
+    if (sharedView.container === container) {
+      sharedView.container = null;
+    }
+  } catch {}
+}
+
 export default function GoianiaArcgisMap({ center, onPick }: Props) {
   const divRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    latestOnPick = onPick;
+
+    return () => {
+      if (latestOnPick === onPick) {
+        latestOnPick = null;
+      }
+    };
+  }, [onPick]);
 
   // =========================
   // INIT / REATTACH
   // =========================
   useEffect(() => {
     ensureArcgisThemeCss();
+    const container = divRef.current;
 
     if (mapInitialized) {
-      if (divRef.current && sharedView) {
-        sharedView.container = divRef.current;
-        configureMobilePopup(sharedView);
+      if (container && sharedView) {
+        attachSharedView(container);
 
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
           const key = `${center.lat.toFixed(6)},${center.lng.toFixed(6)}`;
@@ -128,9 +174,10 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
           }
         }
       }
-      return;
+      return () => detachSharedView(container);
     }
 
+    let mounted = true;
     mapInitialized = true;
 
     (async () => {
@@ -150,7 +197,7 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
         const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
         if (apiKey) esriConfig.apiKey = apiKey;
 
-        if (!divRef.current) {
+        if (!mounted || !container) {
           mapInitialized = false;
           return;
         }
@@ -221,7 +268,7 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
         }
 
         sharedView = new MapView({
-          container: divRef.current,
+          container,
           map: sharedMap,
           center: center ? [center.lng, center.lat] : [-49.2643, -16.6869],
           zoom: center ? 18 : 16,
@@ -243,8 +290,11 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
           sharedView.ui.add(sharedSearch, "top-right");
         }
 
-        sharedView.on("click", (event: any) => {
-          const p = event?.mapPoint ?? sharedView.toMap({ x: event?.x, y: event?.y });
+        if (!sharedClickHandle) sharedClickHandle = sharedView.on("click", (event: any) => {
+          const view = sharedView;
+          if (!view) return;
+
+          const p = event?.mapPoint ?? view.toMap({ x: event?.x, y: event?.y });
           if (!p) return;
 
           const lat = Number(p.latitude ?? p.y);
@@ -253,10 +303,10 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
 
           suppressNextCenterGoTo = true;
           setMarker(lat, lng);
-          onPick({ lat, lng });
+          latestOnPick?.({ lat, lng });
 
           Promise.resolve(
-            sharedView.hitTest(event, { include: [sharedLotLayer] })
+            view.hitTest(event, { include: [sharedLotLayer] })
           )
             .then((hit: any) => {
               const feature =
@@ -266,7 +316,7 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
               if (!feature) {
                 clearSelectedLot();
                 try {
-                  sharedView.popup.close();
+                  view.popup.close();
                 } catch {}
                 return;
               }
@@ -309,12 +359,35 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
         sharedSearch = null;
         sharedMarker = null;
         sharedSelectedLotGraphic = null;
+        sharedClickHandle = null;
         sharedGraphic = null;
         sharedPoint = null;
         mapInitialized = false;
       }
     })();
+
+    return () => {
+      mounted = false;
+      detachSharedView(container);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const refreshIfAttached = () => {
+      if (document.visibilityState === "hidden") return;
+      if (sharedView?.container === divRef.current) refreshSharedView();
+    };
+
+    document.addEventListener("visibilitychange", refreshIfAttached);
+    window.addEventListener("pageshow", refreshIfAttached);
+    window.addEventListener("resize", refreshIfAttached);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfAttached);
+      window.removeEventListener("pageshow", refreshIfAttached);
+      window.removeEventListener("resize", refreshIfAttached);
+    };
   }, []);
 
   // =========================

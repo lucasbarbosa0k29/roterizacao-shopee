@@ -183,6 +183,10 @@ let sharedExtent: any = null;
 let sharedMarker: any = null;
 let sharedSelectedGraphic: any = null;
 let sharedManualVisualLayer: any = null;
+let sharedClickHandle: any = null;
+let latestMode: "preview" | "manual" = "preview";
+let latestOnPick: ((pos: { lat: number; lng: number }) => void) | null = null;
+let latestOnPickDetails: ((details: TrindadePickDetails) => void) | null = null;
 let sharedManualClickCenterKey = "";
 let sharedManualClickCenterEchoesToSuppress = 0;
 let sharedArcgisLayerDeps: {
@@ -872,6 +876,40 @@ function configureMobilePopup(view: any) {
   } catch {}
 }
 
+function refreshSharedView() {
+  if (!sharedView) return;
+
+  try {
+    sharedView.resize?.();
+  } catch {}
+
+  try {
+    sharedView.requestRender?.();
+  } catch {}
+}
+
+function attachSharedView(container: HTMLDivElement | null) {
+  if (!container || !sharedView) return;
+
+  try {
+    if (sharedView.container !== container) {
+      sharedView.container = container;
+    }
+    configureMobilePopup(sharedView);
+    requestAnimationFrame(refreshSharedView);
+  } catch {}
+}
+
+function detachSharedView(container: HTMLDivElement | null) {
+  if (!container || !sharedView) return;
+
+  try {
+    if (sharedView.container === container) {
+      sharedView.container = null;
+    }
+  } catch {}
+}
+
 function isValidManifest(data: any) {
   if (!data || typeof data !== "object") return false;
   if (String(data.outputCrs || "").toUpperCase() !== "EPSG:4326") return false;
@@ -1440,6 +1478,21 @@ export default function TrindadeArcgisMap({
     bairros: false,
     loteamentos: false,
   });
+
+  useEffect(() => {
+    latestMode = mode;
+    latestOnPick = onPick || null;
+    latestOnPickDetails = onPickDetails || null;
+
+    return () => {
+      if (latestOnPick === onPick) {
+        latestOnPick = null;
+      }
+      if (latestOnPickDetails === onPickDetails) {
+        latestOnPickDetails = null;
+      }
+    };
+  }, [mode, onPick, onPickDetails]);
   const lookupRef = useRef<TrindadeLookupState>(createEmptyLookupState());
   const centroidRef = useRef<TrindadeCentroidState>(createEmptyCentroidState());
   const [lookupReady, setLookupReady] = useState(false);
@@ -1682,11 +1735,11 @@ export default function TrindadeArcgisMap({
 
   useEffect(() => {
     ensureArcgisThemeCss();
+    const container = divRef.current;
 
     if (mapInitialized) {
-      if (divRef.current && sharedView) {
-        sharedView.container = divRef.current;
-        configureMobilePopup(sharedView);
+      if (container && sharedView) {
+        attachSharedView(container);
       }
 
       if (sharedMap && sharedManualVisualLayer) {
@@ -1703,9 +1756,23 @@ export default function TrindadeArcgisMap({
         layer.labelsVisible = visible;
       });
 
-      return;
+      return () => {
+        detachSharedView(container);
+        try {
+          if (sharedSelectedGraphic && sharedView?.graphics?.includes?.(sharedSelectedGraphic)) {
+            sharedView.graphics.remove(sharedSelectedGraphic);
+          }
+        } catch {}
+        sharedSelectedGraphic = null;
+        lastSelectionKeyRef.current = "";
+        lastPopupSelectionKeyRef.current = "";
+        try {
+          sharedView?.popup?.close?.();
+        } catch {}
+      };
     }
 
+    let mounted = true;
     mapInitialized = true;
 
     (async () => {
@@ -1727,7 +1794,7 @@ export default function TrindadeArcgisMap({
         const apiKey = process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
         if (apiKey) esriConfig.apiKey = apiKey;
 
-        if (!divRef.current) {
+        if (!mounted || !container) {
           mapInitialized = false;
           return;
         }
@@ -1930,7 +1997,7 @@ export default function TrindadeArcgisMap({
         ];
 
         sharedView = new MapView({
-          container: divRef.current,
+          container,
           map: sharedMap,
           center:
             mode === "manual"
@@ -1982,17 +2049,21 @@ export default function TrindadeArcgisMap({
           sharedView.ui.add(search, "top-right");
         }
 
-        sharedView.on("click", async (event: any) => {
-          const p = event?.mapPoint ?? sharedView.toMap({ x: event?.x, y: event?.y });
+        if (!sharedClickHandle) sharedClickHandle = sharedView.on("click", async (event: any) => {
+          const view = sharedView;
+          if (!view) return;
+
+          const currentMode = latestMode;
+          const p = event?.mapPoint ?? view.toMap({ x: event?.x, y: event?.y });
           if (!p) return;
 
           const lat = Number(p.latitude ?? p.y);
           const lng = Number(p.longitude ?? p.x);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-          if (mode === "manual") {
+          if (currentMode === "manual") {
             Promise.resolve(
-              sharedView.hitTest(event, {
+              view.hitTest(event, {
                 include: sharedManualVisualLayer ? [sharedManualVisualLayer] : [],
               }),
             )
@@ -2017,8 +2088,8 @@ export default function TrindadeArcgisMap({
                   sharedManualClickCenterKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
                   sharedManualClickCenterEchoesToSuppress = 3;
                   suppressNextCenterGoToRef.current = true;
-                  onPick?.({ lat, lng });
-                  onPickDetails?.(buildManualFreePickDetails(lat, lng));
+                  latestOnPick?.({ lat, lng });
+                  latestOnPickDetails?.(buildManualFreePickDetails(lat, lng));
                   return;
                 }
 
@@ -2069,7 +2140,7 @@ export default function TrindadeArcgisMap({
                 sharedManualClickCenterKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
                 sharedManualClickCenterEchoesToSuppress = 3;
                 suppressNextCenterGoToRef.current = true;
-                onPick?.({ lat, lng });
+                latestOnPick?.({ lat, lng });
 
                 const exactCentroid = collectCentroidBuckets(
                   centroidRef.current,
@@ -2077,7 +2148,7 @@ export default function TrindadeArcgisMap({
                   cdquadra,
                   cdlote,
                 ).combined[0];
-                onPickDetails?.(
+                latestOnPickDetails?.(
                   exactCentroid ? buildPickDetailsFromCentroid(exactCentroid) : buildManualFreePickDetails(lat, lng),
                 );
               })
@@ -2126,8 +2197,8 @@ export default function TrindadeArcgisMap({
                 }
 
                 suppressNextCenterGoToRef.current = true;
-                onPick?.({ lat: pickedLat, lng: pickedLng });
-                onPickDetails?.(buildPickDetailsFromCentroid(pickedRecord));
+                latestOnPick?.({ lat: pickedLat, lng: pickedLng });
+                latestOnPickDetails?.(buildPickDetailsFromCentroid(pickedRecord));
               });
           }
 
@@ -2153,7 +2224,7 @@ export default function TrindadeArcgisMap({
           sharedView.graphics.add(sharedMarker);
 
           Promise.resolve(
-            sharedView.hitTest(event, {
+            view.hitTest(event, {
               include: Object.values(layers),
             }),
           )
@@ -2178,7 +2249,7 @@ export default function TrindadeArcgisMap({
                 hit?.results?.find((r: any) => r?.graphic?.geometry)?.graphic ||
                 null;
 
-              onPick?.({ lat, lng });
+              latestOnPick?.({ lat, lng });
 
               if (!feature) {
                 if (sharedSelectedGraphic) {
@@ -2197,13 +2268,13 @@ export default function TrindadeArcgisMap({
                 sharedManualClickCenterKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
                 sharedManualClickCenterEchoesToSuppress = 3;
                 suppressNextCenterGoToRef.current = true;
-                onPick?.({ lat, lng });
-                onPickDetails?.(freePickDetails);
+                latestOnPick?.({ lat, lng });
+                latestOnPickDetails?.(freePickDetails);
                 return;
               }
 
               const details = buildOperationalPickDetails(feature, lat, lng, lookupRef.current);
-              onPickDetails?.(details);
+              latestOnPickDetails?.(details);
 
               const selectionKey = getFeatureSelectionKey(feature);
 
@@ -2322,16 +2393,14 @@ export default function TrindadeArcgisMap({
         sharedExtent = null;
         sharedMarker = null;
         sharedSelectedGraphic = null;
+        sharedClickHandle = null;
         mapInitialized = false;
         }
       })();
 
     return () => {
-      try {
-        if (sharedView?.container) {
-          sharedView.container = null;
-        }
-      } catch {}
+      mounted = false;
+      detachSharedView(container);
       try {
         if (sharedSelectedGraphic && sharedView?.graphics?.includes?.(sharedSelectedGraphic)) {
           sharedView.graphics.remove(sharedSelectedGraphic);
@@ -2343,6 +2412,23 @@ export default function TrindadeArcgisMap({
       try {
         sharedView?.popup?.close?.();
       } catch {}
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshIfAttached = () => {
+      if (document.visibilityState === "hidden") return;
+      if (sharedView?.container === divRef.current) refreshSharedView();
+    };
+
+    document.addEventListener("visibilitychange", refreshIfAttached);
+    window.addEventListener("pageshow", refreshIfAttached);
+    window.addEventListener("resize", refreshIfAttached);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshIfAttached);
+      window.removeEventListener("pageshow", refreshIfAttached);
+      window.removeEventListener("resize", refreshIfAttached);
     };
   }, []);
 
