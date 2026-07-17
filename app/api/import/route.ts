@@ -53,6 +53,23 @@ function parseMaybeNumber(v: any) {
   return Number.isFinite(n) ? n : null;
 }
 
+function hasDeliveryListCsvHeaders(rawRows: any[]) {
+  const firstRow = rawRows[0];
+  if (!firstRow || typeof firstRow !== "object") return false;
+
+  const headers = Object.keys(firstRow)
+    .map((key) => key.trim())
+    .sort();
+
+  return headers.join("|") === ["Address", "City", "Contact", "State"].sort().join("|");
+}
+
+function extractCepFromAddress(value: string) {
+  const match = String(value || "").match(/\b(\d{5})-?(\d{3})\b/);
+  if (!match) return "";
+  return `${match[1]}-${match[2]}`;
+}
+
 export async function POST(req: Request) {
   try {
     void cleanupOldImportJobsIfNeeded();
@@ -304,56 +321,79 @@ export async function POST(req: Request) {
       );
     }
 
-    const rows = rawRows.map((row: any) => {
-      const sequence = String(
-        pickFirst(row, ["Sequence", "SEQUENCE", "Sequência", "sequencia", "SEQ", "seq"])
-      ).trim();
+    const isDeliveryListCsv = extension === ".csv" && hasDeliveryListCsvHeaders(rawRows);
 
-      const bairro = String(pickFirst(row, ["Bairro", "BAIRRO", "bairro"])).trim();
+    const rows = isDeliveryListCsv
+      ? XLSX.utils
+          .sheet_to_json<any>(
+            XLSX.read(buffer.toString("utf8"), { type: "string" }).Sheets[sheetName],
+            { defval: "" }
+          )
+          .map((row: any, index: number) => {
+            const original = String(row?.Address || "").trim();
 
-      const cityRaw = String(pickFirst(row, ["City", "CITY", "Cidade", "CIDADE", "city"])).trim();
-      const city = normCity(cityRaw);
+            return {
+              sequence: String(index + 1),
+              bairro: "",
+              city: normCity(String(row?.City || "").trim()),
+              cep: extractCepFromAddress(original),
+              original,
+              latFromSheet: null,
+              lngFromSheet: null,
+            };
+          })
+      : rawRows.map((row: any) => {
+          const sequence = String(
+            pickFirst(row, ["Sequence", "SEQUENCE", "Sequência", "sequencia", "SEQ", "seq"])
+          ).trim();
 
-      const cepRaw = pickFirst(row, [
-        "Zipcode/Postal code",
-        "ZIPCODE/POSTAL CODE",
-        "CEP",
-        "cep",
-        "Postal code",
-        "POSTAL CODE",
-      ]);
+          const bairro = String(pickFirst(row, ["Bairro", "BAIRRO", "bairro"])).trim();
 
-      const cepDigits = onlyDigits(String(cepRaw || ""));
-      const cep = cepDigits.length >= 8 ? cepDigits : String(cepRaw || "").trim();
+          const cityRaw = String(
+            pickFirst(row, ["City", "CITY", "Cidade", "CIDADE", "city"])
+          ).trim();
+          const city = normCity(cityRaw);
 
-      const addressCell = pickFirst(row, [
-        "Destination Address",
-        "DESTINATION ADDRESS",
-        "Endereço",
-        "Endereco",
-        "ENDEREÇO",
-        "ENDERECO",
-        "Destination",
-        "DESTINATION",
-      ]);
+          const cepRaw = pickFirst(row, [
+            "Zipcode/Postal code",
+            "ZIPCODE/POSTAL CODE",
+            "CEP",
+            "cep",
+            "Postal code",
+            "POSTAL CODE",
+          ]);
 
-      const original = String(addressCell ?? "");
+          const cepDigits = onlyDigits(String(cepRaw || ""));
+          const cep = cepDigits.length >= 8 ? cepDigits : String(cepRaw || "").trim();
 
-      const lat = parseMaybeNumber(pickFirst(row, ["Latitude", "LATITUDE", "lat", "LAT"]));
-      const lng = parseMaybeNumber(
-        pickFirst(row, ["Longitude", "LONGITUDE", "lng", "LNG", "Lon", "LON"])
-      );
+          const addressCell = pickFirst(row, [
+            "Destination Address",
+            "DESTINATION ADDRESS",
+            "Endereço",
+            "Endereco",
+            "ENDEREÇO",
+            "ENDERECO",
+            "Destination",
+            "DESTINATION",
+          ]);
 
-      return {
-        sequence,
-        bairro,
-        city,
-        cep,
-        original,
-        latFromSheet: lat,
-        lngFromSheet: lng,
-      };
-    });
+          const original = String(addressCell ?? "");
+
+          const lat = parseMaybeNumber(pickFirst(row, ["Latitude", "LATITUDE", "lat", "LAT"]));
+          const lng = parseMaybeNumber(
+            pickFirst(row, ["Longitude", "LONGITUDE", "lng", "LNG", "Lon", "LON"])
+          );
+
+          return {
+            sequence,
+            bairro,
+            city,
+            cep,
+            original,
+            latFromSheet: lat,
+            lngFromSheet: lng,
+          };
+        });
 
     const job = await prisma.importJob.create({
       data: {
