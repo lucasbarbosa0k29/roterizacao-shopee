@@ -8,6 +8,7 @@ import { prisma } from "@/app/lib/prisma";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { parseWhatsAppTxtImport } from "@/app/lib/whatsapp-txt-import";
+import { parseImileTxtImport } from "@/app/lib/imile-txt-import";
 
 export const runtime = "nodejs";
 const MAX_ROUTE_STOPS = 200;
@@ -169,7 +170,67 @@ export async function POST(req: Request) {
     }
 
     if (extension === ".txt") {
-      const parsedTxt = parseWhatsAppTxtImport(buffer.toString("utf8"));
+      const txtContent = buffer.toString("utf8");
+      const parsedImile = parseImileTxtImport(txtContent);
+
+      if (parsedImile.detected) {
+        if (parsedImile.rejectedBlocks.length) {
+          return NextResponse.json(
+            {
+              error:
+                "Não foi possível reconhecer todos os blocos do TXT do iMile. Revise o arquivo e tente novamente.",
+              code: "IMILE_TXT_REJECTED_BLOCKS",
+              rejectedBlocks: parsedImile.rejectedBlocks,
+              warnings: parsedImile.warnings,
+              importMetadata: {
+                source: "imile_txt",
+                parsedCount: parsedImile.rows.length,
+              },
+            },
+            { status: 400 }
+          );
+        }
+
+        if (parsedImile.rows.length > MAX_ROUTE_STOPS) {
+          return NextResponse.json(
+            { error: "O TXT excede o limite máximo de 200 paradas." },
+            { status: 400 }
+          );
+        }
+
+        if (!parsedImile.rows.length) {
+          return NextResponse.json(
+            { error: "Nenhum pacote foi reconhecido no TXT do iMile." },
+            { status: 400 }
+          );
+        }
+
+        const job = await prisma.importJob.create({
+          data: {
+            userId,
+            fileHash,
+            originalName: file.name,
+            storedName: null,
+            status: "PENDING",
+            totalStops: parsedImile.rows.length,
+            processedStops: 0,
+          },
+          select: { id: true },
+        });
+
+        return NextResponse.json({
+          jobId: job.id,
+          total: parsedImile.rows.length,
+          rows: parsedImile.rows,
+          warnings: parsedImile.warnings,
+          importMetadata: {
+            source: "imile_txt",
+            parsedCount: parsedImile.rows.length,
+          },
+        });
+      }
+
+      const parsedTxt = parseWhatsAppTxtImport(txtContent);
 
       if (parsedTxt.rejectedLines.length) {
         return NextResponse.json(

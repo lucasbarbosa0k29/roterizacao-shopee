@@ -10,6 +10,7 @@ import {
   updateHistoryDb,
 } from "./lib/history-db";
 import { applyManualCoordinateToState } from "./lib/manual-correction-persistence";
+import { getRowDisplayIdentifier, isImileRow } from "./lib/row-display-identifier";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -64,6 +65,8 @@ type Status = "OK" | "PARCIAL" | "NAO_ENCONTRADO" | "MANUAL" | "CONFIRMADO" | "R
 
 type RowItem = {
   sequence?: any;
+  sourceType?: any;
+  cliente?: any;
   bairro?: any;
   city?: any;
   cep?: any;
@@ -97,6 +100,8 @@ type GroupedRow = {
   id: string;
   idxs: number[];
   sequenceText: string;
+  displayIdentifier: string;
+  sourceType?: string;
   status: Status;
   statusLabel: string;
   addressDisplay: React.ReactNode;
@@ -114,6 +119,9 @@ type ExportDraftRow = {
   baseIdx: number; // ✅ referência da linha real no rows/manualEdits
 
   sequence: string;
+  displayIdentifier: string;
+  sourceType?: string;
+  cliente?: string;
   addressRef: string; // coluna endereço (ref)
   addressOriginal: string;
   lat: number | null;
@@ -2435,6 +2443,11 @@ useEffect(() => {
       const sequenceText = seqs.join(", ");
 
       const baseIdx = getGroupBaseIdx(idxs);
+      const displayIdentifier = idxs
+        .map((i) => getRowDisplayIdentifier(rows[i]))
+        .filter(Boolean)
+        .join(", ");
+      const sourceType = String(rows[baseIdx]?.sourceType || "").trim() || undefined;
 
       // ✅ lista de endereços no grupo (se diferirem)
       const addrList = idxs
@@ -2491,6 +2504,8 @@ useEffect(() => {
         id: g.id,
         idxs,
         sequenceText,
+        displayIdentifier,
+        sourceType,
         status,
         statusLabel,
         addressDisplay,
@@ -2528,6 +2543,7 @@ useEffect(() => {
       displayKey: string
     ): GroupedRow & { sortOrder: number; displayKey: string } {
       const sequenceText = String(rows[idx]?.sequence ?? "").trim();
+      const displayIdentifier = getRowDisplayIdentifier(rows[idx]);
       const status = getRowStatus(idx);
       const address = String(getShownAddress(idx) || "").trim();
       const city = String(rows[idx]?.city || "");
@@ -2544,6 +2560,8 @@ useEffect(() => {
         id: displayKey,
         idxs: [idx],
         sequenceText,
+        displayIdentifier,
+        sourceType: String(rows[idx]?.sourceType || "").trim() || undefined,
         status,
         statusLabel: getVisualStatusLabel(status, rows[idx]),
         addressDisplay: <div className="font-medium">{address}</div>,
@@ -2569,6 +2587,10 @@ useEffect(() => {
         .filter(Boolean);
       const sequenceText = seqs.join(", ");
       const baseIdx = getGroupBaseIdx(idxs);
+      const displayIdentifier = idxs
+        .map((i) => getRowDisplayIdentifier(rows[i]))
+        .filter(Boolean)
+        .join(", ");
 
       const addrList = idxs
         .map((i) => String(getShownAddress(i) || "").trim())
@@ -2620,6 +2642,8 @@ useEffect(() => {
         id: displayKey,
         idxs,
         sequenceText,
+        displayIdentifier,
+        sourceType: String(rows[baseIdx]?.sourceType || "").trim() || undefined,
         status,
         statusLabel: getVisualStatusLabel(status, rows[baseIdx]),
         addressDisplay,
@@ -2680,6 +2704,7 @@ useEffect(() => {
         id: g.id,
         baseIdx: getGroupBaseIdx(g.idxs),
         sequenceText: g.sequenceText,
+        displayIdentifier: g.displayIdentifier,
         address: g.addressForExport,
         status: g.status,
         statusLabel: g.statusLabel,
@@ -3003,15 +3028,19 @@ if (jobId) {
     const draft: ExportDraftRow[] = visibleGroupedRows.map((g) => {
       const baseIdx = getGroupBaseIdx(g.idxs);
 
-      const obsBase = `${g.sequenceText} - ${getShownAddress(baseIdx)}`.trim();
+      const obsBase = `${g.displayIdentifier} - ${getShownAddress(baseIdx)}`.trim();
       const obsGroup = String(g.notes || "").trim();
       const obsInicial = obsGroup ? `${obsBase} | ${obsGroup}`.trim() : obsBase;
+      const sourceType = String(rows[baseIdx]?.sourceType || "").trim();
 
       return {
         groupId: g.id,
         baseIdx,
 
         sequence: g.sequenceText,
+        displayIdentifier: g.displayIdentifier,
+        sourceType: sourceType || undefined,
+        cliente: sourceType.toUpperCase() === "IMILE" ? g.displayIdentifier : undefined,
 
         // endereço que vai no CSV (se tiver manual, usa manual; senão original)
         addressRef: g.addressForExport,
@@ -3040,6 +3069,9 @@ if (jobId) {
 
       return {
         sequence: r.sequence,
+        sequenceText: r.sequence,
+        sourceType: r.sourceType,
+        cliente: r.cliente,
 
         // Circuit → coluna Address
         // sempre endereço ORIGINAL do Excel
@@ -5075,7 +5107,7 @@ useEffect(() => {
                                     </span>
 
                                   <span className="text-sm font-semibold text-slate-900">
-                                    Seq: {g.sequenceText}
+                                    {g.sourceType === "IMILE" ? "Cliente" : "Seq"}: {g.displayIdentifier}
                                   </span>
                                 </div>
 
@@ -5403,7 +5435,7 @@ onContextMenu={(e) => {
 </span>
                             </td>
 
-                            <td className="px-3 md:px-4 py-4 align-top font-semibold text-sm md:text-[15px] text-slate-900">{g.sequenceText}</td>
+                            <td className="px-3 md:px-4 py-4 align-top font-semibold text-sm md:text-[15px] text-slate-900">{g.displayIdentifier}</td>
 
                            <td className="px-3 md:px-4 py-4 align-top whitespace-normal md:whitespace-nowrap overflow-hidden text-ellipsis max-w-none md:max-w-[520px] w-full">
                               <span
@@ -5563,7 +5595,7 @@ onContextMenu={(e) => {
                             Conferir grupo
                           </div>
                           <div className="mt-1 text-xl font-bold tracking-tight text-white">
-                            {conferenceGroup.sequenceText}
+                            {conferenceGroup.displayIdentifier}
                           </div>
                           <div className="mt-1 text-sm text-white/75">
                             {conferenceGroup.idxs.length} itens originais
@@ -5597,7 +5629,7 @@ onContextMenu={(e) => {
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                                      Seq {String(rows[idx]?.sequence ?? "")}
+                                      {isImileRow(rows[idx]) ? "Cliente" : "Seq"} {getRowDisplayIdentifier(rows[idx])}
                                     </span>
                                     <span
                                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
@@ -5923,7 +5955,7 @@ onContextMenu={(e) => {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="text-sm font-semibold text-slate-900">
-                                Sequência {overviewSelectedPoint.sequenceText}
+                                Sequência {overviewSelectedPoint.displayIdentifier}
                               </div>
                               <div className="mt-1 text-sm text-slate-600">
                                 {overviewSelectedPoint.address}

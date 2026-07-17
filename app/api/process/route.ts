@@ -268,6 +268,8 @@ type Normalized = {
 
 type InputRow = {
   sequence?: any;
+  sourceType?: any;
+  cliente?: any;
   original: string; // <-- TEM QUE SER O "Destination Address" cru
   bairro?: string;
   city?: string;
@@ -2964,6 +2966,12 @@ async function processOne(
   runState?: ProcessRunState,
 ) {
   const addressRaw = String(row?.original || "").trim(); // <-- FIEL AO EXCEL
+  const sourceTypeIn = String(row?.sourceType || "").trim();
+  const clienteIn = String(row?.cliente || "").trim();
+  const sourceMetadata = {
+    ...(sourceTypeIn ? { sourceType: sourceTypeIn } : {}),
+    ...(clienteIn ? { cliente: clienteIn } : {}),
+  };
   const bairroIn = row?.bairro ? String(row.bairro) : "";
   const cityIn = row?.city ? String(row.city) : "";
   const cepIn = normalizeCep(String(row?.cep || ""));
@@ -2971,6 +2979,7 @@ async function processOne(
   if (!addressRaw) {
     return {
       sequence: row?.sequence ?? "",
+      ...sourceMetadata,
       bairro: bairroIn,
       city: cityIn,
       cep: cepIn,
@@ -6308,6 +6317,7 @@ if (shouldAutoSaveAddressMemory) {
   const bairroFinal = String(bairroIn || "").trim() || bairroAuto;
   const result = {
     sequence: row?.sequence ?? "",
+    ...sourceMetadata,
     bairro: bairroFinal,
     city: cityForDecision,
     cep: normalized.cep || cepIn,
@@ -6770,6 +6780,8 @@ export async function POST(req: Request) {
         } catch (e: any) {
           results[i] = {
             sequence: rowsIn[i]?.sequence ?? "",
+            ...(rowsIn[i]?.sourceType ? { sourceType: String(rowsIn[i].sourceType) } : {}),
+            ...(rowsIn[i]?.cliente ? { cliente: String(rowsIn[i].cliente) } : {}),
             bairro: rowsIn[i]?.bairro ?? "",
             city: rowsIn[i]?.city ?? "",
             cep: rowsIn[i]?.cep ?? "",

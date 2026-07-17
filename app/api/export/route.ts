@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { getRowDisplayIdentifier } from "@/app/lib/row-display-identifier";
 
 function csvEscape(v: any) {
   const s = String(v ?? "");
@@ -14,7 +15,10 @@ function csvEscape(v: any) {
 function buildDefaultNotes(r: any) {
   // 1) sequenceText (ex: "12, 13") se existir
   // 2) senão sequence normal
-  const seq = String(r?.sequenceText ?? r?.sequence ?? "").trim();
+  const seq = getRowDisplayIdentifier({
+    ...r,
+    sequence: r?.sequenceText ?? r?.sequence,
+  });
 
   // endereço ORIGINAL sempre
   const original = String(r?.original ?? "").trim();
@@ -51,7 +55,7 @@ export async function POST(req: Request) {
       if (typeof lat !== "number" || typeof lng !== "number") continue;
 
       // Name = sequência (ou sequenceText se você quiser, mas Name normalmente é um número só)
-      const name = String(r?.sequence ?? "").trim();
+      const name = getRowDisplayIdentifier(r);
 
       // Address = ORIGINAL (sem "arrumar pelo Gemini")
       const address = String(r?.original ?? "").trim();

@@ -178,7 +178,6 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
     }
 
     let mounted = true;
-    mapInitialized = true;
 
     (async () => {
       try {
@@ -201,6 +200,8 @@ export default function GoianiaArcgisMap({ center, onPick }: Props) {
           mapInitialized = false;
           return;
         }
+
+        mapInitialized = true;
 
         if (!sharedLotLayer) {
           sharedLotLayer = new GeoJSONLayer({

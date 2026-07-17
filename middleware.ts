@@ -30,6 +30,7 @@ function isPublicPath(pathname: string) {
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     PUBLIC_FILE.test(pathname) ||
+    pathname.startsWith("/data/") ||
     pathname.startsWith("/images") ||
     pathname.startsWith("/public")
   );

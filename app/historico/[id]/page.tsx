@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getRowDisplayIdentifier } from "@/app/lib/row-display-identifier";
 
 type Job = {
   id: string;
@@ -29,6 +30,8 @@ type TrindadeShadowAuditLike = {
 type TrindadeResultRow = {
   status?: string | null;
   sequence?: string | number | null;
+  sourceType?: string | null;
+  cliente?: string | null;
   original?: string | null;
   source?: string | null;
   matchType?: string | null;
@@ -182,7 +185,7 @@ export default function HistoricoDetailPage() {
               <tbody>
                 {rows.slice(0, 500).map((r: TrindadeResultRow, idx: number) => (
                   <tr key={idx} className="border-b last:border-b-0">
-                    <td className="py-2 pr-3">{r.sequence ?? ""}</td>
+                    <td className="py-2 pr-3">{getRowDisplayIdentifier(r)}</td>
                     <td className="py-2 pr-3">{getTrindadeStatusDisplayLabel(String(r.status ?? ""), r)}</td>
                     <td className="py-2 pr-3">{r.original ?? ""}</td>
                     <td className="py-2 pr-3">{r.quadraAuto ?? ""}</td>
