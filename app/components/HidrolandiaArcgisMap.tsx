@@ -242,10 +242,10 @@ function buildLayer(
             }
           : {
               type: "simple-fill",
-              color: [0, 0, 0, 0.015],
+              color: [0, 0, 0, 0],
               outline: {
-                color: config.key === "lotes" ? [17, 24, 39, 0.88] : [15, 118, 110, 0.78],
-                width: config.key === "lotes" ? 0.55 : 0.8,
+                color: config.key === "lotes" ? [38, 38, 38, 0.88] : [15, 23, 42, 0.96],
+                width: config.key === "lotes" ? 0.7 : 1.25,
               },
             },
     }),
