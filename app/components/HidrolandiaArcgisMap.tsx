@@ -31,7 +31,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     title: "Hidrolandia - Setores",
     url: "/data/hidrolandia/hidrolandia_setores_mapa.web4326.geojson",
     geometry: "polygon",
-    visible: true,
+    visible: false,
     outFields: ["cidade", "tipo", "setor", "source"],
     labelExpression: `return DefaultValue($feature.setor, "");`,
     labelMinScale: 50000,
@@ -90,7 +90,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     title: "Hidrolandia - Ruas",
     url: "/data/hidrolandia/hidrolandia_ruas_mapa.web4326.geojson",
     geometry: "line",
-    visible: true,
+    visible: false,
     outFields: ["cidade", "tipo", "nome_rua", "comprimento", "source"],
     labelExpression: `return DefaultValue($feature.nome_rua, "");`,
     labelMinScale: 16000,
@@ -230,7 +230,7 @@ function buildLayer(
     title: config.title,
     outFields: config.outFields,
     visible: config.visible,
-    labelsVisible: config.visible,
+    labelsVisible: false,
     popupEnabled: false,
     renderer: new SimpleRenderer({
       symbol:
@@ -276,7 +276,9 @@ function getLayerConfigByLayer(layer: any) {
 }
 
 function getHitTestLayers() {
-  return LAYER_CONFIGS.map((config) => sharedLayers[config.key]).filter(Boolean);
+  return LAYER_CONFIGS.map((config) => sharedLayers[config.key]).filter(
+    (layer) => Boolean(layer) && layer.visible !== false,
+  );
 }
 
 export default function HidrolandiaArcgisMap({ center, onPick }: Props) {
