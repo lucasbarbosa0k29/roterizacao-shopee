@@ -2,6 +2,7 @@ export type HidrolandiaShadowMatchType =
   | "MATCH_UNICO_ESTRUTURAL"
   | "MATCH_SETOR_RUA_QUADRA_PARCIAL"
   | "MATCH_SETOR_RUA_PARCIAL"
+  | "MATCH_SETOR_RUA_AFTER_HERE_PARCIAL"
   | "MATCH_MULTIPLO"
   | "BLOCKED"
   | "NO_CANDIDATE"
@@ -202,12 +203,21 @@ export type HidrolandiaLocalFirstDecision = {
   audit: HidrolandiaProcessShadowAudit;
   canPromote: boolean;
   canApplyPartial?: boolean;
-  partialLevel?: "SETOR_RUA_QUADRA" | "SETOR_RUA" | null;
-  partialSource?: "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" | "LOCALFIRST_HIDROLANDIA_SETOR_RUA" | null;
-  partialMatchType?: "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" | "LOCALFIRST_HIDROLANDIA_SETOR_RUA" | null;
+  partialLevel?: "SETOR_RUA_QUADRA" | "SETOR_RUA" | "SETOR_RUA_AFTER_HERE" | null;
+  partialSource?:
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK"
+    | null;
+  partialMatchType?:
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_FALLBACK"
+    | null;
   partialDecisionReason?:
     | "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
     | "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE"
     | null;
   blockedReason: string;
   candidate: HidrolandiaLocalFirstCandidate | null;

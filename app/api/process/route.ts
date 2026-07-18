@@ -541,6 +541,14 @@ function cleanAddressForHere(s: string) {
   return t;
 }
 
+type HereQueryPlan = {
+  queries: string[];
+  reasonsByQuery: Record<string, string>;
+  strategy: string;
+  effectiveStreet: string;
+  effectiveNumber: string;
+};
+
 function separateCompactQuadraLoteTokens(value: string) {
   return String(value || "")
     .replace(/\b(QDRA|QDA|QUADRA|QUAD|QDR|QD|Q)\s*(\d)/gi, "$1 $2")
@@ -905,7 +913,8 @@ function isSafeHidrolandiaLocalFirstPartial(params: {
 }) {
   if (
     params.finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" &&
-    params.finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    params.finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA" &&
+    params.finalSource !== "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK"
   ) {
     return false;
   }
@@ -940,23 +949,32 @@ function isSafeHidrolandiaLocalFirstPartial(params: {
 
 function buildHidrolandiaLocalFirstPartialConfidence(finalSource: string): GeocodeConfidenceResult {
   const isQuadra = finalSource === "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA";
+  const isAfterHere = finalSource === "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK";
   return {
-    confidence: isQuadra ? 78 : 68,
+    confidence: isQuadra ? 78 : isAfterHere ? 64 : 68,
     level: "MEDIUM",
     hardMismatch: false,
     flags: [
       isQuadra
         ? "SOURCE_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
-        : "SOURCE_LOCALFIRST_HIDROLANDIA_SETOR_RUA",
+        : isAfterHere
+          ? "SOURCE_LOCALFIRST_HIDROLANDIA_RUA_FALLBACK"
+          : "SOURCE_LOCALFIRST_HIDROLANDIA_SETOR_RUA",
       "HAS_COORDS",
       "HIDROLANDIA_LOCALFIRST_PARTIAL",
-      isQuadra ? "HIDROLANDIA_SETOR_RUA_QUADRA_CONFIRMED" : "HIDROLANDIA_SETOR_RUA_CONFIRMED",
+      isQuadra
+        ? "HIDROLANDIA_SETOR_RUA_QUADRA_CONFIRMED"
+        : isAfterHere
+          ? "HIDROLANDIA_SETOR_RUA_AFTER_HERE_CONFIRMED"
+          : "HIDROLANDIA_SETOR_RUA_CONFIRMED",
     ],
     reasons: [
       "LocalFirst Hidrolandia aplicado como resultado parcial.",
       isQuadra
         ? "Setor, rua e quadra confirmados por indice local; lote nao foi tratado como exato."
-        : "Setor e rua confirmados por indice local; lote nao foi tratado como exato.",
+        : isAfterHere
+          ? "Setor e rua confirmados por indice local apos falha ou rejeicao do HERE."
+          : "Setor e rua confirmados por indice local; lote nao foi tratado como exato.",
       "Ancora parcial dentro da cobertura cadastral.",
     ],
   };
@@ -2382,6 +2400,32 @@ function streetVariants(rua: string) {
   return Array.from(variants);
 }
 
+function isHidrolandiaCity(value: string) {
+  return normalizeKey(value).includes("HIDROLANDIA");
+}
+
+function isHerePlaceholderNumber(value: string) {
+  const cleaned = String(value || "").trim().toUpperCase();
+  return !cleaned || cleaned === "0" || cleaned === "00" || cleaned === "000" || cleaned === "S/N" || cleaned === "SN";
+}
+
+function stripHidrolandiaStreetNoise(value: string) {
+  let street = stripQuadraLoteFromStreet(value || "");
+  street = street.replace(/\bD\s*AP\s*\d+\b/gi, " ");
+  street = street.replace(/\bAP\s*\d+\b/gi, " ");
+  street = street.replace(/\b(APTO|APT|APARTAMENTO|APART|BLOCO|BL|CASA|FUNDOS|LOJA|SALA|BARRACAO|BARRACÃO)\b.*$/gi, " ");
+  street = street.replace(/\b(ESQUINA|FRENTE|EM FRENTE|AO LADO|PROXIMO|PR[ÓO]XIMO|REFERENCIA|REFERÊNCIA)\b.*$/gi, " ");
+  street = street.replace(/\s+,/g, ",").replace(/,+/g, ",").replace(/\s{2,}/g, " ").trim();
+  return street;
+}
+
+function applyHidrolandiaStreetAliasForHere(value: string) {
+  const key = normalizeKey(value);
+  if (key === "AV GOIANIA") return "Avenida Goiania";
+  if (key === "ALAMEDAS DOS EUCALIPTOS") return "Alameda dos Eucaliptos";
+  return value;
+}
+
 function buildAparecidaStreetQuadraQueries(args: {
   rua: string;
   cidade: string;
@@ -3030,6 +3074,52 @@ function buildHereQueryVariants(args: {
   const cidade = (args.cidade || "").trim();
   const bairro = (args.bairro || "").trim();
   const estado = (args.estado || "GO").trim() || "GO";
+  const hidrolandia = isHidrolandiaCity(cidade);
+  const effectiveNumber = hidrolandia && isHerePlaceholderNumber(args.numero || "") ? "" : String(args.numero || "").trim();
+  const effectiveStreet = hidrolandia
+    ? cleanAddressForHere(applyHidrolandiaStreetAliasForHere(stripHidrolandiaStreetNoise(args.rua || args.original || "")))
+    : cleanAddressForHere(stripQuadraLoteFromStreet(args.rua || ""));
+
+  const reasonsByQuery: Record<string, string> = {};
+  const addReason = (query: string, reason: string) => {
+    if (!query) return;
+    reasonsByQuery[query] = reason;
+  };
+
+  if (hidrolandia) {
+    const streetOnly = effectiveStreet;
+    const streetWithNumber = cleanAddressForHere([effectiveStreet, effectiveNumber].filter(Boolean).join(", "));
+    const streetCep = cleanAddressForHere([streetOnly, cep, cidade, estado].filter(Boolean).join(", "));
+    const streetCity = cleanAddressForHere([streetOnly, bairro, cidade, estado].filter(Boolean).join(", "));
+    const streetCepWithNumber = cleanAddressForHere([streetWithNumber, cep, cidade, estado].filter(Boolean).join(", "));
+    const originalClean = effectiveNumber
+      ? cleanAddressForHere(stripHidrolandiaStreetNoise(args.original || ""))
+      : streetCity;
+
+    const variants = [
+      effectiveNumber ? streetCepWithNumber : streetCep,
+      streetCity,
+      originalClean,
+    ]
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    const queries = Array.from(new Set(variants)).slice(0, 3);
+    for (const query of queries) {
+      if (query === streetCepWithNumber) addReason(query, "hidrolandia_real_number_street_cep_city");
+      else if (query === streetCep) addReason(query, "hidrolandia_placeholder_number_removed_street_cep_city");
+      else if (query === streetCity) addReason(query, "hidrolandia_street_setor_city");
+      else if (query === originalClean) addReason(query, "hidrolandia_original_sanitized");
+    }
+
+    return {
+      queries,
+      reasonsByQuery,
+      strategy: effectiveNumber ? "HIDROLANDIA_REAL_NUMBER" : "HIDROLANDIA_SN_OR_PLACEHOLDER",
+      effectiveStreet,
+      effectiveNumber,
+    } satisfies HereQueryPlan;
+  }
 
   const full = cleanAddressForHere(args.normalizedLine || "");
   const fullNoQdLt = cleanAddressForHere(stripQuadraLoteFromQuery(full));
@@ -3065,7 +3155,22 @@ function buildHereQueryVariants(args: {
     .map((x) => x.trim())
     .filter(Boolean);
 
-  return Array.from(new Set(variants)).slice(0, 3);
+  const queries = Array.from(new Set(variants)).slice(0, 3);
+  for (const query of queries) {
+    if (query === ruaCep) addReason(query, "street_number_cep_city");
+    else if (query === fullNoQdLt) addReason(query, "normalized_line_without_qd_lt");
+    else if (query === ruaCity) addReason(query, "street_number_bairro_city");
+    else if (query === full) addReason(query, "normalized_line_full");
+    else if (query === originalClean) addReason(query, "original_cleaned");
+    else addReason(query, "street_variant");
+  }
+  return {
+    queries,
+    reasonsByQuery,
+    strategy: "DEFAULT",
+    effectiveStreet,
+    effectiveNumber: String(args.numero || "").trim(),
+  } satisfies HereQueryPlan;
 }
 
 function buildAparecidaRecoveryQueries(args: {
@@ -3729,6 +3834,13 @@ async function processOne(
   let hidrolandiaLocalFirstAppliedReason: string | null = null;
   let hidrolandiaLocalFirstFinalSource: string | null = null;
   let hidrolandiaLocalFirstFinalMatchType: string | null = null;
+  let hidrolandiaLocalFirstModule: typeof import("@/app/lib/hidrolandia-localfirst-shadow") | null = null;
+  let hidrolandiaHereAtEffective: string | null = null;
+  let hidrolandiaHereQueriesTried: string[] = [];
+  let hidrolandiaHereQueryReasonsByQuery: Record<string, string> = {};
+  let hidrolandiaHereEffectiveQuery: string | null = null;
+  let hidrolandiaHereEffectiveQueryReason: string | null = null;
+  let hidrolandiaHereQueryStrategy: string | null = null;
 
   const resolveGoianiaLocalFirstBypassReason = () => {
     const cityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
@@ -3939,6 +4051,8 @@ async function processOne(
   let googleCommercialFallbackLng: number | null = null;
   let googleCommercialFallbackTitle: string | null = null;
   let googleCommercialFallbackApplied = false;
+  let queriesWithHint: string[] = [];
+  let bestGeocodeQuery = "";
 
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: RankedHereEntry[] = [];
@@ -3946,6 +4060,7 @@ async function processOne(
   if (hidrolandiaLocalFirstRuntimeEnabled && hidrolandiaCityDetected) {
     try {
       const hidrolandiaLocalFirst = await import("@/app/lib/hidrolandia-localfirst-shadow");
+      hidrolandiaLocalFirstModule = hidrolandiaLocalFirst;
       const hidrolandiaInput = {
         city: cityForDecision || cityIn || "",
         setor: String(bairroIn || normalized.bairro || "").trim(),
@@ -4412,7 +4527,7 @@ async function processOne(
     const atByCep = normalized.cep ? await getAtByCep(normalized.cep, normalized.cidade || cityIn) : null;
     const at = atByCep || atBase;
 
-    const baseQueries = buildHereQueryVariants({
+    const baseQueryPlan = buildHereQueryVariants({
       rua: normalized.rua,
       numero: normalized.numero,
       bairro: normalized.bairro || bairroIn,
@@ -4422,6 +4537,12 @@ async function processOne(
       original: addressRaw,
       normalizedLine,
     });
+    const baseQueries = baseQueryPlan.queries;
+    if (hidrolandiaCityDetected) {
+      hidrolandiaHereAtEffective = at;
+      hidrolandiaHereQueryReasonsByQuery = { ...baseQueryPlan.reasonsByQuery };
+      hidrolandiaHereQueryStrategy = baseQueryPlan.strategy;
+    }
 
     const urbanPattern = buildUrbanPatternQueries({
       original: addressRaw,
@@ -4446,7 +4567,7 @@ async function processOne(
     urbanPatternReplacedQuery = urbanPatternRealQueryApplication.replacedQuery;
     urbanPatternRealQueryIndex = urbanPatternRealQueryApplication.realQueryIndex;
 
-    let queriesWithHint = queriesForHere;
+    queriesWithHint = queriesForHere;
 
     if (approxMemoryTextHint?.suggestedAddressLine) {
       approxHintApplied = true;
@@ -4473,6 +4594,9 @@ async function processOne(
         ].filter(Boolean)),
       ).slice(0, 3);
     }
+    if (hidrolandiaCityDetected) {
+      hidrolandiaHereQueriesTried = [...queriesWithHint];
+    }
 
     const want = {
       cep: normalized.cep || cepIn,
@@ -4486,7 +4610,7 @@ async function processOne(
     const seen = new Map<string, any>();
     const EARLY_ACCEPT_SCORE = 105;
     let bestGeocodeScoreOverall = -999;
-    let bestGeocodeQuery = queriesWithHint[0] || "";
+    bestGeocodeQuery = queriesWithHint[0] || "";
     let bestGeocodeItem: any = null;
     let preliminaryGeocodeConfidence: number | null = null;
     let preliminaryGeocodeHardMismatch = false;
@@ -5794,6 +5918,186 @@ if (status === "OK") {
       ...(decisionReason === "LOW_SCORE" ? ["LOW_SCORE"] : []),
     ],
   });
+  if (
+    hidrolandiaCityDetected &&
+    hidrolandiaLocalFirstPromotionEnabled &&
+    hidrolandiaLocalFirstModule &&
+    !memoryHit &&
+    !approxMemoryHit &&
+    !hidrolandiaLocalFirstUsedAsFinal
+  ) {
+    const currentHereSource =
+      finalRankedKind === "discover"
+        ? "HERE_DISCOVER"
+        : finalRankedKind === "geocode"
+          ? "HERE_GEOCODE"
+          : null;
+    if (currentHereSource) {
+      hidrolandiaHereEffectiveQuery = bestGeocodeQuery || queriesWithHint[0] || null;
+      hidrolandiaHereEffectiveQueryReason =
+        (hidrolandiaHereEffectiveQuery && hidrolandiaHereQueryReasonsByQuery[hidrolandiaHereEffectiveQuery]) ||
+        (approxHintApplied &&
+        hidrolandiaHereEffectiveQuery &&
+        hidrolandiaHereEffectiveQuery === approxMemoryTextHint?.suggestedAddressLine
+          ? approxHintReason || "MEMORY_TEXT_HINT"
+          : null) ||
+        (approxHintApplied &&
+        hidrolandiaHereEffectiveQuery &&
+        hidrolandiaHereEffectiveQuery === approxShadowSearchHint?.suggestedAddressLine
+          ? approxHintReason || "SHADOW_MEDIUM"
+          : null) ||
+        (urbanPatternAppliedToRealQueries &&
+        hidrolandiaHereEffectiveQuery &&
+        hidrolandiaHereEffectiveQuery === urbanPatternQuery
+          ? urbanPatternAppliedReason || "URBAN_PATTERN_REAL_QUERY"
+          : null) ||
+        null;
+      const resultCity = String(bestRankedAddress?.city || bestRankedAddress?.county || "");
+      const cityMismatch =
+        geocodeConfidenceDiag.flags.includes("CIDADE_MISMATCH") ||
+        (resultCity
+          ? !normalizeKey(resultCity).includes("HIDROLANDIA")
+          : false);
+      const streetMismatch = geocodeConfidenceDiag.flags.includes("RUA_MISMATCH");
+      const hereRejectedReason =
+        lat == null ||
+        lng == null ||
+        decisionReason === "HERE_SPREAD" ||
+        decisionReason === "LOW_SCORE" ||
+        decisionReason === "NO_COORD" ||
+        cityMismatch ||
+        streetMismatch;
+      if (hereRejectedReason) {
+        try {
+          const fallbackDecision = await hidrolandiaLocalFirstModule.runHidrolandiaStreetFallbackAfterHere({
+            city: cityForDecision || cityIn || "",
+            setor: String(bairroIn || normalized.bairro || "").trim(),
+            bairro: String(bairroIn || normalized.bairro || "").trim(),
+            rua: normalized.rua || "",
+            quadra: normalized.quadra || "",
+            lote: normalized.lote || "",
+            rawAddress: addressRaw,
+            currentResult: {
+              source: currentHereSource,
+              lat,
+              lng,
+              matchedKey: bestGeocodeQuery || null,
+              matchType: currentHereSource,
+              confidence: typeof bestHereScore === "number" && Number.isFinite(bestHereScore) ? bestHereScore : null,
+              status,
+            },
+          });
+          hidrolandiaShadowAudit = {
+            ...(hidrolandiaShadowAudit || {}),
+            ...fallbackDecision.audit,
+            promotionFlagEnabled: hidrolandiaLocalFirstPromotionEnabled,
+            hereQueryDebug: {
+              effectiveQuery: hidrolandiaHereEffectiveQuery,
+              effectiveQueryReason: hidrolandiaHereEffectiveQueryReason,
+              queriesTried: hidrolandiaHereQueriesTried,
+              at: hidrolandiaHereAtEffective,
+              strategy: hidrolandiaHereQueryStrategy,
+              reasonsByQuery: hidrolandiaHereQueryReasonsByQuery,
+            },
+          };
+          if (
+            fallbackDecision.canApplyPartial &&
+            fallbackDecision.partialCandidate &&
+            Number.isFinite(Number(fallbackDecision.partialCandidate.lat)) &&
+            Number.isFinite(Number(fallbackDecision.partialCandidate.lng))
+          ) {
+            const candidate = fallbackDecision.partialCandidate;
+            const localCandidateLat = Number(candidate.lat);
+            const localCandidateLng = Number(candidate.lng);
+            const localAddressLabel = cleanAddressForHere(
+              [
+                candidate.ruaOriginal || normalized.rua || "Hidrolandia",
+                candidate.setorOriginal || normalized.bairro || bairroIn,
+                normalized.cidade || cityIn || "Hidrolandia",
+                normalized.estado || "GO",
+                normalizeCep(normalized.cep || cepIn),
+              ]
+                .filter(Boolean)
+                .join(", "),
+            );
+            bestItem = {
+              title: localAddressLabel,
+              id: `hidrolandia-local-street-fallback:${candidate.key}`,
+              resultType: "street",
+              address: {
+                label: localAddressLabel,
+                countryCode: "BRA",
+                countryName: "Brasil",
+                stateCode: "GO",
+                state: "Goiás",
+                city: normalized.cidade || cityIn || "Hidrolandia",
+                district: candidate.setorOriginal || normalized.bairro || bairroIn || "",
+                street: candidate.ruaOriginal || normalized.rua || "",
+                postalCode: normalizeCep(normalized.cep || cepIn),
+              },
+              position: {
+                lat: localCandidateLat,
+                lng: localCandidateLng,
+              },
+            };
+            bestHereScore = 940;
+            finalRankedKind = "local";
+            lat = localCandidateLat;
+            lng = localCandidateLng;
+            status = "PARCIAL";
+            decisionReason =
+              fallbackDecision.partialDecisionReason ||
+              "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE";
+            hidrolandiaLocalFirstUsedAsFinal = true;
+            hidrolandiaLocalFirstAppliedReason = "after_here_failure_setor_rua_anchor";
+            hidrolandiaLocalFirstFinalSource =
+              fallbackDecision.partialSource || "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK";
+            hidrolandiaLocalFirstFinalMatchType =
+              fallbackDecision.partialMatchType || "LOCALFIRST_HIDROLANDIA_SETOR_RUA_FALLBACK";
+            hidrolandiaShadowAudit = {
+              ...(hidrolandiaShadowAudit || {}),
+              localFirstAppliedAsFinal: true,
+              localFirstAppliedReason: hidrolandiaLocalFirstAppliedReason,
+              localFirstPartialLevel: fallbackDecision.partialLevel || "SETOR_RUA_AFTER_HERE",
+              localFirstPartialApplied: true,
+              decisionSimulation: {
+                ...((hidrolandiaShadowAudit?.decisionSimulation as Record<string, unknown>) || {}),
+                currentWinner: "CURRENT",
+                simulatedWinner: "HIDROLANDIA_LOCALFIRST",
+                wouldReplaceCurrent: true,
+              },
+            };
+          }
+        } catch (error) {
+          hidrolandiaShadowAudit = {
+            ...(hidrolandiaShadowAudit || {}),
+            hereQueryDebug: {
+              effectiveQuery: hidrolandiaHereEffectiveQuery,
+              effectiveQueryReason: hidrolandiaHereEffectiveQueryReason,
+              queriesTried: hidrolandiaHereQueriesTried,
+              at: hidrolandiaHereAtEffective,
+              strategy: hidrolandiaHereQueryStrategy,
+              reasonsByQuery: hidrolandiaHereQueryReasonsByQuery,
+            },
+            afterHereFallbackError: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+    }
+  }
+  if (hidrolandiaCityDetected && hidrolandiaShadowAudit) {
+    hidrolandiaShadowAudit = {
+      ...hidrolandiaShadowAudit,
+      hereQueryDebug: {
+        effectiveQuery: hidrolandiaHereEffectiveQuery,
+        effectiveQueryReason: hidrolandiaHereEffectiveQueryReason,
+        queriesTried: hidrolandiaHereQueriesTried,
+        at: hidrolandiaHereAtEffective,
+        strategy: hidrolandiaHereQueryStrategy,
+        reasonsByQuery: hidrolandiaHereQueryReasonsByQuery,
+      },
+    };
+  }
   const googleCommercialFallbackStatusBefore = status;
   if (
     GOOGLE_COMMERCIAL_FALLBACK_ENABLED &&
@@ -6655,6 +6959,8 @@ if (shouldAutoSaveAddressMemory) {
     decisionReason =
       finalSource === "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
         ? "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+        : finalSource === "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK"
+          ? "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE"
         : "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA";
     finalGeocodeConfidenceDiag = buildHidrolandiaLocalFirstPartialConfidence(finalSource);
   } else if (hereHouseNumberGenericDistrictValidated) {
@@ -6684,7 +6990,8 @@ if (shouldAutoSaveAddressMemory) {
         finalSource !== "LOCALFIRST_TRINDADE" &&
         finalSource !== "LOCALFIRST_HIDROLANDIA" &&
         finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" &&
-        finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA"));
+        finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA" &&
+        finalSource !== "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK"));
 
   if (poiShadow.confidence === "POI_HIGH" || poiShadow.confidence === "POI_MEDIUM") {
     console.info("[GOIANIA_POI_SHADOW]", {
@@ -6726,6 +7033,15 @@ if (shouldAutoSaveAddressMemory) {
     localFirstTrindadeAppliedReason: trindadeLocalFirstAppliedReason,
     localFirstHidrolandiaUsedAsFinal: hidrolandiaLocalFirstUsedAsFinal,
     localFirstHidrolandiaAppliedReason: hidrolandiaLocalFirstAppliedReason,
+    ...(hidrolandiaCityDetected
+      ? {
+          hidrolandiaHereAtEffective,
+          hidrolandiaHereQueriesTried,
+          hidrolandiaHereEffectiveQuery,
+          hidrolandiaHereEffectiveQueryReason,
+          hidrolandiaHereQueryStrategy,
+        }
+      : {}),
     ...(trindadeLocalFirstInspectApplied
       ? {
           localFirstInspectApplied: true,

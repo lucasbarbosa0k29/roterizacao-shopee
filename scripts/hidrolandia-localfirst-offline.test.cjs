@@ -66,6 +66,37 @@ function loadRouteParser() {
   return moduleShim.exports.__test.extractQuadraLoteSmart;
 }
 
+function loadHereQueryBuilder() {
+  const routeSource = fs.readFileSync(path.join(root, "app/api/process/route.ts"), "utf8");
+  const builderSource = [
+    sourceBlock(routeSource, "function onlyDigits", "function normalizeCep"),
+    sourceBlock(routeSource, "function normalizeCep", "function cleanAddressForHere"),
+    sourceBlock(routeSource, "function cleanAddressForHere", "function separateCompactQuadraLoteTokens"),
+    sourceBlock(routeSource, "function separateCompactQuadraLoteTokens", "function stripQuadraLoteFromStreet"),
+    sourceBlock(routeSource, "function stripQuadraLoteFromStreet", "async function getAtByCep"),
+    sourceBlock(routeSource, "function streetVariants", "function isHidrolandiaCity"),
+    sourceBlock(routeSource, "function isHidrolandiaCity", "function buildAparecidaStreetQuadraQueries"),
+    "type HereQueryPlan = { queries: string[]; reasonsByQuery: Record<string, string>; strategy: string; effectiveStreet: string; effectiveNumber: string; };",
+    sourceBlock(routeSource, "function buildHereQueryVariants", "function buildAparecidaRecoveryQueries"),
+    "exports.__test = { buildHereQueryVariants };",
+  ].join("\n");
+  const output = ts.transpileModule(builderSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const moduleShim = { exports: {} };
+  new Function("exports", "require", "module", "__filename", "__dirname", output)(
+    moduleShim.exports,
+    require,
+    moduleShim,
+    "hidrolandia-route-here-query-slice.ts",
+    root,
+  );
+  return moduleShim.exports.__test.buildHereQueryVariants;
+}
+
 function loadRows() {
   const workbook = XLSX.readFile(path.join(root, "data/test/Teste/Hidrolandia.xlsx"));
   return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
@@ -103,6 +134,77 @@ async function evaluateRows() {
   }
 
   return results;
+}
+
+async function evaluateAfterHereFallbacks() {
+  const localFirst = require(path.join(root, "app/lib/hidrolandia-localfirst-shadow.ts"));
+  const previousRows = loadPreviousRows();
+  const recovered = [];
+  const stillWithoutCoords = [];
+
+  for (let index = 0; index < previousRows.length; index += 1) {
+    const row = previousRows[index];
+    const normalized = row.normalized || {};
+    const source = row.source;
+    if (source !== "HERE_GEOCODE" && source !== "HERE_DISCOVER") continue;
+
+    const flags = row.geocodeConfidenceDiag?.flags || [];
+    const resultCity = String(row.hereBest?.address?.city || row.hereBest?.address?.county || "");
+    const cityMismatch =
+      flags.includes("CIDADE_MISMATCH") ||
+      (resultCity
+        ? !resultCity
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toUpperCase()
+            .includes("HIDROLANDIA")
+        : false);
+    const streetMismatch = flags.includes("RUA_MISMATCH");
+    const hereRejectedReason =
+      row.lat == null ||
+      row.lng == null ||
+      row.decisionReason === "HERE_SPREAD" ||
+      row.decisionReason === "LOW_SCORE" ||
+      row.decisionReason === "NO_COORD" ||
+      cityMismatch ||
+      streetMismatch;
+
+    if (!hereRejectedReason) continue;
+
+    const decision = await localFirst.runHidrolandiaStreetFallbackAfterHere({
+      city: row.city || "",
+      setor: String(row.bairro || normalized.bairro || "").trim(),
+      bairro: String(row.bairro || normalized.bairro || "").trim(),
+      rua: normalized.rua || "",
+      quadra: normalized.quadra || "",
+      lote: normalized.lote || "",
+      rawAddress: row.original || "",
+      currentResult: {
+        source,
+        lat: row.lat,
+        lng: row.lng,
+        matchedKey: null,
+        matchType: row.matchType,
+        confidence: row.geocodeConfidenceDiag?.confidence ?? null,
+        status: row.status,
+      },
+    });
+
+    const item = {
+      line: index + 1,
+      row,
+      decision,
+    };
+    if (decision.canApplyPartial && decision.partialCandidate) recovered.push(item);
+    if (row.lat == null || row.lng == null) {
+      if (!(decision.canApplyPartial && decision.partialCandidate)) stillWithoutCoords.push(item);
+    }
+  }
+
+  return {
+    recovered,
+    stillWithoutCoords,
+  };
 }
 
 test("Hidrolandia parser preserves hyphenated lot suffixes and AP quadras", () => {
@@ -148,4 +250,73 @@ test("Hidrolandia LocalFirst offline expected exact and partial levels", async (
   assert.equal(line64.input.lote, "3A");
   assert.equal(line64.decision.canPromote, true);
   assert.equal(line64.decision.audit.matchedKey, "HIDROLANDIA|JARDIM PRIMAVERA|7|3A");
+});
+
+test("Hidrolandia HERE query builder removes placeholders and street noise safely", () => {
+  const buildHereQueryVariants = loadHereQueryBuilder();
+
+  const placeholderPlan = buildHereQueryVariants({
+    rua: "AV GOIANIA",
+    numero: "000",
+    bairro: "Jardim Primavera",
+    cidade: "Hidrolândia",
+    estado: "GO",
+    cep: "75340-000",
+    original: "AV GOIANIA, 000, Jardim Primavera, Hidrolândia, GO",
+    normalizedLine: "AV GOIANIA, 000, Jardim Primavera, Hidrolândia, GO",
+  });
+  assert.equal(placeholderPlan.effectiveNumber, "");
+  assert.equal(placeholderPlan.strategy, "HIDROLANDIA_SN_OR_PLACEHOLDER");
+  assert.equal(placeholderPlan.queries[0], "Avenida Goiania, 75340000, Hidrolândia, GO");
+  assert.ok(placeholderPlan.queries.every((query) => !/,\s*(0|00|000|S\/N|SN)\s*,/i.test(query)));
+
+  const noisyPlan = buildHereQueryVariants({
+    rua: "Rua Doutor Virmondes d Ap2",
+    numero: "16",
+    bairro: "Bairro Nazaré",
+    cidade: "Hidrolândia",
+    estado: "GO",
+    cep: "75340502",
+    original: "Rua Doutor Virmondes d Ap2, 16, Bairro Nazaré, Hidrolândia, GO",
+    normalizedLine: "Rua Doutor Virmondes d Ap2, 16, Bairro Nazaré, Hidrolândia, GO",
+  });
+  assert.equal(noisyPlan.effectiveNumber, "16");
+  assert.equal(noisyPlan.strategy, "HIDROLANDIA_REAL_NUMBER");
+  assert.ok(noisyPlan.queries.every((query) => !/AP2/i.test(query)));
+
+  const pluralAliasPlan = buildHereQueryVariants({
+    rua: "Alamedas dos Eucaliptos",
+    numero: "0",
+    bairro: "Jardim Primavera",
+    cidade: "Hidrolândia",
+    estado: "GO",
+    cep: "75340540",
+    original: "Alamedas dos Eucaliptos, 0, Jardim Primavera, Hidrolândia, GO",
+    normalizedLine: "Alamedas dos Eucaliptos, 0, Jardim Primavera, Hidrolândia, GO",
+  });
+  assert.equal(pluralAliasPlan.queries[0], "Alameda dos Eucaliptos, 75340540, Hidrolândia, GO");
+});
+
+test("Hidrolandia after-HERE local street fallback only recovers safe rejected cases", async () => {
+  const { recovered, stillWithoutCoords } = await evaluateAfterHereFallbacks();
+  const recoveredLines = recovered.map((item) => item.line);
+
+  assert.deepEqual(recoveredLines, [61, 67, 88]);
+
+  for (const item of recovered) {
+    assert.equal(item.decision.partialLevel, "SETOR_RUA_AFTER_HERE");
+    assert.equal(item.decision.partialSource, "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK");
+    assert.equal(item.decision.partialMatchType, "LOCALFIRST_HIDROLANDIA_SETOR_RUA_FALLBACK");
+    assert.equal(
+      item.decision.partialDecisionReason,
+      "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE",
+    );
+  }
+
+  assert.equal(stillWithoutCoords.length, 24);
+
+  for (const blockedLine of [39, 42]) {
+    const blocked = recovered.find((item) => item.line === blockedLine);
+    assert.equal(blocked, undefined);
+  }
 });

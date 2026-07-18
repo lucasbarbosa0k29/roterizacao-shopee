@@ -47,13 +47,26 @@ type PartialFallbackLevel = "SETOR_RUA_QUADRA" | "SETOR_RUA";
 
 type PartialFallbackDecision = {
   level: PartialFallbackLevel;
-  source: "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" | "LOCALFIRST_HIDROLANDIA_SETOR_RUA";
-  matchType: "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" | "LOCALFIRST_HIDROLANDIA_SETOR_RUA";
+  source:
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK";
+  matchType:
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "LOCALFIRST_HIDROLANDIA_SETOR_RUA_FALLBACK";
   decisionReason:
     | "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
-    | "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA";
-  shadowMatchType: "MATCH_SETOR_RUA_QUADRA_PARCIAL" | "MATCH_SETOR_RUA_PARCIAL";
-  reason: "safe_partial_setor_rua_quadra_anchor" | "safe_partial_setor_rua_anchor";
+    | "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+    | "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE";
+  shadowMatchType:
+    | "MATCH_SETOR_RUA_QUADRA_PARCIAL"
+    | "MATCH_SETOR_RUA_PARCIAL"
+    | "MATCH_SETOR_RUA_AFTER_HERE_PARCIAL";
+  reason:
+    | "safe_partial_setor_rua_quadra_anchor"
+    | "safe_partial_setor_rua_anchor"
+    | "safe_partial_setor_rua_after_here_anchor";
   matchedKey: string;
   candidate: HidrolandiaLocalFirstCandidate;
   sourceCandidates: HidrolandiaLocalFirstCandidate[];
@@ -76,6 +89,8 @@ const HIDROLANDIA_APPROVED_SETOR_ALIASES: Record<string, string> = {
 };
 const HIDROLANDIA_APPROVED_STREET_ALIASES: Record<string, string> = {
   "R RAIMUNDO NONATO": "R RAIMUNDO NONATO DA SILVA",
+  "AV GOIANIA": "AVENIDA GOIANIA",
+  "ALAMEDAS DOS EUCALIPTOS": "ALAMEDA DOS EUCALIPTOS",
 };
 
 let cache: HidrolandiaIndex | null = null;
@@ -119,6 +134,14 @@ function normalizeStreetName(value: unknown) {
     .replace(/\bDOUTOR\b/g, "DR")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function resolveApprovedStreetAlias(
+  street: string,
+  overrides: Record<string, string> = {},
+) {
+  const aliases = mergeApprovedAliases(HIDROLANDIA_APPROVED_STREET_ALIASES, overrides);
+  return aliases[street] || street;
 }
 
 function mergeApprovedAliases(defaults: Record<string, string>, overrides: Record<string, string> = {}) {
@@ -293,6 +316,30 @@ function buildPartialCandidate(
   };
 }
 
+function buildAfterHereStreetFallbackCandidate(
+  normalized: NormalizedInput,
+  sourceCandidates: HidrolandiaLocalFirstCandidate[],
+  anchor: HidrolandiaLocalFirstCandidate,
+  lat: number,
+  lng: number,
+) {
+  return {
+    ...buildPartialCandidate("SETOR_RUA", normalized, sourceCandidates, anchor, lat, lng),
+    featureId: `hidrolandia-after-here-street-${normalized.lookupSetor}-${normalized.rua}`,
+    key: buildKey(["HIDROLANDIA", normalized.lookupSetor, normalized.rua, "AFTER_HERE"]),
+    safetyStatus: "PARTIAL_SETOR_RUA_AFTER_HERE_SAFE_ANCHOR",
+    structuralStatus: "PARTIAL_SETOR_RUA_AFTER_HERE",
+    warnings: [
+      "partial_result_not_lot_exact",
+      "partial_setor_rua_after_here_anchor",
+      `partial_source_candidate_count:${sourceCandidates.length}`,
+      ...(anchor.warnings || []),
+    ],
+    confidence: 0.64,
+    representativePointMethod: "PARTIAL_SETOR_RUA_AFTER_HERE_AVERAGE_ANCHOR",
+  } satisfies HidrolandiaLocalFirstCandidate;
+}
+
 function buildFlags(candidates: HidrolandiaLocalFirstCandidate[]): HidrolandiaShadowFlags {
   const blockers = candidates.flatMap((candidate) => candidate.blockers || []);
   return {
@@ -417,8 +464,7 @@ function findSetorRuaQuadraFallback(
   const candidates = getAllCandidates(index).filter(
     (candidate) =>
       candidateSetor(candidate) === normalized.lookupSetor &&
-      candidateStreet(candidate) ===
-        (HIDROLANDIA_APPROVED_STREET_ALIASES[normalized.rua] || normalized.rua) &&
+      candidateStreet(candidate) === resolveApprovedStreetAlias(normalized.rua, options.approvedStreetAliases) &&
       candidateQuadra(candidate) === normalized.quadra,
   );
   if (!candidates.length) return null;
@@ -473,8 +519,7 @@ function findSetorRuaFallback(
   const candidates = getAllCandidates(index).filter(
     (candidate) =>
       candidateSetor(candidate) === normalized.lookupSetor &&
-      candidateStreet(candidate) ===
-        (HIDROLANDIA_APPROVED_STREET_ALIASES[normalized.rua] || normalized.rua),
+      candidateStreet(candidate) === resolveApprovedStreetAlias(normalized.rua, options.approvedStreetAliases),
   );
   if (!candidates.length) return null;
 
@@ -531,6 +576,61 @@ function findPartialFallback(
     findSetorRuaQuadraFallback(normalized, index, options) ||
     findSetorRuaFallback(normalized, index, options)
   );
+}
+
+function findAfterHereStreetFallback(
+  normalized: NormalizedInput,
+  index: HidrolandiaIndex | null,
+  options: RunOptions,
+) {
+  if (!index) return null;
+  if (!normalized.setor || !normalized.rua) return null;
+
+  const resolvedStreet = resolveApprovedStreetAlias(normalized.rua, options.approvedStreetAliases);
+  const candidates = getAllCandidates(index).filter(
+    (candidate) =>
+      candidateSetor(candidate) === normalized.lookupSetor &&
+      candidateStreet(candidate) === resolvedStreet,
+  );
+  if (!candidates.length) return null;
+
+  const relation = hasStrongSetorAndStreet(normalized, candidates, options);
+  if (!relation.ok) return null;
+
+  const candidateSetores = unique(candidates.map(candidateSetor));
+  const candidateRuas = unique(candidates.map(candidateStreet));
+  if (candidateSetores.length !== 1 || candidateRuas.length !== 1) return null;
+
+  const anchors = candidates.filter(isInsideCoverageAnchor);
+  const coordinate = averageCoordinate(anchors);
+  if (!coordinate) return null;
+
+  const anchor = anchors[0];
+  const candidate = buildAfterHereStreetFallbackCandidate(
+    normalized,
+    anchors,
+    anchor,
+    coordinate.lat,
+    coordinate.lng,
+  );
+
+  return {
+    level: "SETOR_RUA" as const,
+    source: "LOCALFIRST_HIDROLANDIA_RUA_FALLBACK" as const,
+    matchType: "LOCALFIRST_HIDROLANDIA_SETOR_RUA_FALLBACK" as const,
+    decisionReason: "PARTIAL_LOCALFIRST_HIDROLANDIA_RUA_AFTER_HERE_FAILURE" as const,
+    shadowMatchType: "MATCH_SETOR_RUA_AFTER_HERE_PARCIAL" as const,
+    reason: "safe_partial_setor_rua_after_here_anchor" as const,
+    matchedKey: buildKey(["HIDROLANDIA", normalized.lookupSetor, normalized.rua, "AFTER_HERE"]),
+    candidate,
+    sourceCandidates: anchors,
+    warnings: [
+      "partial_result_not_lot_exact",
+      "partial_setor_rua_after_here_anchor",
+      `partial_source_candidate_count:${candidates.length}`,
+      `partial_inside_anchor_count:${anchors.length}`,
+    ],
+  };
 }
 
 function buildDecisionSimulation(
@@ -948,6 +1048,96 @@ export async function runHidrolandiaLocalFirstForProcess(
       blockedReason: applied ? "not_blocked" : shadow.safetyGate.blockers[0] || shadow.reason,
       candidate: canPromote ? candidate : null,
       partialCandidate: canApplyPartial ? candidate : null,
+    };
+  } catch (error) {
+    const audit = buildProcessErrorAudit(error instanceof Error ? error.message : String(error), true);
+    return {
+      audit,
+      canPromote: false,
+      canApplyPartial: false,
+      partialLevel: null,
+      partialSource: null,
+      partialMatchType: null,
+      partialDecisionReason: null,
+      blockedReason: "shadow_error",
+      candidate: null,
+      partialCandidate: null,
+    };
+  }
+}
+
+export async function runHidrolandiaStreetFallbackAfterHere(
+  input: HidrolandiaProcessShadowInput,
+): Promise<HidrolandiaLocalFirstDecision> {
+  try {
+    if (!isHidrolandiaCandidate(input)) {
+      const audit = buildProcessErrorAudit("shadow_skipped_not_hidrolandia", false);
+      return {
+        audit,
+        canPromote: false,
+        canApplyPartial: false,
+        partialLevel: null,
+        partialSource: null,
+        partialMatchType: null,
+        partialDecisionReason: null,
+        blockedReason: "city_not_hidrolandia",
+        candidate: null,
+        partialCandidate: null,
+      };
+    }
+
+    const normalized = normalizeHidrolandiaInput(input);
+    const fallback = findAfterHereStreetFallback(normalized, readIndex(), {});
+
+    if (!fallback) {
+      const shadow = await runHidrolandiaLocalFirstShadow(input, { allowPromotion: true });
+      return {
+        audit: toDecisionAudit(shadow, false),
+        canPromote: false,
+        canApplyPartial: false,
+        partialLevel: null,
+        partialSource: null,
+        partialMatchType: null,
+        partialDecisionReason: null,
+        blockedReason: shadow.safetyGate.blockers[0] || shadow.reason,
+        candidate: null,
+        partialCandidate: null,
+      };
+    }
+
+    const shadow: HidrolandiaShadowResult = {
+      enabled: true,
+      cityDetected: true,
+      skipped: false,
+      localFirstFound: true,
+      matchType: fallback.shadowMatchType,
+      confidence: fallback.candidate.confidence ?? 0.64,
+      matchedKey: fallback.matchedKey,
+      candidateCount: 1,
+      comparisonResult: "CURRENT_RESULT_PRESERVED",
+      reason: fallback.reason,
+      flags: buildFlags([fallback.candidate]),
+      blockers: [],
+      warnings: fallback.warnings,
+      candidate: fallback.candidate,
+      candidates: [fallback.candidate],
+      streetResolution: resolveStreet(normalized, [fallback.candidate]),
+      setorResolution: resolveSetor(normalized, [fallback.candidate]),
+      safetyGate: buildSafetyGate([], fallback.warnings, true),
+      decisionSimulation: buildDecisionSimulation(fallback.reason, "LOW", true),
+    };
+
+    return {
+      audit: toDecisionAudit(shadow, true),
+      canPromote: false,
+      canApplyPartial: true,
+      partialLevel: "SETOR_RUA_AFTER_HERE",
+      partialSource: fallback.source,
+      partialMatchType: fallback.matchType,
+      partialDecisionReason: fallback.decisionReason,
+      blockedReason: "not_blocked",
+      candidate: null,
+      partialCandidate: fallback.candidate,
     };
   } catch (error) {
     const audit = buildProcessErrorAudit(error instanceof Error ? error.message : String(error), true);
