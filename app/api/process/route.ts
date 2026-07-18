@@ -820,6 +820,148 @@ function buildTrindadeLocalFirstValidatedConfidence(): GeocodeConfidenceResult {
   };
 }
 
+function isSafeHidrolandiaLocalFirstFinal(params: {
+  audit: (Record<string, unknown> & {
+    candidateSummary?: { safetyStatus?: string | null } | null;
+    setorResolution?: { relation?: string | null } | null;
+    streetResolution?: { relation?: string | null; inputRua?: string | null } | null;
+    safetyGate?: { pass?: boolean | null } | null;
+    decisionSimulation?: { simulatedWinner?: string | null; wouldReplaceCurrent?: boolean | null } | null;
+    localFirstAppliedAsFinal?: boolean | null;
+    cityDetected?: boolean | null;
+    localFirstFound?: boolean | null;
+    candidateCount?: number | null;
+  }) | null;
+  finalSource: string;
+  lat: number | null;
+  lng: number | null;
+}) {
+  if (params.finalSource !== "LOCALFIRST_HIDROLANDIA") return false;
+  if (!Number.isFinite(Number(params.lat)) || !Number.isFinite(Number(params.lng))) return false;
+  const audit = params.audit || null;
+  const candidate = audit?.candidateSummary || null;
+  const setorRelation = String(audit?.setorResolution?.relation || "");
+  const streetRelation = String(audit?.streetResolution?.relation || "");
+  const streetStrong =
+    !String(audit?.streetResolution?.inputRua || "").trim() ||
+    streetRelation === "RUA_EXACT" ||
+    streetRelation === "RUA_ALIAS_APROVADO" ||
+    streetRelation === "RUA_COMPATIVEL_FORTE";
+  const setorStrong =
+    setorRelation === "SETOR_EXACT" ||
+    setorRelation === "SETOR_ALIAS_APROVADO" ||
+    setorRelation === "SETOR_COMPATIVEL_FORTE";
+
+  return (
+    audit?.localFirstAppliedAsFinal === true &&
+    audit?.cityDetected === true &&
+    audit?.localFirstFound === true &&
+    audit?.candidateCount === 1 &&
+    audit?.safetyGate?.pass === true &&
+    audit?.decisionSimulation?.simulatedWinner === "HIDROLANDIA_LOCALFIRST" &&
+    audit?.decisionSimulation?.wouldReplaceCurrent === true &&
+    candidate?.safetyStatus === "SAFE_UNIQUE" &&
+    setorStrong &&
+    streetStrong
+  );
+}
+
+function buildHidrolandiaLocalFirstValidatedConfidence(): GeocodeConfidenceResult {
+  return {
+    confidence: 96,
+    level: "HIGH",
+    hardMismatch: false,
+    flags: [
+      "SOURCE_LOCALFIRST_HIDROLANDIA",
+      "HAS_COORDS",
+      "HIDROLANDIA_LOCALFIRST_FINAL",
+      "HIDROLANDIA_SETOR_QUADRA_LOTE_CONFIRMED",
+      "HIDROLANDIA_SAFE_UNIQUE_CANDIDATE",
+    ],
+    reasons: [
+      "LocalFirst Hidrolandia aplicado como resultado final.",
+      "Setor, quadra e lote confirmados por indice local seguro.",
+      "Candidato unico SAFE_UNIQUE e safety gate aprovado.",
+    ],
+  };
+}
+
+function isSafeHidrolandiaLocalFirstPartial(params: {
+  audit: (Record<string, unknown> & {
+    candidateSummary?: { safetyStatus?: string | null } | null;
+    setorResolution?: { relation?: string | null } | null;
+    streetResolution?: { relation?: string | null; inputRua?: string | null } | null;
+    safetyGate?: { pass?: boolean | null } | null;
+    decisionSimulation?: { simulatedWinner?: string | null; wouldReplaceCurrent?: boolean | null } | null;
+    localFirstAppliedAsFinal?: boolean | null;
+    localFirstPartialApplied?: boolean | null;
+    cityDetected?: boolean | null;
+    localFirstFound?: boolean | null;
+    candidateCount?: number | null;
+  }) | null;
+  finalSource: string;
+  lat: number | null;
+  lng: number | null;
+}) {
+  if (
+    params.finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" &&
+    params.finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+  ) {
+    return false;
+  }
+  if (!Number.isFinite(Number(params.lat)) || !Number.isFinite(Number(params.lng))) return false;
+  const audit = params.audit || null;
+  const setorRelation = String(audit?.setorResolution?.relation || "");
+  const streetRelation = String(audit?.streetResolution?.relation || "");
+  const candidateSafety = String(audit?.candidateSummary?.safetyStatus || "");
+  const streetStrong =
+    streetRelation === "RUA_EXACT" ||
+    streetRelation === "RUA_ALIAS_APROVADO" ||
+    streetRelation === "RUA_COMPATIVEL_FORTE";
+  const setorStrong =
+    setorRelation === "SETOR_EXACT" ||
+    setorRelation === "SETOR_ALIAS_APROVADO" ||
+    setorRelation === "SETOR_COMPATIVEL_FORTE";
+
+  return (
+    audit?.localFirstAppliedAsFinal === true &&
+    audit?.localFirstPartialApplied === true &&
+    audit?.cityDetected === true &&
+    audit?.localFirstFound === true &&
+    audit?.candidateCount === 1 &&
+    audit?.safetyGate?.pass === true &&
+    audit?.decisionSimulation?.simulatedWinner === "HIDROLANDIA_LOCALFIRST" &&
+    audit?.decisionSimulation?.wouldReplaceCurrent === true &&
+    candidateSafety.startsWith("PARTIAL_") &&
+    setorStrong &&
+    streetStrong
+  );
+}
+
+function buildHidrolandiaLocalFirstPartialConfidence(finalSource: string): GeocodeConfidenceResult {
+  const isQuadra = finalSource === "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA";
+  return {
+    confidence: isQuadra ? 78 : 68,
+    level: "MEDIUM",
+    hardMismatch: false,
+    flags: [
+      isQuadra
+        ? "SOURCE_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+        : "SOURCE_LOCALFIRST_HIDROLANDIA_SETOR_RUA",
+      "HAS_COORDS",
+      "HIDROLANDIA_LOCALFIRST_PARTIAL",
+      isQuadra ? "HIDROLANDIA_SETOR_RUA_QUADRA_CONFIRMED" : "HIDROLANDIA_SETOR_RUA_CONFIRMED",
+    ],
+    reasons: [
+      "LocalFirst Hidrolandia aplicado como resultado parcial.",
+      isQuadra
+        ? "Setor, rua e quadra confirmados por indice local; lote nao foi tratado como exato."
+        : "Setor e rua confirmados por indice local; lote nao foi tratado como exato.",
+      "Ancora parcial dentro da cobertura cadastral.",
+    ],
+  };
+}
+
 function buildHereHouseNumberValidatedConfidence(): GeocodeConfidenceResult {
   return {
     confidence: 92,
@@ -1641,6 +1783,24 @@ function extractQuadraLoteSmart(
     }
   }
 
+  const explicitApQuadraPair = findFirstSafeMatch(
+    up,
+    new RegExp(
+      String.raw`\b(?:QUADRA|QUAD|QDRA|QDR|QDA|QD)\.?\s*[:\-]?\s*(AP)\s+0*([0-9][A-Z0-9\-]*)\s+(?:LTS|LTT|LTE|LOTE|LOT|LT)\.?\s*[:\-]?\s*0*([0-9][A-Z0-9\-]*)(?:\s+([A-Z])(?=\s*(?:,|\.|$|\b(?:CASA|CS|BLOCO|BL|APTO|APT|APARTAMENTO|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|CONDOMÍNIO|EDIFICIO|COMERCIAL|PORTAO|PORTÃO|ESQUINA|FUNDO|FUNDOS|SOBRADO)\b)))?\b`,
+    ),
+  );
+  if (explicitApQuadraPair) {
+    return {
+      quadra: `${explicitApQuadraPair[1]} ${normalizeQLValue(explicitApQuadraPair[2])}`.trim(),
+      lote: normalizeQLValue(explicitApQuadraPair[3], explicitApQuadraPair[4]),
+      inferredQdLt: false,
+      inferredPattern: null,
+      parserRule: "explicit_qd_ap_lt",
+      parserSource: "address",
+      parserConfidence: "HIGH",
+    };
+  }
+
   const qiMatch = up.match(
     new RegExp(
       String.raw`\b(?:QUADRA|QUAD|QDR|QD|Q)\.?\s*QI\s*0*([0-9][A-Z0-9\-]*)\b`,
@@ -1670,7 +1830,13 @@ function extractQuadraLoteSmart(
 
   // 2) formatos explícitos: LOTE/LT/L + valor
   // pega: "LOTE 27", "LT27", "L. 27", "L27", "L-27"
+  const lHyphenMatch = up.match(
+    new RegExp(
+      String.raw`\b(?:LTS|LTT|LTE|LOTE|LOT|LT)\.?\s*[:\-]?\s*0*(\d+)\s*-\s*([A-Z0-9]{1,3})${QUADRA_LOTE_VALUE_END}`,
+    ),
+  );
   const lMatch =
+    lHyphenMatch ||
     findFirstSafeMatch(
       up,
       new RegExp(
@@ -1682,7 +1848,9 @@ function extractQuadraLoteSmart(
       new RegExp(String.raw`\bL(?![A-Z])\.?\s*[:\-]?\s*(${QUADRA_LOTE_NUMERIC_TOKEN})(?:\s+([A-Z]))?${QUADRA_LOTE_VALUE_END}`),
     );
   if (lMatch) {
-    const normalizedLote = normalizeQLValue(lMatch[1], lMatch[2]);
+    const normalizedLote = lHyphenMatch
+      ? normalizeQLValue(`${lMatch[1]}-${lMatch[2]}`)
+      : normalizeQLValue(lMatch[1], lMatch[2]);
     if (!(hasApartmentNoise && normalizedLote.length === 1) && (!lote || normalizedLote.length > lote.length)) {
       lote = normalizedLote;
     }
@@ -3114,6 +3282,7 @@ async function processOne(
   const isGoianiaForGeminiSkip =
     cityForGeminiSkipKey.includes("GOIANIA") &&
     !cityForGeminiSkipKey.includes("APARECIDA");
+  const isHidrolandiaForLocalParser = cityForGeminiSkipKey.includes("HIDROLANDIA");
   const preGeminiAddressSmartQL = extractQuadraLoteSmart(addressRaw, {
     allowGoianiaSafeVariants: isGoianiaForGeminiSkip,
   });
@@ -3179,6 +3348,9 @@ async function processOne(
     "ponto de referencia",
     "landmark",
   ]);
+  const addressSmartQL = isHidrolandiaForLocalParser
+    ? withParserCandidateMetadata(preGeminiAddressSmartQL, "address", addressRaw)
+    : emptyQuadraLoteSmartResult();
   const smartQL = isGoianiaForGeminiSkip
     ? resolveQuadraLoteContext({
         row,
@@ -3213,6 +3385,8 @@ async function processOne(
       ? smartQL
       : smartQL.quadra && smartQL.lote
         ? smartQL
+        : addressSmartQL.quadra && addressSmartQL.lote
+          ? addressSmartQL
         : bairroSmartQL.quadra && bairroSmartQL.lote
           ? bairroSmartQL
           : obsSmartQL.quadra && obsSmartQL.lote
@@ -3255,19 +3429,29 @@ async function processOne(
     invalidGoianiaParserValue(g.normalized.quadra) ? "" : g.normalized.quadra || "",
     contextParserConflict
       ? ""
-      : mergeParserCandidateValue(smartQL.quadra, bairroSmartQL.quadra, obsSmartQL.quadra),
+      : mergeParserCandidateValue(
+          smartQL.quadra,
+          addressSmartQL.quadra,
+          bairroSmartQL.quadra,
+          obsSmartQL.quadra,
+        ),
     rx.quadra || trindadeCompactDdParser?.quadra || "",
   ).trim();
   const finalLote = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
     contextParserConflict
       ? ""
-      : mergeParserCandidateValue(smartQL.lote, bairroSmartQL.lote, obsSmartQL.lote),
+      : mergeParserCandidateValue(
+          smartQL.lote,
+          addressSmartQL.lote,
+          bairroSmartQL.lote,
+          obsSmartQL.lote,
+        ),
     rx.lote || trindadeCompactDdParser?.lote || "",
   ).trim();
 
   const finalParserDebug =
-    (isGoianiaForGeminiSkip || !!trindadeCompactDdParser) &&
+    (isGoianiaForGeminiSkip || isHidrolandiaForLocalParser || !!trindadeCompactDdParser) &&
     ((finalQuadra && finalLote) || smartParserSource.parserRule?.startsWith("context_qd_lt_conflict_"))
       ? {
           inferredQdLt: !!smartParserSource.inferredQdLt,
@@ -3304,17 +3488,31 @@ async function processOne(
       geminiLoteChanged: !!g.normalized.lote && finalLote !== g.normalized.lote,
       smartQLFilledQuadra: !g.normalized.quadra && !!smartQL.quadra,
       smartQLFilledLote: !g.normalized.lote && !!smartQL.lote,
+      addressSmartQLFilledQuadra:
+        !g.normalized.quadra && !smartQL.quadra && !!addressSmartQL.quadra,
+      addressSmartQLFilledLote:
+        !g.normalized.lote && !smartQL.lote && !!addressSmartQL.lote,
+      addressSmartQLCampoOrigem: addressSmartQL.campoOrigem ?? null,
+      addressSmartQLParserInputOriginal: addressSmartQL.parserInputOriginal ?? null,
       smartQLCampoOrigem: smartQL.campoOrigem ?? null,
       smartQLParserInputOriginal: smartQL.parserInputOriginal ?? null,
       smartQLConflict: smartQL.parserRule?.startsWith("context_qd_lt_conflict_") ?? false,
       bairroSmartQLFilledQuadra:
-        !g.normalized.quadra && !smartQL.quadra && !!bairroSmartQL.quadra,
+        !g.normalized.quadra && !smartQL.quadra && !addressSmartQL.quadra && !!bairroSmartQL.quadra,
       bairroSmartQLFilledLote:
-        !g.normalized.lote && !smartQL.lote && !!bairroSmartQL.lote,
+        !g.normalized.lote && !smartQL.lote && !addressSmartQL.lote && !!bairroSmartQL.lote,
       obsSmartQLFilledQuadra:
-        !g.normalized.quadra && !smartQL.quadra && !bairroSmartQL.quadra && !!obsSmartQL.quadra,
+        !g.normalized.quadra &&
+        !smartQL.quadra &&
+        !addressSmartQL.quadra &&
+        !bairroSmartQL.quadra &&
+        !!obsSmartQL.quadra,
       obsSmartQLFilledLote:
-        !g.normalized.lote && !smartQL.lote && !bairroSmartQL.lote && !!obsSmartQL.lote,
+        !g.normalized.lote &&
+        !smartQL.lote &&
+        !addressSmartQL.lote &&
+        !bairroSmartQL.lote &&
+        !!obsSmartQL.lote,
       bairroParserCleaned: bairroParser.bairroParserCleaned,
     });
   }
@@ -3520,6 +3718,17 @@ async function processOne(
   let goianiaJardimCerradoRegionalUsedAsFinal = false;
   let goianiaJardimCerradoRegionalAnchorOnly = false;
   let localFirstBypassHere = false;
+  const hidrolandiaShadowEnabled = process.env.ROTTA_HIDROLANDIA_LOCALFIRST_SHADOW === "1";
+  const hidrolandiaLocalFirstPromotionEnabled =
+    process.env.ROTTA_HIDROLANDIA_LOCALFIRST_PROMOTION === "1";
+  const hidrolandiaLocalFirstRuntimeEnabled =
+    hidrolandiaShadowEnabled || hidrolandiaLocalFirstPromotionEnabled;
+  const hidrolandiaCityDetected = normalizeKey(cityForDecision || "").includes("HIDROLANDIA");
+  let hidrolandiaShadowAudit: Record<string, unknown> | null = null;
+  let hidrolandiaLocalFirstUsedAsFinal = false;
+  let hidrolandiaLocalFirstAppliedReason: string | null = null;
+  let hidrolandiaLocalFirstFinalSource: string | null = null;
+  let hidrolandiaLocalFirstFinalMatchType: string | null = null;
 
   const resolveGoianiaLocalFirstBypassReason = () => {
     const cityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
@@ -3733,6 +3942,157 @@ async function processOne(
 
   // ✅ Só roda HERE quando NÃO tiver memória
   const scored: RankedHereEntry[] = [];
+
+  if (hidrolandiaLocalFirstRuntimeEnabled && hidrolandiaCityDetected) {
+    try {
+      const hidrolandiaLocalFirst = await import("@/app/lib/hidrolandia-localfirst-shadow");
+      const hidrolandiaInput = {
+        city: cityForDecision || cityIn || "",
+        setor: String(bairroIn || normalized.bairro || "").trim(),
+        bairro: String(bairroIn || normalized.bairro || "").trim(),
+        rua: normalized.rua || "",
+        quadra: normalized.quadra || "",
+        lote: normalized.lote || "",
+        rawAddress: addressRaw,
+        currentResult: {
+          source: memoryHit ? "MEMORY" : approxMemoryHit ? "MEMORY_APPROX" : "PENDING_HERE",
+          lat,
+          lng,
+          matchedKey: matchedMemoryKey || null,
+          matchType: memoryHit ? "MEMORY" : approxMemoryHit ? "MEMORY_APPROX" : "PENDING_HERE",
+          confidence: memoryHit || approxMemoryHit ? 1 : null,
+          status: memoryHit || approxMemoryHit ? "OK" : "PENDENTE",
+        },
+      };
+      const decision = hidrolandiaLocalFirstPromotionEnabled
+        ? await hidrolandiaLocalFirst.runHidrolandiaLocalFirstForProcess(hidrolandiaInput)
+        : {
+            audit: await hidrolandiaLocalFirst.runHidrolandiaShadowForProcess(hidrolandiaInput),
+            canPromote: false,
+            blockedReason: "promotion_flag_off",
+            candidate: null,
+          };
+      hidrolandiaShadowAudit = {
+        ...decision.audit,
+        promotionFlagEnabled: hidrolandiaLocalFirstPromotionEnabled,
+        localFirstAppliedReason: null,
+        blockedReason: decision.blockedReason,
+      };
+
+      if (
+        hidrolandiaLocalFirstPromotionEnabled &&
+        !memoryHit &&
+        !approxMemoryHit &&
+        ((decision.canPromote && decision.candidate) ||
+          (decision.canApplyPartial && decision.partialCandidate)) &&
+        Number.isFinite(Number((decision.candidate || decision.partialCandidate)?.lat)) &&
+        Number.isFinite(Number((decision.candidate || decision.partialCandidate)?.lng))
+      ) {
+        const candidate = decision.canPromote ? decision.candidate : decision.partialCandidate;
+        if (!candidate) throw new Error("hidrolandia_localfirst_missing_selected_candidate");
+        const isPartialHidrolandiaLocalFirst = !decision.canPromote && decision.canApplyPartial;
+        const localCandidateLat = Number(candidate.lat);
+        const localCandidateLng = Number(candidate.lng);
+        const localAddressLabel = cleanAddressForHere(
+          [
+            candidate.ruaOriginal || normalized.rua || "Hidrolandia",
+            candidate.quadraOriginal ? `Quadra ${candidate.quadraOriginal}` : "",
+            !isPartialHidrolandiaLocalFirst && candidate.loteOriginal ? `Lote ${candidate.loteOriginal}` : "",
+            candidate.setorOriginal || normalized.bairro || bairroIn,
+            normalized.cidade || cityIn || "Hidrolandia",
+            normalized.estado || "GO",
+            normalizeCep(normalized.cep || cepIn),
+          ]
+            .filter(Boolean)
+            .join(", "),
+        );
+
+        bestItem = {
+          title: localAddressLabel,
+          id: `hidrolandia-local-first:${candidate.key}`,
+          resultType: "street",
+          address: {
+            label: localAddressLabel,
+            countryCode: "BRA",
+            countryName: "Brasil",
+            stateCode: "GO",
+            state: "Goiás",
+            city: normalized.cidade || cityIn || "Hidrolandia",
+            district: candidate.setorOriginal || normalized.bairro || bairroIn || "",
+            street: candidate.ruaOriginal || normalized.rua || "",
+            postalCode: normalizeCep(normalized.cep || cepIn),
+          },
+          position: {
+            lat: localCandidateLat,
+            lng: localCandidateLng,
+          },
+        };
+        bestHereScore = 999;
+        finalRankedKind = "local";
+        lat = localCandidateLat;
+        lng = localCandidateLng;
+        decisionReason = isPartialHidrolandiaLocalFirst
+          ? decision.partialDecisionReason || "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+          : "OK_LOCALFIRST_HIDROLANDIA_SETOR_QUADRA_LOTE";
+        localFirstBypassHere = true;
+        hidrolandiaLocalFirstUsedAsFinal = true;
+        hidrolandiaLocalFirstAppliedReason = isPartialHidrolandiaLocalFirst
+          ? `partial_${decision.partialLevel || "SETOR_RUA"}_safety_gate_pass_v1`
+          : "safety_gate_pass_v1";
+        hidrolandiaLocalFirstFinalSource = isPartialHidrolandiaLocalFirst
+          ? decision.partialSource || "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+          : "LOCALFIRST_HIDROLANDIA";
+        hidrolandiaLocalFirstFinalMatchType = isPartialHidrolandiaLocalFirst
+          ? decision.partialMatchType || "LOCALFIRST_HIDROLANDIA_SETOR_RUA"
+          : "LOCALFIRST_HIDROLANDIA";
+        hidrolandiaShadowAudit = {
+          ...hidrolandiaShadowAudit,
+          localFirstAppliedAsFinal: true,
+          localFirstAppliedReason: hidrolandiaLocalFirstAppliedReason,
+          localFirstPartialLevel: isPartialHidrolandiaLocalFirst ? decision.partialLevel || null : null,
+          localFirstPartialApplied: isPartialHidrolandiaLocalFirst,
+          decisionSimulation: {
+            ...((hidrolandiaShadowAudit?.decisionSimulation as Record<string, unknown>) || {}),
+            currentWinner: "CURRENT",
+            simulatedWinner: "HIDROLANDIA_LOCALFIRST",
+            wouldReplaceCurrent: true,
+          },
+        };
+      }
+    } catch (error) {
+      hidrolandiaShadowAudit = {
+        enabled: true,
+        skipped: true,
+        cityDetected: true,
+        localFirstFound: false,
+        matchedKey: null,
+        candidateCount: 0,
+        matchType: "SKIPPED",
+        comparisonResult: "NO_LOCAL_CANDIDATE",
+        reason: error instanceof Error ? error.message : String(error),
+        blockers: ["shadow_import_error"],
+        warnings: [`shadow_import_error:${error instanceof Error ? error.message : String(error)}`],
+        candidateSummary: null,
+        candidateFeatureIds: [],
+        streetResolution: null,
+        setorResolution: null,
+        safetyGate: null,
+        decisionSimulation: {
+          currentWinner: "CURRENT",
+          simulatedWinner: "UNCHANGED",
+          wouldReplaceCurrent: false,
+          reason: "shadow_import_error",
+          riskLevel: "LOW",
+        },
+        currentResultPreserved: true,
+        manualMemorySovereign: true,
+        localFirstAppliedAsFinal: false,
+        addressMemoryWriteBlocked: true,
+        promotionFlagEnabled: hidrolandiaLocalFirstPromotionEnabled,
+        localFirstAppliedReason: null,
+      };
+    }
+  }
 
   if (
     !memoryHit &&
@@ -6220,6 +6580,8 @@ if (shouldAutoSaveAddressMemory) {
 
   const finalSource = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
+    : hidrolandiaLocalFirstUsedAsFinal
+      ? hidrolandiaLocalFirstFinalSource || "LOCALFIRST_HIDROLANDIA"
     : goianiaJardimCerradoRegionalUsedAsFinal
       ? "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
@@ -6233,6 +6595,8 @@ if (shouldAutoSaveAddressMemory) {
           : "HERE_GEOCODE";
   const finalMatchType = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
+    : hidrolandiaLocalFirstUsedAsFinal
+      ? hidrolandiaLocalFirstFinalMatchType || "LOCALFIRST_HIDROLANDIA"
     : goianiaJardimCerradoRegionalUsedAsFinal
       ? goianiaJardimCerradoRegional.matchType || "LOCALFIRST_GOIANIA_JARDIM_CERRADO"
     : localFirstGoianiaUsedAsFinal
@@ -6251,8 +6615,22 @@ if (shouldAutoSaveAddressMemory) {
     lat,
     lng,
   });
+  const hidrolandiaLocalFirstValidated = isSafeHidrolandiaLocalFirstFinal({
+    audit: hidrolandiaShadowAudit,
+    finalSource,
+    lat,
+    lng,
+  });
+  const hidrolandiaLocalFirstPartialValidated = isSafeHidrolandiaLocalFirstPartial({
+    audit: hidrolandiaShadowAudit,
+    finalSource,
+    lat,
+    lng,
+  });
   const hereHouseNumberGenericDistrictValidated =
     !trindadeLocalFirstValidated &&
+    !hidrolandiaLocalFirstValidated &&
+    !hidrolandiaLocalFirstPartialValidated &&
     finalSource === "HERE_GEOCODE" &&
     isHereHouseNumberGenericDistrictValid({
       bestItem,
@@ -6268,6 +6646,17 @@ if (shouldAutoSaveAddressMemory) {
     status = "OK";
     decisionReason = "OK_LOCALFIRST_TRINDADE_RUA_BAIRRO";
     finalGeocodeConfidenceDiag = buildTrindadeLocalFirstValidatedConfidence();
+  } else if (hidrolandiaLocalFirstValidated) {
+    status = "OK";
+    decisionReason = "OK_LOCALFIRST_HIDROLANDIA_SETOR_QUADRA_LOTE";
+    finalGeocodeConfidenceDiag = buildHidrolandiaLocalFirstValidatedConfidence();
+  } else if (hidrolandiaLocalFirstPartialValidated) {
+    status = "PARCIAL";
+    decisionReason =
+      finalSource === "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+        ? "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA"
+        : "PARCIAL_LOCALFIRST_HIDROLANDIA_SETOR_RUA";
+    finalGeocodeConfidenceDiag = buildHidrolandiaLocalFirstPartialConfidence(finalSource);
   } else if (hereHouseNumberGenericDistrictValidated) {
     status = "OK";
     decisionReason = "OK_HERE_HOUSENUMBER_GENERIC_DISTRICT";
@@ -6292,7 +6681,10 @@ if (shouldAutoSaveAddressMemory) {
       (finalSource !== "MEMORY" &&
         finalSource !== "LOCALFIRST_GOIANIA_JARDIM_CERRADO" &&
         finalSource !== "LOCALFIRST_GOIANIA" &&
-        finalSource !== "LOCALFIRST_TRINDADE"));
+        finalSource !== "LOCALFIRST_TRINDADE" &&
+        finalSource !== "LOCALFIRST_HIDROLANDIA" &&
+        finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA_QUADRA" &&
+        finalSource !== "LOCALFIRST_HIDROLANDIA_SETOR_RUA"));
 
   if (poiShadow.confidence === "POI_HIGH" || poiShadow.confidence === "POI_MEDIUM") {
     console.info("[GOIANIA_POI_SHADOW]", {
@@ -6332,6 +6724,8 @@ if (shouldAutoSaveAddressMemory) {
     matchType: finalMatchType,
     localFirstTrindadeUsedAsFinal: trindadeLocalFirstUsedAsFinal,
     localFirstTrindadeAppliedReason: trindadeLocalFirstAppliedReason,
+    localFirstHidrolandiaUsedAsFinal: hidrolandiaLocalFirstUsedAsFinal,
+    localFirstHidrolandiaAppliedReason: hidrolandiaLocalFirstAppliedReason,
     ...(trindadeLocalFirstInspectApplied
       ? {
           localFirstInspectApplied: true,
@@ -6430,6 +6824,7 @@ if (shouldAutoSaveAddressMemory) {
     urbanPatternBecameBestGeocodeQuery,
     ...(discoverGateDebug ? { discoverGateDebug } : {}),
     ...(trindadeShadowAudit ? { trindadeShadow: trindadeShadowAudit } : {}),
+    ...(hidrolandiaShadowAudit ? { hidrolandiaShadow: hidrolandiaShadowAudit } : {}),
 
     model: g.model,
     usedGemini: g.usedGemini,

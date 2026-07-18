@@ -41,6 +41,11 @@ const TrindadeArcgisMap = dynamic(
   { ssr: false }
 );
 
+const HidrolandiaArcgisMap = dynamic(
+  () => import("./components/HidrolandiaArcgisMap"),
+  { ssr: false }
+);
+
 const GoogleValidationMap = dynamic(
   () => import("./components/GoogleValidationMap"),
   { ssr: false }
@@ -48,7 +53,7 @@ const GoogleValidationMap = dynamic(
 
 type ManualMapProvider = "here" | "arcgis" | "google";
 type PrimaryManualMapProvider = "here" | "arcgis";
-type ArcgisCityKey = "aparecida" | "goiania" | "trindade";
+type ArcgisCityKey = "aparecida" | "goiania" | "trindade" | "hidrolandia";
 type TrindadeManualPick = {
   lat: number;
   lng: number;
@@ -1691,6 +1696,7 @@ useEffect(() => {
   function getArcgisCityKey(v: any): ArcgisCityKey | null {
     const s = normalizeCityName(v);
     if (s.includes("TRINDADE")) return "trindade";
+    if (s.includes("HIDROLANDIA")) return "hidrolandia";
     if (s.includes("APARECIDA")) return "aparecida";
     if (s.includes("GOIANIA")) return "goiania";
     return null;
@@ -1698,7 +1704,9 @@ useEffect(() => {
 
   function getInitialManualMapProvider(city: any): ManualMapProvider {
     const cityKey = getArcgisCityKey(city);
-    if (cityKey === "trindade" || cityKey === "goiania") return "arcgis";
+    if (cityKey === "trindade" || cityKey === "goiania" || cityKey === "hidrolandia") {
+      return "arcgis";
+    }
     if (isAparecidaCity(city)) return "arcgis";
     if (lastPrimaryManualMapProvider === "arcgis" && cityKey) return "arcgis";
     return "here";
@@ -1824,7 +1832,10 @@ useEffect(() => {
   const arcgisAvailable =
     isModalOpen &&
     !!arcgisCityKey &&
-    (arcgisCityKey === "aparecida" || arcgisCityKey === "goiania" || arcgisCityKey === "trindade");
+    (arcgisCityKey === "aparecida" ||
+      arcgisCityKey === "goiania" ||
+      arcgisCityKey === "trindade" ||
+      arcgisCityKey === "hidrolandia");
 
   const activeMapProvider: ManualMapProvider =
     manualMapProvider === "google"
@@ -6118,6 +6129,14 @@ onContextMenu={(e) => {
     <div className="absolute inset-0 pt-[56px] md:pt-[64px] overflow-hidden arcgis-modal">
         {activeMapProvider === "arcgis" && arcgisCityKey === "aparecida" ? (
           <AparecidaArcgisMap
+            center={pinLatLng}
+            onPick={({ lat, lng }) => {
+              setPinLatLng({ lat, lng });
+              setPickedLabel("");
+            }}
+          />
+        ) : activeMapProvider === "arcgis" && arcgisCityKey === "hidrolandia" ? (
+          <HidrolandiaArcgisMap
             center={pinLatLng}
             onPick={({ lat, lng }) => {
               setPinLatLng({ lat, lng });

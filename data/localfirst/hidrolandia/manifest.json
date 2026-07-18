@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-15T02:38:35.752Z",
+  "scope": "Hidrolandia-GO",
+  "sourceCrs": "EPSG:31982",
+  "outputCrs": "EPSG:4326",
+  "files": [
+    {
+      "name": "lotes-index.json",
+      "path": "data\\localfirst\\hidrolandia\\lotes-index.json",
+      "layer": "lotes",
+      "recordCount": 22984,
+      "uniqueKeys": 16404,
+      "safeForPromotion": 7745,
+      "structurallySafeForShadow": 7748,
+      "blockedCandidates": 15236
+    },
+    {
+      "name": "build-report.json",
+      "path": "data\\localfirst\\hidrolandia\\build-report.json",
+      "layer": "report"
+    },
+    {
+      "name": "conflicts-report.json",
+      "path": "data\\localfirst\\hidrolandia\\conflicts-report.json",
+      "layer": "conflicts"
+    }
+  ],
+  "rules": {
+    "promotionEnabled": true,
+    "keyRequiresSetor": true,
+    "quadraLoteWithoutSetorAllowed": false,
+    "specialLotsEligible": false,
+    "streetRole": "strong_filter_validation_only",
+    "approvedAliasesGenerated": false,
+    "cadastralCoverageStatus": "CADASTRAL_SECTOR_COVERAGE",
+    "promotionRequiresInsideCadastralCoverage": true
+  }
+}
