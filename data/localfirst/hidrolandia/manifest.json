@@ -16,6 +16,12 @@
       "blockedCandidates": 15236
     },
     {
+      "name": "lotes-index.audit.json",
+      "path": "data\\localfirst\\hidrolandia\\lotes-index.audit.json",
+      "layer": "audit",
+      "recordCount": 22984
+    },
+    {
       "name": "build-report.json",
       "path": "data\\localfirst\\hidrolandia\\build-report.json",
       "layer": "report"
