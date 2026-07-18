@@ -245,7 +245,7 @@ function buildLayer(
               color: [0, 0, 0, 0.015],
               outline: {
                 color: config.key === "lotes" ? [38, 38, 38, 0.88] : [15, 23, 42, 0.96],
-                width: config.key === "lotes" ? 0.7 : 1.25,
+                width: config.key === "lotes" ? 1 : 1.5,
               },
             },
     }),
