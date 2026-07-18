@@ -32,7 +32,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     url: "/data/hidrolandia/hidrolandia_setores_mapa.web4326.geojson",
     geometry: "polygon",
     visible: false,
-    outFields: ["cidade", "tipo", "setor", "source"],
+    outFields: ["cidade", "tipo", "setor"],
     labelExpression: `return DefaultValue($feature.setor, "");`,
     labelMinScale: 50000,
     fields: [
@@ -46,7 +46,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     url: "/data/hidrolandia/hidrolandia_quadras_mapa.web4326.geojson",
     geometry: "polygon",
     visible: true,
-    outFields: ["cidade", "tipo", "setor", "quadra", "source"],
+    outFields: ["cidade", "tipo", "setor", "quadra"],
     labelExpression: `
       var q = Trim(DefaultValue($feature.quadra, ""));
       if (IsEmpty(q)) {
@@ -67,7 +67,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     url: "/data/hidrolandia/hidrolandia_lotes_mapa.web4326.geojson",
     geometry: "polygon",
     visible: true,
-    outFields: ["cidade", "tipo", "setor", "quadra", "lote", "rua", "source"],
+    outFields: ["cidade", "tipo", "setor", "quadra", "lote", "rua"],
     labelExpression: `
       var q = Trim(DefaultValue($feature.quadra, ""));
       var l = Trim(DefaultValue($feature.lote, ""));
@@ -91,7 +91,7 @@ const LAYER_CONFIGS: LayerConfig[] = [
     url: "/data/hidrolandia/hidrolandia_ruas_mapa.web4326.geojson",
     geometry: "line",
     visible: false,
-    outFields: ["cidade", "tipo", "nome_rua", "comprimento", "source"],
+    outFields: ["cidade", "tipo", "nome_rua", "comprimento"],
     labelExpression: `return DefaultValue($feature.nome_rua, "");`,
     labelMinScale: 16000,
     fields: [
@@ -230,7 +230,7 @@ function buildLayer(
     title: config.title,
     outFields: config.outFields,
     visible: config.visible,
-    labelsVisible: false,
+    labelsVisible: config.key === "lotes" || config.key === "quadras",
     popupEnabled: false,
     renderer: new SimpleRenderer({
       symbol:
@@ -298,8 +298,8 @@ export default function HidrolandiaArcgisMap({ center, onPick }: Props) {
     ensureArcgisThemeCss();
     const container = divRef.current;
 
-    if (mapInitialized) {
-      if (container && sharedView) {
+    if (mapInitialized && sharedView) {
+      if (container) {
         attachSharedView(container);
 
         if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) {
