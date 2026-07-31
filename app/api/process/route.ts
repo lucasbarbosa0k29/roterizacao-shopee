@@ -26,6 +26,7 @@ import {
   type GeocodeConfidenceResult,
 } from "@/app/lib/geocode-confidence";
 import {
+  incrementHereMetric,
   incrementDailyMetric,
   METRIC_MEMORY_BATCH_SAVE_ERROR,
   METRIC_MEMORY_BATCH_SAVE_OK,
@@ -94,6 +95,36 @@ type GoogleCommercialFallbackRunState = {
   googleCommercialFallbackCalls: number;
 };
 
+type HereJobEndpoint = "geocode" | "discover" | "getAtByCep";
+
+type HereJobRequestMeta = {
+  endpoint: HereJobEndpoint;
+  reason: string;
+  origin: string;
+};
+
+type HereJobCacheStatus = "pending" | "fulfilled";
+
+type HereJobCacheEntry<T = unknown> = {
+  endpoint: HereJobEndpoint;
+  status: HereJobCacheStatus;
+  promise: Promise<T>;
+};
+
+type HereJobEndpointMetrics = {
+  httpRequests: number;
+  cacheHits: number;
+  pendingPromiseHits: number;
+  fulfilledPromiseHits: number;
+  uniqueQueries: Set<string>;
+  httpReasons: Record<string, number>;
+  httpOrigins: Record<string, number>;
+  cacheReasons: Record<string, number>;
+  cacheOrigins: Record<string, number>;
+};
+
+type HereJobMetrics = Record<HereJobEndpoint, HereJobEndpointMetrics>;
+
 type GoianiaPoiShadowAuditRow = {
   id: string;
   occurredAt: Date;
@@ -128,7 +159,111 @@ type ProcessRunState = GoogleCommercialFallbackRunState & {
   userEmail: string | null;
   spreadsheetName: string | null;
   goianiaPoiShadowAudits: GoianiaPoiShadowAuditRow[];
+  hereJobCache: Map<string, HereJobCacheEntry>;
+  hereJobMetrics: HereJobMetrics;
 };
+
+function createHereEndpointMetrics(): HereJobEndpointMetrics {
+  return {
+    httpRequests: 0,
+    cacheHits: 0,
+    pendingPromiseHits: 0,
+    fulfilledPromiseHits: 0,
+    uniqueQueries: new Set<string>(),
+    httpReasons: {},
+    httpOrigins: {},
+    cacheReasons: {},
+    cacheOrigins: {},
+  };
+}
+
+function createHereJobMetrics(): HereJobMetrics {
+  return {
+    geocode: createHereEndpointMetrics(),
+    discover: createHereEndpointMetrics(),
+    getAtByCep: createHereEndpointMetrics(),
+  };
+}
+
+function incrementMetricBucket(bucket: Record<string, number>, key: string) {
+  const safeKey = String(key || "UNKNOWN").trim() || "UNKNOWN";
+  bucket[safeKey] = (bucket[safeKey] || 0) + 1;
+}
+
+function recordHereHttpRequest(runState: ProcessRunState | undefined, meta: HereJobRequestMeta) {
+  if (!runState) return;
+  const endpointMetrics = runState.hereJobMetrics[meta.endpoint];
+  endpointMetrics.httpRequests += 1;
+  incrementMetricBucket(endpointMetrics.httpReasons, meta.reason);
+  incrementMetricBucket(endpointMetrics.httpOrigins, meta.origin);
+}
+
+function recordHereCacheHit(
+  runState: ProcessRunState,
+  meta: HereJobRequestMeta,
+  status: HereJobCacheStatus,
+) {
+  const endpointMetrics = runState.hereJobMetrics[meta.endpoint];
+  endpointMetrics.cacheHits += 1;
+  if (status === "pending") {
+    endpointMetrics.pendingPromiseHits += 1;
+  } else {
+    endpointMetrics.fulfilledPromiseHits += 1;
+  }
+  incrementMetricBucket(endpointMetrics.cacheReasons, meta.reason);
+  incrementMetricBucket(endpointMetrics.cacheOrigins, meta.origin);
+}
+
+function recordHereUniqueQuery(runState: ProcessRunState | undefined, meta: HereJobRequestMeta, key: string) {
+  if (!runState) return;
+  runState.hereJobMetrics[meta.endpoint].uniqueQueries.add(key);
+}
+
+function summarizeHereEndpointMetrics(metrics: HereJobEndpointMetrics) {
+  return {
+    httpRequests: metrics.httpRequests,
+    cacheHits: metrics.cacheHits,
+    pendingPromiseHits: metrics.pendingPromiseHits,
+    fulfilledPromiseHits: metrics.fulfilledPromiseHits,
+    uniqueQueries: metrics.uniqueQueries.size,
+    avoidedCalls: metrics.cacheHits,
+    dedupeHits: metrics.cacheHits,
+    httpReasons: metrics.httpReasons,
+    httpOrigins: metrics.httpOrigins,
+    cacheReasons: metrics.cacheReasons,
+    cacheOrigins: metrics.cacheOrigins,
+  };
+}
+
+function getHereJobMetricsSnapshot(runState?: ProcessRunState) {
+  const empty = createHereJobMetrics();
+  const metrics = runState?.hereJobMetrics || empty;
+  const geocode = summarizeHereEndpointMetrics(metrics.geocode);
+  const discover = summarizeHereEndpointMetrics(metrics.discover);
+  const getAtByCep = summarizeHereEndpointMetrics(metrics.getAtByCep);
+
+  return {
+    geocode,
+    discover,
+    getAtByCep,
+    total: {
+      httpRequests: geocode.httpRequests + discover.httpRequests + getAtByCep.httpRequests,
+      cacheHits: geocode.cacheHits + discover.cacheHits + getAtByCep.cacheHits,
+      pendingPromiseHits:
+        geocode.pendingPromiseHits + discover.pendingPromiseHits + getAtByCep.pendingPromiseHits,
+      fulfilledPromiseHits:
+        geocode.fulfilledPromiseHits + discover.fulfilledPromiseHits + getAtByCep.fulfilledPromiseHits,
+      uniqueQueries: geocode.uniqueQueries + discover.uniqueQueries + getAtByCep.uniqueQueries,
+      avoidedCalls: geocode.avoidedCalls + discover.avoidedCalls + getAtByCep.avoidedCalls,
+      dedupeHits: geocode.dedupeHits + discover.dedupeHits + getAtByCep.dedupeHits,
+    },
+  };
+}
+
+function shouldIncludeHereJobMetricsInResponse(debugMemory: boolean) {
+  const flag = String(process.env.ROTTA_HERE_JOB_METRICS_DEBUG || "").trim().toLowerCase();
+  return debugMemory || flag === "1" || flag === "true" || flag === "yes";
+}
 
 function getProcessCacheSnapshot(runState?: ProcessRunState) {
   return {
@@ -137,6 +272,7 @@ function getProcessCacheSnapshot(runState?: ProcessRunState) {
     goianiaLocalFirst: getGoianiaLocalFirstCacheSnapshot(),
     trindade: getTrindadeLocalFirstCacheSnapshot(),
     aliasShadow: runState ? getLocalFirstAliasShadowSnapshot(runState.localFirstAliasShadow) : null,
+    here: runState ? getHereJobMetricsSnapshot(runState) : null,
   };
 }
 
@@ -2729,20 +2865,139 @@ Regras:
 }
 
 // ===== HERE =====
-async function hereGet(url: string) {
+function normalizeHereCacheText(value: string) {
+  return cleanAddressForHere(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function normalizeHereAt(value?: string | null) {
+  return String(value || "")
+    .trim()
+    .replace(/\s*,\s*/g, ",")
+    .replace(/\s+/g, "");
+}
+
+function makeHereGeocodeCacheKey(q: string, at?: string) {
+  return [
+    "here:geocode",
+    `q=${normalizeHereCacheText(q)}`,
+    `at=${normalizeHereAt(at)}`,
+    "lang=pt-BR",
+    "limit=10",
+    "in=countryCode:BRA",
+  ].join("|");
+}
+
+function makeHereDiscoverCacheKey(q: string, at: string) {
+  return [
+    "here:discover",
+    `q=${normalizeHereCacheText(q)}`,
+    `at=${normalizeHereAt(at)}`,
+    "lang=pt-BR",
+    "limit=10",
+    "in=countryCode:BRA",
+  ].join("|");
+}
+
+function makeHereAtByCepCacheKey(cep: string, city: string) {
+  const normalizedCity = normalizeKey(city || "Goiânia").replace(/\s+/g, " ").trim() || "GOIANIA";
+  return [
+    "here:getAtByCep",
+    `cep=${normalizeCep(cep)}`,
+    `city=${normalizedCity}`,
+    "uf=GO",
+    "lang=pt-BR",
+    "limit=1",
+    "in=countryCode:BRA",
+  ].join("|");
+}
+
+function hereMetricServiceForEndpoint(endpoint: HereJobEndpoint) {
+  return endpoint === "discover" ? "HERE_DISCOVER" : "HERE_GEOCODE";
+}
+
+async function hereGet(url: string, runState: ProcessRunState | undefined, meta: HereJobRequestMeta) {
+  recordHereHttpRequest(runState, meta);
+  await incrementHereMetric(hereMetricServiceForEndpoint(meta.endpoint), "process").catch(() => {});
+  console.info("[HERE_HTTP_REQUEST]", {
+    endpoint: meta.endpoint,
+    reason: meta.reason,
+    origin: meta.origin,
+  });
+
   const res = await fetch(url);
   const data = await res.json().catch(() => null);
   return { ok: res.ok, data };
+}
+
+function getOrCreateHereJobPromise<T>(
+  runState: ProcessRunState | undefined,
+  key: string,
+  meta: HereJobRequestMeta,
+  factory: () => Promise<T>,
+) {
+  if (!runState) {
+    return factory();
+  }
+
+  const existing = runState.hereJobCache.get(key) as HereJobCacheEntry<T> | undefined;
+  if (existing) {
+    recordHereCacheHit(runState, meta, existing.status);
+    console.info("[HERE_CACHE_HIT]", {
+      endpoint: meta.endpoint,
+      reason: meta.reason,
+      origin: meta.origin,
+      status: existing.status,
+    });
+    return existing.promise;
+  }
+
+  recordHereUniqueQuery(runState, meta, key);
+
+  const entry: HereJobCacheEntry<T> = {
+    endpoint: meta.endpoint,
+    status: "pending",
+    promise: Promise.resolve()
+      .then(factory)
+      .then(
+        (value) => {
+          entry.status = "fulfilled";
+          return value;
+        },
+        (error) => {
+          runState.hereJobCache.delete(key);
+          throw error;
+        },
+      ),
+  };
+
+  runState.hereJobCache.set(key, entry);
+  return entry.promise;
 }
 
 function getHereKey() {
   return (process.env.HERE_API_KEY || process.env.NEXT_PUBLIC_HERE_API_KEY || "").trim();
 }
 
-async function getAtByCep(cep: string, city: string) {
+async function getAtByCep(
+  cep: string,
+  city: string,
+  runState?: ProcessRunState,
+  reason = "AT_BY_CEP",
+  origin = "process:pre-here",
+) {
   const hereKey = getHereKey();
   const c = normalizeCep(cep);
   if (!hereKey || !c) return null;
+
+  const meta: HereJobRequestMeta = {
+    endpoint: "getAtByCep",
+    reason,
+    origin,
+  };
+  const cacheKey = makeHereAtByCepCacheKey(c, city);
 
   const base = "https://geocode.search.hereapi.com/v1/geocode";
   const qs = new URLSearchParams({
@@ -2753,19 +3008,34 @@ async function getAtByCep(cep: string, city: string) {
     in: "countryCode:BRA",
   });
 
-  const { ok, data } = await hereGet(`${base}?${qs.toString()}`);
-  if (!ok) return null;
+  return getOrCreateHereJobPromise(runState, cacheKey, meta, async () => {
+    const { ok, data } = await hereGet(`${base}?${qs.toString()}`, runState, meta);
+    if (!ok) return null;
 
-  const item = data?.items?.[0];
-  const pos = item?.position;
-  if (!pos?.lat || !pos?.lng) return null;
+    const item = data?.items?.[0];
+    const pos = item?.position;
+    if (!pos?.lat || !pos?.lng) return null;
 
-  return `${pos.lat},${pos.lng}`;
+    return `${pos.lat},${pos.lng}`;
+  });
 }
 
-async function hereGeocode(q: string, at?: string) {
+async function hereGeocode(
+  q: string,
+  at?: string,
+  runState?: ProcessRunState,
+  reason = "GEOCODE",
+  origin = "process:here-geocode",
+) {
   const hereKey = getHereKey();
   if (!hereKey) return { found: false as const, best: null as any, all: [] as any[] };
+
+  const meta: HereJobRequestMeta = {
+    endpoint: "geocode",
+    reason,
+    origin,
+  };
+  const cacheKey = makeHereGeocodeCacheKey(q, at);
 
   const base = "https://geocode.search.hereapi.com/v1/geocode";
   const qs = new URLSearchParams({
@@ -2777,15 +3047,30 @@ async function hereGeocode(q: string, at?: string) {
   });
   if (at) qs.set("at", at);
 
-  const { ok, data } = await hereGet(`${base}?${qs.toString()}`);
-  const items = data?.items || [];
-  if (!ok || !items.length) return { found: false as const, best: null, all: items };
-  return { found: true as const, best: items[0], all: items };
+  return getOrCreateHereJobPromise(runState, cacheKey, meta, async () => {
+    const { ok, data } = await hereGet(`${base}?${qs.toString()}`, runState, meta);
+    const items = data?.items || [];
+    if (!ok || !items.length) return { found: false as const, best: null, all: items };
+    return { found: true as const, best: items[0], all: items };
+  });
 }
 
-async function hereDiscover(q: string, at: string) {
+async function hereDiscover(
+  q: string,
+  at: string,
+  runState?: ProcessRunState,
+  reason = "DISCOVER",
+  origin = "process:here-discover",
+) {
   const hereKey = getHereKey();
   if (!hereKey) return { found: false as const, best: null as any, all: [] as any[] };
+
+  const meta: HereJobRequestMeta = {
+    endpoint: "discover",
+    reason,
+    origin,
+  };
+  const cacheKey = makeHereDiscoverCacheKey(q, at);
 
   const base = "https://discover.search.hereapi.com/v1/discover";
   const qs = new URLSearchParams({
@@ -2797,10 +3082,12 @@ async function hereDiscover(q: string, at: string) {
     in: "countryCode:BRA",
   });
 
-  const { ok, data } = await hereGet(`${base}?${qs.toString()}`);
-  const items = data?.items || [];
-  if (!ok || !items.length) return { found: false as const, best: null, all: items };
-  return { found: true as const, best: items[0], all: items };
+  return getOrCreateHereJobPromise(runState, cacheKey, meta, async () => {
+    const { ok, data } = await hereGet(`${base}?${qs.toString()}`, runState, meta);
+    const items = data?.items || [];
+    if (!ok || !items.length) return { found: false as const, best: null, all: items };
+    return { found: true as const, best: items[0], all: items };
+  });
 }
 
 // ====== NOVO SCORE MELHORADO (NÃO ACEITA O 1º) ======
@@ -4524,7 +4811,9 @@ async function processOne(
     // base "at": se for Aparecida, começa perto de Aparecida; senão Goiânia
     const atBase = isAparecida ? "-16.8230,-49.2470" : "-16.8233,-49.2439";
 
-    const atByCep = normalized.cep ? await getAtByCep(normalized.cep, normalized.cidade || cityIn) : null;
+    const atByCep = normalized.cep
+      ? await getAtByCep(normalized.cep, normalized.cidade || cityIn, runState, "AT_BY_CEP", "process:pre-here")
+      : null;
     const at = atByCep || atBase;
 
     const baseQueryPlan = buildHereQueryVariants({
@@ -4621,7 +4910,7 @@ async function processOne(
 
     // ✅ coleta candidatos de TODAS queries e escolhe o melhor no final
     for (const qTry of queriesWithHint) {
-      const g1 = await hereGeocode(qTry, at);
+      const g1 = await hereGeocode(qTry, at, runState, "MAIN_VARIANT", "process:geocode-main");
       let bestGeocodeScoreForQuery = -999;
       if (Array.isArray(g1.all) && g1.all.length) {
         for (const it of g1.all) {
@@ -4743,7 +5032,13 @@ async function processOne(
         });
 
         for (const qTry of recoveryQueries) {
-          const g1 = await hereGeocode(qTry, at);
+          const g1 = await hereGeocode(
+            qTry,
+            at,
+            runState,
+            "APARECIDA_RECOVERY",
+            "process:geocode-aparecida-recovery",
+          );
           let bestGeocodeScoreForQuery = -999;
           if (Array.isArray(g1.all) && g1.all.length) {
             for (const it of g1.all) {
@@ -4965,7 +5260,13 @@ async function processOne(
       );
 
       if (urbanPattern.detected && urbanPattern.query && urbanQueryNormalized && !existingQueriesNormalized.has(urbanQueryNormalized)) {
-        const urbanGeocode = await hereGeocode(urbanPattern.query, at);
+        const urbanGeocode = await hereGeocode(
+          urbanPattern.query,
+          at,
+          runState,
+          "DEBUG_MEMORY_URBAN_PATTERN",
+          "process:debug-memory",
+        );
         let urbanBestScore = -999;
         let urbanBestItem: any = null;
         const urbanSeen = new Set<string>();
@@ -5192,7 +5493,13 @@ async function processOne(
             console.info("[DISCOVER_CALL]", {
               query: discoverQuery,
             });
-            const d1 = await hereDiscover(discoverQuery, at);
+            const d1 = await hereDiscover(
+              discoverQuery,
+              at,
+              runState,
+              discoverQualityDecision.reason,
+              "process:discover-last-resort",
+            );
             if (Array.isArray(d1.all) && d1.all.length) {
               for (const it of d1.all) {
                 const key = dedupeKeyForHere(it);
@@ -7467,6 +7774,8 @@ export async function POST(req: Request) {
       googleCommercialFallbackCalls: 0,
       localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
       goianiaPoiShadowAudits: [],
+      hereJobCache: new Map(),
+      hereJobMetrics: createHereJobMetrics(),
     };
 
     logMemoryDiagnostics("process:job:start", {
@@ -7669,9 +7978,17 @@ export async function POST(req: Request) {
       processed: completedCount,
       cacheSnapshot: getProcessCacheSnapshot(runState),
     });
+    const hereJobMetrics = getHereJobMetricsSnapshot(runState);
+    console.info("[HERE_JOB_METRICS]", {
+      route: "/api/process",
+      jobId: jobId || null,
+      rows: results.length,
+      ...hereJobMetrics,
+    });
     return NextResponse.json({
       total: results.length,
       rows: results,
+      ...(shouldIncludeHereJobMetricsInResponse(debugMemory) ? { hereJobMetrics } : {}),
       ...(debugMemory ? { debugMemorySummary } : {}),
     });
   } catch (err: any) {
