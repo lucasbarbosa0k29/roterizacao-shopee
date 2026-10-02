@@ -45,10 +45,6 @@ import {
 } from "@/app/lib/aparecida-local-lots";
 import { buildCondoMemoryKeyPlan, type CondoMemoryKeyKind } from "@/app/lib/condo-memory-keys";
 import {
-  buildGoogleCommercialFallbackPlan,
-  lookupGoogleCommercialFallbackCandidate,
-} from "@/app/lib/google-commercial-fallback";
-import {
   lookupGoianiaLocalFirstShadow,
   type GoianiaLocalFirstShadow,
 } from "@/app/lib/goiania-local-first";
@@ -85,15 +81,6 @@ import { lookupGoianiaPoiShadow } from "@/app/lib/goiania-poi-shadow";
 export const runtime = "nodejs";
 const PROGRESS_BATCH_SIZE = 25;
 const MAX_ROUTE_STOPS = 200;
-const GOOGLE_COMMERCIAL_FALLBACK_ENABLED = ["1", "true", "yes"].includes(
-  String(process.env.GOOGLE_COMMERCIAL_FALLBACK_ENABLED || "").trim().toLowerCase(),
-);
-const GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB = 5;
-
-type GoogleCommercialFallbackRunState = {
-  jobId: string;
-  googleCommercialFallbackCalls: number;
-};
 
 type HereJobEndpoint = "geocode" | "discover" | "getAtByCep";
 
@@ -153,7 +140,8 @@ type GoianiaPoiShadowAuditRow = {
   metadata: Record<string, unknown>;
 };
 
-type ProcessRunState = GoogleCommercialFallbackRunState & {
+type ProcessRunState = {
+  jobId: string;
   localFirstAliasShadow: LocalFirstAliasShadowState;
   userId: string | null;
   userEmail: string | null;
@@ -595,18 +583,6 @@ type MemoryDebugRow = {
   goianiaHereStreetCompatibility?: GoianiaStreetComparison | null;
   goianiaHereInputStreetNormalized?: string | null;
   goianiaHereCandidateStreetNormalized?: string | null;
-  googleCommercialFallbackAttempted?: boolean;
-  googleCommercialFallbackFound?: boolean;
-  googleCommercialFallbackRejectedReason?: string | null;
-  googleCommercialFallbackQuery?: string | null;
-  googleCommercialFallbackCommercialName?: string | null;
-  googleCommercialFallbackScore?: number | null;
-  googleCommercialFallbackSimilarity?: number | null;
-  googleCommercialFallbackDistanceM?: number | null;
-  googleCommercialFallbackLat?: number | null;
-  googleCommercialFallbackLng?: number | null;
-  googleCommercialFallbackTitle?: string | null;
-  googleCommercialFallbackApplied?: boolean;
   urbanPatternDetected?: boolean;
   urbanPatternType?: string | null;
   urbanPatternQuery?: string | null;
@@ -4326,18 +4302,6 @@ async function processOne(
   let hereUncertain = false;
   let hereSpreadMeters = 0;
   let discoverGateDebug: DiscoverGateDebugRow | null = null;
-  let googleCommercialFallbackAttempted = false;
-  let googleCommercialFallbackFound = false;
-  let googleCommercialFallbackRejectedReason: string | null = null;
-  let googleCommercialFallbackQuery: string | null = null;
-  let googleCommercialFallbackCommercialName: string | null = null;
-  let googleCommercialFallbackScore: number | null = null;
-  let googleCommercialFallbackSimilarity: number | null = null;
-  let googleCommercialFallbackDistanceM: number | null = null;
-  let googleCommercialFallbackLat: number | null = null;
-  let googleCommercialFallbackLng: number | null = null;
-  let googleCommercialFallbackTitle: string | null = null;
-  let googleCommercialFallbackApplied = false;
   let queriesWithHint: string[] = [];
   let bestGeocodeQuery = "";
 
@@ -6405,111 +6369,6 @@ if (status === "OK") {
       },
     };
   }
-  const googleCommercialFallbackStatusBefore = status;
-  if (
-    GOOGLE_COMMERCIAL_FALLBACK_ENABLED &&
-    !memoryHit &&
-    !localLotUsedAsFinal &&
-    !goianiaJardimCerradoRegionalUsedAsFinal &&
-    !localFirstGoianiaUsedAsFinal &&
-    ["PARCIAL", "HERE_SPREAD", "MISSING_CORE"].includes(googleCommercialFallbackStatusBefore)
-  ) {
-    const googleCommercialFallbackPlan = buildGoogleCommercialFallbackPlan({
-      addressRaw,
-      city: cityForDecision,
-      aptLike,
-      hasQL,
-    });
-
-    if (!googleCommercialFallbackPlan.shouldAttempt) {
-      googleCommercialFallbackAttempted = false;
-      googleCommercialFallbackRejectedReason = googleCommercialFallbackPlan.blockedReason || null;
-    } else if (runState && runState.googleCommercialFallbackCalls >= GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB) {
-      googleCommercialFallbackAttempted = false;
-      googleCommercialFallbackRejectedReason = "SKIPPED_LIMIT";
-      console.info("[GOOGLE_COMMERCIAL_FALLBACK_SKIPPED_LIMIT]", {
-        sequence: row?.sequence ?? "",
-        jobId: runState.jobId,
-        calls: runState.googleCommercialFallbackCalls,
-        limit: GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB,
-        commercialName: googleCommercialFallbackPlan.commercialName,
-      });
-    } else {
-      if (runState) {
-        runState.googleCommercialFallbackCalls += 1;
-      }
-      googleCommercialFallbackAttempted = true;
-      googleCommercialFallbackQuery = googleCommercialFallbackPlan.query;
-      googleCommercialFallbackCommercialName = googleCommercialFallbackPlan.commercialName;
-
-      console.info("[GOOGLE_COMMERCIAL_FALLBACK_ATTEMPT]", {
-        sequence: row?.sequence ?? "",
-        jobId: runState?.jobId ?? "",
-        calls: runState?.googleCommercialFallbackCalls ?? 1,
-        limit: GOOGLE_COMMERCIAL_FALLBACK_MAX_PER_JOB,
-        commercialName: googleCommercialFallbackCommercialName,
-        query: googleCommercialFallbackQuery,
-        status,
-        decisionReason,
-        city: cityForDecision,
-      });
-
-      const googleCandidate = await lookupGoogleCommercialFallbackCandidate({
-        query: googleCommercialFallbackQuery,
-        commercialName: googleCommercialFallbackCommercialName,
-        city: cityForDecision,
-        currentPosition:
-          lat != null && lng != null
-            ? { lat, lng }
-            : bestItem?.position?.lat != null && bestItem?.position?.lng != null
-              ? { lat: bestItem.position.lat, lng: bestItem.position.lng }
-              : null,
-      });
-
-      googleCommercialFallbackScore = googleCandidate.score;
-      googleCommercialFallbackSimilarity = googleCandidate.similarity;
-      googleCommercialFallbackDistanceM = googleCandidate.coordinateDistanceM;
-      googleCommercialFallbackRejectedReason = googleCandidate.rejectedReason;
-
-      if (googleCandidate.accepted && googleCandidate.item?.position) {
-        googleCommercialFallbackFound = true;
-        googleCommercialFallbackApplied = true;
-        googleCommercialFallbackLat = googleCandidate.item.position.lat ?? null;
-        googleCommercialFallbackLng = googleCandidate.item.position.lng ?? null;
-        googleCommercialFallbackTitle = String(googleCandidate.item.title || "");
-        lat = googleCommercialFallbackLat;
-        lng = googleCommercialFallbackLng;
-        status = "PARCIAL";
-        decisionReason = "GOOGLE_COMMERCIAL_MATCH";
-        console.info("[GOOGLE_COMMERCIAL_FALLBACK_SUCCESS]", {
-          sequence: row?.sequence ?? "",
-          jobId: runState?.jobId ?? "",
-          commercialName: googleCommercialFallbackCommercialName,
-          query: googleCommercialFallbackQuery,
-          score: googleCommercialFallbackScore,
-          similarity: googleCommercialFallbackSimilarity,
-          distanceM: googleCommercialFallbackDistanceM,
-          lat: googleCommercialFallbackLat,
-          lng: googleCommercialFallbackLng,
-          title: googleCommercialFallbackTitle,
-          city: cityForDecision,
-        });
-      } else {
-        googleCommercialFallbackRejectedReason = googleCandidate.rejectedReason || "REJECTED";
-        console.info("[GOOGLE_COMMERCIAL_FALLBACK_REJECTED]", {
-          sequence: row?.sequence ?? "",
-          jobId: runState?.jobId ?? "",
-          commercialName: googleCommercialFallbackCommercialName,
-          query: googleCommercialFallbackQuery,
-          reason: googleCommercialFallbackRejectedReason,
-          score: googleCommercialFallbackScore,
-          similarity: googleCommercialFallbackSimilarity,
-          distanceM: googleCommercialFallbackDistanceM,
-          city: cityForDecision,
-        });
-      }
-    }
-  }
 // ✅ SALVAR NA MEMÓRIA GLOBAL (se válido)
 const aparecidaShadowActualBairro =
   arcgisLot?.found && String(arcgisLot.bairro || "").trim()
@@ -7361,22 +7220,6 @@ if (shouldAutoSaveAddressMemory) {
     lat,
     lng,
     decisionReason,
-    ...(GOOGLE_COMMERCIAL_FALLBACK_ENABLED
-      ? {
-          googleCommercialFallbackAttempted,
-          googleCommercialFallbackFound,
-          googleCommercialFallbackApplied,
-          googleCommercialFallbackRejectedReason,
-          googleCommercialFallbackQuery,
-          googleCommercialFallbackCommercialName,
-          googleCommercialFallbackScore,
-          googleCommercialFallbackSimilarity,
-          googleCommercialFallbackDistanceM,
-          googleCommercialFallbackLat,
-          googleCommercialFallbackLng,
-          googleCommercialFallbackTitle,
-        }
-      : {}),
     geocodeConfidence: finalGeocodeConfidenceDiag.confidence,
     geocodeConfidenceLevel: finalGeocodeConfidenceDiag.level,
     geocodeConfidenceHardMismatch: finalGeocodeConfidenceDiag.hardMismatch,
@@ -7525,22 +7368,6 @@ if (shouldAutoSaveAddressMemory) {
       matchedKey: matchedMemoryKey,
       hereSkippedBecauseMemory: !!memoryHit,
       decisionReason,
-      ...(GOOGLE_COMMERCIAL_FALLBACK_ENABLED
-        ? {
-            googleCommercialFallbackAttempted,
-            googleCommercialFallbackFound,
-            googleCommercialFallbackApplied,
-            googleCommercialFallbackRejectedReason,
-            googleCommercialFallbackQuery,
-            googleCommercialFallbackCommercialName,
-            googleCommercialFallbackScore,
-            googleCommercialFallbackSimilarity,
-            googleCommercialFallbackDistanceM,
-            googleCommercialFallbackLat,
-            googleCommercialFallbackLng,
-            googleCommercialFallbackTitle,
-          }
-        : {}),
       usedApproxMemory: !!approxMemoryHit,
       geocodeConfidence: finalGeocodeConfidenceDiag.confidence,
       geocodeConfidenceLevel: finalGeocodeConfidenceDiag.level,
@@ -7771,7 +7598,6 @@ export async function POST(req: Request) {
       userId,
       userEmail: currentUser.email || null,
       spreadsheetName,
-      googleCommercialFallbackCalls: 0,
       localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
       goianiaPoiShadowAudits: [],
       hereJobCache: new Map(),
