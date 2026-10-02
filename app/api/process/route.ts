@@ -63,19 +63,16 @@ import {
   type AddressContextSource,
   type AddressContextType,
 } from "@/app/lib/address-context-resolver";
-import {
-  createLocalFirstAliasShadowState,
-  getLocalFirstAliasShadowSnapshot,
-  isLocalFirstAliasShadowEnabled,
-  runLocalFirstAliasShadow,
-  type LocalFirstAliasShadowState,
-} from "@/app/lib/local-first-alias-shadow";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 import { getAparecidaLocalLotsCacheSnapshot } from "@/app/lib/aparecida-local-lots";
 import { getGynLotCacheSnapshot } from "@/app/lib/gyn-lot-cache";
 import { getGoianiaLocalFirstCacheSnapshot } from "@/app/lib/goiania-local-first";
 import { getTrindadeLocalFirstCacheSnapshot } from "@/app/lib/trindade-localfirst-shadow";
 import { lookupGoianiaPoiShadow } from "@/app/lib/goiania-poi-shadow";
+import {
+  buildGeminiNormalizeRequestKey,
+  getOrCreateJobSingleFlight,
+} from "@/app/lib/gemini-normalize-single-flight";
 
 
 export const runtime = "nodejs";
@@ -142,7 +139,7 @@ type GoianiaPoiShadowAuditRow = {
 
 type ProcessRunState = {
   jobId: string;
-  localFirstAliasShadow: LocalFirstAliasShadowState;
+  geminiNormalizeCache: Map<string, Promise<GeminiNormalizeResult>>;
   userId: string | null;
   userEmail: string | null;
   spreadsheetName: string | null;
@@ -150,6 +147,17 @@ type ProcessRunState = {
   hereJobCache: Map<string, HereJobCacheEntry>;
   hereJobMetrics: HereJobMetrics;
 };
+
+type GeminiNormalizeParams = {
+  address: string;
+  bairro?: string;
+  city?: string;
+  cep?: string;
+  sequence?: string | number;
+  skipExternalCall?: boolean;
+};
+
+type GeminiNormalizeResult = Awaited<ReturnType<typeof geminiNormalize>>;
 
 function createHereEndpointMetrics(): HereJobEndpointMetrics {
   return {
@@ -259,7 +267,6 @@ function getProcessCacheSnapshot(runState?: ProcessRunState) {
     gynLot: getGynLotCacheSnapshot(),
     goianiaLocalFirst: getGoianiaLocalFirstCacheSnapshot(),
     trindade: getTrindadeLocalFirstCacheSnapshot(),
-    aliasShadow: runState ? getLocalFirstAliasShadowSnapshot(runState.localFirstAliasShadow) : null,
     here: runState ? getHereJobMetricsSnapshot(runState) : null,
   };
 }
@@ -2610,14 +2617,7 @@ function releaseGeminiFetchSlot() {
   return { active: geminiActiveFetches, queued: geminiFetchQueue.length };
 }
 
-async function geminiNormalize(params: {
-  address: string;
-  bairro?: string;
-  city?: string;
-  cep?: string;
-  sequence?: string | number;
-  skipExternalCall?: boolean;
-}) {
+async function geminiNormalize(params: GeminiNormalizeParams) {
   const apiKey = process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const startedAt = Date.now();
@@ -2838,6 +2838,31 @@ Regras:
   });
 
   return { normalized, raw: rawText, model, usedGemini: true as const, geminiOk: true as const };
+}
+
+function geminiNormalizeForRun(
+  params: GeminiNormalizeParams,
+  runState?: ProcessRunState,
+): Promise<GeminiNormalizeResult> {
+  if (!runState || params.skipExternalCall) {
+    return geminiNormalize(params);
+  }
+
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const key = buildGeminiNormalizeRequestKey({
+    model,
+    address: params.address,
+    bairro: params.bairro,
+    city: params.city,
+    cep: params.cep,
+  });
+
+  return getOrCreateJobSingleFlight({
+    cache: runState.geminiNormalizeCache,
+    key,
+    create: () => geminiNormalize(params),
+    isReusable: (result) => result.geminiOk === true,
+  });
 }
 
 // ===== HERE =====
@@ -3663,14 +3688,17 @@ async function processOne(
     !!preGeminiAddressSmartQL.quadra &&
     !!preGeminiAddressSmartQL.lote;
 
-  const g = await geminiNormalize({
-    address: addressRaw,
-    bairro: bairroIn,
-    city: cityIn,
-    cep: cepIn,
-    sequence: row?.sequence,
-    skipExternalCall: skipGeminiForStrongExactMemory,
-  });
+  const g = await geminiNormalizeForRun(
+    {
+      address: addressRaw,
+      bairro: bairroIn,
+      city: cityIn,
+      cep: cepIn,
+      sequence: row?.sequence,
+      skipExternalCall: skipGeminiForStrongExactMemory,
+    },
+    runState,
+  );
 
   // 1.1) fallback regex se Gemini falhar
   const finalRua = stripQuadraLoteFromStreet(g.normalized.rua || rx.rua || trindadeCompactDdParser?.rua || "").trim();
@@ -4218,27 +4246,6 @@ async function processOne(
       localFirstGoianiaShadow.matchType === "atheneu_street_lot_exact") &&
     localFirstGoianiaWouldBypass;
   localFirstGoianiaCandidateEligible = localFirstGoianiaWouldBypass;
-  if (isLocalFirstAliasShadowEnabled() && runState && !localFirstGoianiaWouldBypass) {
-    runState.localFirstAliasShadow.shadowTasks.push(
-      runLocalFirstAliasShadow({
-        state: runState.localFirstAliasShadow,
-        city: cityForDecision,
-        sourceBairro: normalized.bairro || bairroIn,
-        sourceRua: normalized.rua,
-        quadra: normalized.quadra,
-        lote: normalized.lote,
-        failureReason:
-          localFirstGoianiaBypassReason || localFirstGoianiaShadow.reason,
-        rowSequence: row?.sequence ?? null,
-      }).catch((error) => {
-        console.warn("[ALIAS_SHADOW_ERROR]", {
-          city: "GOIANIA",
-          sequence: row?.sequence ?? "",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }),
-    );
-  }
   const goianiaVerticalCondoCityKey = normalizeKey(cityForDecision).replace(/\s+/g, "");
   const goianiaVerticalCondoDetected =
     goianiaVerticalCondoCityKey.includes("GOIANIA") &&
@@ -4721,37 +4728,6 @@ async function processOne(
         });
       }
     }
-  }
-
-  const aparecidaLocalFirstStrong =
-    localLotUsedAsFinal &&
-    localLotStrongMatch &&
-    !localLotBlockedByBairro &&
-    localLotCanFinalizeLocalFirst;
-
-  if (isLocalFirstAliasShadowEnabled() && runState && isAparecida && !aparecidaLocalFirstStrong) {
-    runState.localFirstAliasShadow.shadowTasks.push(
-      runLocalFirstAliasShadow({
-        state: runState.localFirstAliasShadow,
-        city: cityForDecision,
-        sourceBairro: normalized.bairro || bairroIn,
-        sourceRua: normalized.rua,
-        quadra: normalized.quadra,
-        lote: normalized.lote,
-        failureReason: localLotBlockedByBairro
-          ? "APARECIDA_BLOCKED_LOCAL_FIRST_PAIR"
-          : localLotCandidateFound
-            ? "APARECIDA_LOCAL_FIRST_NEEDS_REVIEW"
-            : "APARECIDA_LOCAL_FIRST_NOT_FOUND",
-        rowSequence: row?.sequence ?? null,
-      }).catch((error) => {
-        console.warn("[ALIAS_SHADOW_ERROR]", {
-          city: "APARECIDA",
-          sequence: row?.sequence ?? "",
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }),
-    );
   }
 
   if (!memoryHit && !approxMemoryHit && !localFirstBypassHere) {
@@ -7595,10 +7571,10 @@ export async function POST(req: Request) {
 
     const runState: ProcessRunState = {
       jobId,
+      geminiNormalizeCache: new Map(),
       userId,
       userEmail: currentUser.email || null,
       spreadsheetName,
-      localFirstAliasShadow: createLocalFirstAliasShadowState(jobId),
       goianiaPoiShadowAudits: [],
       hereJobCache: new Map(),
       hereJobMetrics: createHereJobMetrics(),
@@ -7687,7 +7663,6 @@ export async function POST(req: Request) {
       cacheSnapshot: getProcessCacheSnapshot(runState),
     });
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
-    await Promise.allSettled(runState.localFirstAliasShadow.shadowTasks);
     await saveGoianiaPoiShadowAudits(runState.goianiaPoiShadowAudits);
     if (runState.goianiaPoiShadowAudits.length) {
       console.info("[GOIANIA_POI_SHADOW_AUDIT_SAVED]", {
