@@ -56,6 +56,32 @@ export function shouldFallbackToLegacy(error: unknown) {
   ].includes(code);
 }
 
+export function getGooglePlacesUserMessage(error: unknown) {
+  switch (getGooglePlacesErrorCode(error)) {
+    case "GOOGLE_PLACES_RATE_LIMITED":
+    case "GOOGLE_PLACES_NEW_QUOTA":
+      return "O limite de buscas do Google Places foi atingido. Tente novamente mais tarde.";
+    case "GOOGLE_PLACES_NEW_TIMEOUT":
+    case "GOOGLE_PLACES_NEW_NETWORK":
+    case "GOOGLE_PLACES_NEW_UPSTREAM":
+      return "O Google Maps está temporariamente indisponível. Tente novamente.";
+    case "GOOGLE_PLACES_NEW_FORBIDDEN":
+    case "GOOGLE_PLACES_NEW_CONFIG":
+    case "GOOGLE_PLACES_NEW_DISABLED":
+      return "A busca do Google Places não está disponível no momento.";
+    case "GOOGLE_PLACES_NEW_INVALID_RESPONSE":
+      return "O Google Places retornou uma resposta inválida. Tente novamente.";
+    case "GOOGLE_PLACES_INVALID_REQUEST":
+      return "Revise o texto da busca e tente novamente.";
+    case "GOOGLE_PLACES_UNAUTHORIZED":
+      return "Faça login para pesquisar no Google Maps.";
+    case "GOOGLE_PLACES_RATE_LIMITER_UNAVAILABLE":
+      return "Não foi possível validar o limite de buscas. Tente novamente.";
+    default:
+      return "Não foi possível buscar no Google Maps. Tente novamente.";
+  }
+}
+
 export async function fetchWithGooglePlacesTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -103,7 +129,7 @@ export function buildGooglePlacesNewSearchPayload(
   request: Omit<GoogleManualSearchRequest, "provider">,
 ): GooglePlacesNewSearchPayload {
   return {
-    textQuery: request.query,
+    textQuery: buildGooglePlacesNewTextQuery(request),
     languageCode: request.language,
     regionCode: request.region.toUpperCase(),
     maxResultCount: 20,
@@ -117,6 +143,33 @@ export function buildGooglePlacesNewSearchPayload(
       },
     },
   };
+}
+
+function normalizeQueryText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function buildGooglePlacesNewTextQuery(
+  request: Pick<GoogleManualSearchRequest, "query" | "city">,
+) {
+  const query = request.query.trim();
+  const city = request.city.trim();
+  if (!city || /\d/.test(query)) return query;
+
+  const normalizedQuery = normalizeQueryText(query);
+  const queryTerms = normalizedQuery.split(" ").filter(Boolean);
+  const normalizedCity = normalizeQueryText(city);
+  if (queryTerms.length > 3 || !normalizedCity || normalizedQuery.includes(normalizedCity)) {
+    return query;
+  }
+
+  return `${query}, ${city}`;
 }
 
 function isFiniteCoordinate(value: unknown) {
@@ -136,9 +189,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function mapGooglePlacesNewResponse(payload: unknown): GoogleManualSearchResult[] {
-  if (!isRecord(payload) || !Array.isArray(payload.places)) return [];
+  const places = getGooglePlacesNewPlaces(payload);
+  if (!places) return [];
 
-  return payload.places
+  return places
     .map((value: unknown, index: number) => {
       const place = isRecord(value) ? value : {};
       const location = isRecord(place.location) ? place.location : {};
@@ -161,7 +215,15 @@ export function mapGooglePlacesNewResponse(payload: unknown): GoogleManualSearch
     .filter(Boolean) as GoogleManualSearchResult[];
 }
 
-export function isGooglePlacesNewResponse(payload: unknown): payload is { places: unknown[] } {
-  return isRecord(payload) && Array.isArray(payload.places);
+export function getGooglePlacesNewPlaces(payload: unknown): unknown[] | null {
+  if (!isRecord(payload)) return null;
+  if (payload.places === undefined) return [];
+  return Array.isArray(payload.places) ? payload.places : null;
+}
+
+export function isGooglePlacesNewResponse(
+  payload: unknown,
+): payload is { places?: unknown[] } {
+  return getGooglePlacesNewPlaces(payload) !== null;
 }
 

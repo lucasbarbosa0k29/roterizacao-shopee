@@ -15,6 +15,7 @@ import {
   GOOGLE_PLACES_NEW_DEFAULT_TIMEOUT_MS,
   GOOGLE_PLACES_NEW_ENDPOINT,
   GOOGLE_PLACES_NEW_FIELD_MASK,
+  getGooglePlacesNewPlaces,
   isGooglePlacesNewResponse,
   mapGooglePlacesNewResponse,
   shouldFallbackToLegacy,
@@ -173,8 +174,9 @@ async function performGooglePlacesNewSearch(
     );
   }
 
+  const places = getGooglePlacesNewPlaces(payload) ?? [];
   const results = mapGooglePlacesNewResponse(payload);
-  if (payload.places.length > 0 && results.length === 0) {
+  if (places.length > 0 && results.length === 0) {
     throw new GooglePlacesNewError(
       "GOOGLE_PLACES_NEW_INVALID_RESPONSE",
       "A resposta do Google Places não contém coordenadas válidas.",

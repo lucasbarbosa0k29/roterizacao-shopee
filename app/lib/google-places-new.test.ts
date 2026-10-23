@@ -9,9 +9,12 @@ const searchModule: typeof import("./google-manual-search") = await import(
 );
 const {
   buildGooglePlacesNewSearchPayload,
+  buildGooglePlacesNewTextQuery,
   fetchWithGooglePlacesTimeout,
   GOOGLE_PLACES_NEW_FIELD_MASK,
   GooglePlacesNewError,
+  getGooglePlacesNewPlaces,
+  getGooglePlacesUserMessage,
   mapGooglePlacesNewResponse,
   shouldFallbackToLegacy,
 } = placesModule;
@@ -44,6 +47,40 @@ test("Places New usa somente o field mask de dados necessários", () => {
       },
     },
   });
+});
+
+test("busca curta de nome recebe a cidade sem gerar uma segunda consulta", () => {
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "vida sol", city: "Goiânia" }),
+    "vida sol, Goiânia",
+  );
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "residencial vida sol", city: "Goiânia" }),
+    "residencial vida sol, Goiânia",
+  );
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "vida sol", city: "Aparecida de Goiânia" }),
+    "vida sol, Aparecida de Goiânia",
+  );
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "condomínio das flores", city: "Trindade" }),
+    "condomínio das flores, Trindade",
+  );
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "vida sol, Aparecida de Goiânia", city: "Trindade" }),
+    "vida sol, Aparecida de Goiânia",
+  );
+  assert.equal(
+    buildGooglePlacesNewTextQuery({ query: "Rua das Flores, 100", city: "Goiânia" }),
+    "Rua das Flores, 100",
+  );
+});
+
+test("resposta sem places é tratada como busca sem resultados", () => {
+  assert.deepEqual(getGooglePlacesNewPlaces({}), []);
+  assert.deepEqual(getGooglePlacesNewPlaces({ places: [] }), []);
+  assert.equal(getGooglePlacesNewPlaces({ places: "invalid" }), null);
+  assert.deepEqual(mapGooglePlacesNewResponse({}), []);
 });
 
 test("resposta New preserva nome, endereço e coordenadas válidas", () => {
@@ -145,5 +182,17 @@ test("timeout aborta fetch pendente e falhas não recuperáveis não fazem fallb
   assert.equal(
     shouldFallbackToLegacy(new GooglePlacesNewError("GOOGLE_PLACES_NEW_UPSTREAM", "temporary")),
     true,
+  );
+  assert.equal(
+    getGooglePlacesUserMessage(new GooglePlacesNewError("GOOGLE_PLACES_NEW_TIMEOUT", "timeout")),
+    "O Google Maps está temporariamente indisponível. Tente novamente.",
+  );
+  assert.equal(
+    getGooglePlacesUserMessage(new GooglePlacesNewError("GOOGLE_PLACES_NEW_QUOTA", "quota")),
+    "O limite de buscas do Google Places foi atingido. Tente novamente mais tarde.",
+  );
+  assert.equal(
+    getGooglePlacesUserMessage(new GooglePlacesNewError("GOOGLE_PLACES_NEW_INVALID_RESPONSE", "invalid")),
+    "O Google Places retornou uma resposta inválida. Tente novamente.",
   );
 });

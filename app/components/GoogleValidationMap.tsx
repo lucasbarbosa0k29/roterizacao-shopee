@@ -14,6 +14,7 @@ import {
 } from "@/app/lib/google-manual-search-cache";
 import {
   getGooglePlacesErrorCode,
+  getGooglePlacesUserMessage,
   shouldFallbackToLegacy,
 } from "@/app/lib/google-places-new";
 
@@ -693,7 +694,7 @@ function GoogleValidationMap({
       );
     } catch (error) {
       if (searchRunIdRef.current !== runId) return;
-      onSearchMessage?.("NÃ£o foi possÃ­vel buscar no Google Maps. Tente novamente.");
+      onSearchMessage?.(getGooglePlacesUserMessage(error));
       if (process.env.NODE_ENV !== "production") {
         console.warn("[GoogleValidationMap] manual search failed", { query, mode, error });
       }
