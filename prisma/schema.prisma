@@ -142,6 +142,7 @@ enum ImportStatus {
 enum ApiUsagePeriodType {
   MONTH
   DAY
+  MINUTE
 }
 
 enum LocalFirstAliasType {

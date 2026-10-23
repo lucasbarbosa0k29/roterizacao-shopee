@@ -1,15 +1,24 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import {
+  compareGoogleManualSearchResults,
+  sortGoogleManualSearchResults,
+  type GoogleManualSearchLatLng,
+  type GoogleManualSearchRequest,
+  type GoogleManualSearchResult,
+} from "@/app/lib/google-manual-search";
+import {
+  buildGoogleManualSearchCacheKey,
+  googleManualSearchCache,
+} from "@/app/lib/google-manual-search-cache";
+import {
+  getGooglePlacesErrorCode,
+  shouldFallbackToLegacy,
+} from "@/app/lib/google-places-new";
 
-type LatLng = { lat: number; lng: number };
-
-type GoogleSearchResult = {
-  id: string;
-  name: string;
-  address: string;
-  pos: LatLng;
-};
+type LatLng = GoogleManualSearchLatLng;
+type GoogleSearchResult = GoogleManualSearchResult;
 
 type Props = {
   center?: LatLng | null;
@@ -42,86 +51,6 @@ function normalizeText(value: unknown) {
     .trim();
 }
 
-function splitTerms(value: unknown) {
-  return normalizeText(value)
-    .split(" ")
-    .map((term) => term.trim())
-    .filter((term) => term.length >= 3);
-}
-
-function distanceMeters(a: LatLng, b: LatLng) {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-  return 2 * earthRadius * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function scoreTermMatches(text: string, terms: string[], weight: number) {
-  if (!text || !terms.length) return 0;
-  let score = 0;
-  for (const term of terms) {
-    if (text.includes(term)) score += weight;
-  }
-  return score;
-}
-
-function scoreGooglePlaceResult(params: {
-  result: GoogleSearchResult;
-  searchText?: string;
-  queryContext?: string;
-  city?: string;
-  district?: string;
-  center?: LatLng | null;
-}) {
-  const name = normalizeText(params.result.name);
-  const address = normalizeText(params.result.address);
-  const combined = `${name} ${address}`.trim();
-
-  const searchTerms = splitTerms(params.searchText);
-  const contextTerms = splitTerms(params.queryContext);
-  const cityTerms = splitTerms(params.city);
-  const districtTerms = splitTerms(params.district);
-
-  let score = 0;
-  score += scoreTermMatches(name, searchTerms, 12);
-  score += scoreTermMatches(address, searchTerms, 7);
-  score += scoreTermMatches(combined, contextTerms, 3);
-  score += scoreTermMatches(address, cityTerms, 18);
-  score += scoreTermMatches(address, districtTerms, 14);
-
-  if (cityTerms.length && !cityTerms.some((term) => address.includes(term))) {
-    score -= 16;
-  }
-
-  if (districtTerms.length && !districtTerms.some((term) => address.includes(term))) {
-    score -= 6;
-  }
-
-  if (address.includes("goias") || address.includes(" go ")) score += 4;
-
-  if (params.center) {
-    const meters = distanceMeters(params.center, params.result.pos);
-    if (meters <= 1500) score += 16;
-    else if (meters <= 5000) score += 10;
-    else if (meters <= 12000) score += 4;
-    else if (meters > 35000) score -= 10;
-  }
-
-  if (searchTerms.length && !searchTerms.some((term) => combined.includes(term))) {
-    score -= 12;
-  }
-
-  return score;
-}
-
 function getFallbackCenter(city?: string): LatLng {
   const normalizedCity = normalizeText(city);
   if (normalizedCity.includes("aparecida")) {
@@ -131,29 +60,6 @@ function getFallbackCenter(city?: string): LatLng {
     return DEFAULT_GOIANIA_CENTER;
   }
   return DEFAULT_APARECIDA_CENTER;
-}
-
-function sortGoogleResults(
-  results: GoogleSearchResult[],
-  context: {
-    searchText?: string;
-    queryContext?: string;
-    city?: string;
-    district?: string;
-    center?: LatLng | null;
-  }
-) {
-  return results
-    .map((result, index) => ({
-      result,
-      index,
-      score: scoreGooglePlaceResult({ result, ...context }),
-    }))
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return a.index - b.index;
-    })
-    .map((item) => item.result);
 }
 
 function syncGoogleMapToCenter(args: {
@@ -260,6 +166,53 @@ function loadGoogleMaps(apiKey: string) {
   });
 
   return googleMapsPromise;
+}
+
+type GoogleManualSearchMode = "legacy" | "new" | "compare";
+
+const GOOGLE_MANUAL_SEARCH_RADIUS_M = 12000;
+const GOOGLE_MANUAL_SEARCH_LANGUAGE = "pt-BR";
+const GOOGLE_MANUAL_SEARCH_REGION = "BR";
+
+function getGoogleManualSearchMode(): GoogleManualSearchMode {
+  const mode = String(
+    process.env.NEXT_PUBLIC_GOOGLE_PLACES_MANUAL_SEARCH_MODE || "legacy",
+  ).toLowerCase();
+  if (mode === "new" || mode === "compare") return mode;
+  return "legacy";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isFiniteCoordinate(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizeNewSearchResults(payload: unknown): GoogleSearchResult[] {
+  if (!isRecord(payload) || !Array.isArray(payload.results)) return [];
+
+  return payload.results.filter((value: unknown): value is GoogleSearchResult => {
+    if (!isRecord(value) || !isRecord(value.pos)) return false;
+    return (
+      typeof value.id === "string" &&
+      typeof value.name === "string" &&
+      typeof value.address === "string" &&
+      isFiniteCoordinate(value.pos.lat) &&
+      isFiniteCoordinate(value.pos.lng) &&
+      value.pos.lat >= -90 &&
+      value.pos.lat <= 90 &&
+      value.pos.lng >= -180 &&
+      value.pos.lng <= 180
+    );
+  });
+}
+
+function buildGooglePlacesClientError(message: string, code?: unknown) {
+  const error = new Error(message) as Error & { code?: string };
+  if (typeof code === "string") error.code = code;
+  return error;
 }
 
 function GoogleValidationMap({
@@ -405,7 +358,8 @@ function GoogleValidationMap({
       .join(", ");
   }
 
-  function runManualSearch() {
+  /*
+  function runLegacyManualSearchWithoutCache() {
     const service = placesServiceRef.current;
     const map = mapRef.current;
     const marker = markerRef.current;
@@ -489,7 +443,7 @@ function GoogleValidationMap({
           }
 
           onSearchResults?.(
-            sortGoogleResults(mappedResults, {
+            sortGoogleManualSearchResults(mappedResults, {
               searchText,
               queryContext,
               city,
@@ -506,6 +460,245 @@ function GoogleValidationMap({
       if (process.env.NODE_ENV !== "production") {
         console.warn("[GoogleValidationMap] textSearch threw", { query, error });
       }
+    }
+  }
+  */
+
+  function runLegacySearch(
+    request: GoogleManualSearchRequest,
+  ): Promise<GoogleSearchResult[]> {
+    const service = placesServiceRef.current;
+    if (!service) return Promise.reject(new Error("GOOGLE_PLACES_LEGACY_UNAVAILABLE"));
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timeoutId = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error("GOOGLE_PLACES_LEGACY_TIMEOUT"));
+      }, 12000);
+
+      const finish = (factory: () => void) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        factory();
+      };
+
+      try {
+        service.textSearch(
+          {
+            query: request.query,
+            location: new (window as any).google.maps.LatLng(
+              request.center.lat,
+              request.center.lng,
+            ),
+            radius: request.radius,
+          },
+          (results: any[], status: string) => {
+            const google = (window as any).google;
+            const okStatus = google?.maps?.places?.PlacesServiceStatus?.OK;
+            const zeroResultsStatus = google?.maps?.places?.PlacesServiceStatus?.ZERO_RESULTS;
+
+            if (status !== okStatus && status !== zeroResultsStatus) {
+              if (process.env.NODE_ENV !== "production") {
+                console.warn("[GoogleValidationMap] legacy textSearch non-OK status", {
+                  query: request.query,
+                  status,
+                });
+              }
+              finish(() => reject(new Error(`GOOGLE_PLACES_LEGACY_${status}`)));
+              return;
+            }
+
+            const mappedResults: GoogleSearchResult[] = (results || [])
+              .map((result: any, idx: number) => {
+                const location = result?.geometry?.location;
+                if (!location) return null;
+                return {
+                  id: String(result?.place_id || idx),
+                  name: String(result?.name || "Resultado sem nome"),
+                  address: String(result?.formatted_address || result?.vicinity || ""),
+                  pos: { lat: location.lat(), lng: location.lng() },
+                } satisfies GoogleSearchResult;
+              })
+              .filter(Boolean) as GoogleSearchResult[];
+
+            finish(() => resolve(mappedResults));
+          },
+        );
+      } catch (error) {
+        finish(() => reject(error));
+      }
+    });
+  }
+
+  async function runNewSearch(
+    request: GoogleManualSearchRequest,
+    mode: "new" | "compare" = "new",
+  ): Promise<GoogleSearchResult[]> {
+    const response = await fetch("/api/google-places/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: request.query,
+        city: request.city,
+        district: request.district,
+        center: request.center,
+        radius: request.radius,
+        language: request.language,
+        region: request.region,
+        mode,
+      }),
+    });
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const errorMessage =
+        isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : `GOOGLE_PLACES_NEW_HTTP_${response.status}`;
+      throw buildGooglePlacesClientError(
+        errorMessage,
+        isRecord(payload) ? payload.code : undefined,
+      );
+    }
+    const results = normalizeNewSearchResults(payload);
+    if (
+      isRecord(payload) &&
+      Array.isArray(payload.results) &&
+      payload.results.length > 0 &&
+      results.length === 0
+    ) {
+      throw buildGooglePlacesClientError(
+        "Resposta inválida do Google Places.",
+        "GOOGLE_PLACES_NEW_INVALID_RESPONSE",
+      );
+    }
+    return results;
+  }
+
+  function cacheSearch(
+    request: GoogleManualSearchRequest,
+    factory: () => Promise<GoogleSearchResult[]>,
+  ) {
+    return googleManualSearchCache.getOrCreate(
+      buildGoogleManualSearchCacheKey(request),
+      factory,
+    );
+  }
+
+  async function runManualSearch() {
+    const map = mapRef.current;
+    const marker = markerRef.current;
+    const query = buildSearchQuery();
+    const runId = searchRunIdRef.current + 1;
+    searchRunIdRef.current = runId;
+    const mode = getGoogleManualSearchMode();
+
+    onSearchMessage?.("");
+    onSearchResults?.([]);
+    if (!query || !map || !marker) return;
+    if ((mode === "legacy" || mode === "compare") && !placesServiceRef.current) return;
+
+    const searchCenter = center ?? getFallbackCenter(city);
+    const requestBase = {
+      query,
+      city: String(city || "").trim(),
+      district: String(district || "").trim(),
+      center: searchCenter,
+      radius: GOOGLE_MANUAL_SEARCH_RADIUS_M,
+      language: GOOGLE_MANUAL_SEARCH_LANGUAGE,
+      region: GOOGLE_MANUAL_SEARCH_REGION,
+    } satisfies Omit<GoogleManualSearchRequest, "provider">;
+    const legacyRequest: GoogleManualSearchRequest = { ...requestBase, provider: "legacy" };
+    const newRequest: GoogleManualSearchRequest = { ...requestBase, provider: "new" };
+
+    onSearchLoading?.(true);
+    try {
+      let results: GoogleSearchResult[] = [];
+
+      if (mode === "legacy") {
+        results = await cacheSearch(legacyRequest, () => runLegacySearch(legacyRequest));
+      } else if (mode === "new") {
+        try {
+          results = await cacheSearch(newRequest, () => runNewSearch(newRequest));
+        } catch (error) {
+          if (!shouldFallbackToLegacy(error)) throw error;
+          console.warn("[GoogleValidationMap] Places New failed; falling back to Legacy", {
+            code: getGooglePlacesErrorCode(error),
+          });
+          results = await cacheSearch(legacyRequest, () => runLegacySearch(legacyRequest));
+        }
+      } else {
+        let newResults: GoogleSearchResult[];
+        try {
+          newResults = await cacheSearch(newRequest, () => runNewSearch(newRequest, "compare"));
+        } catch (error) {
+          if (!shouldFallbackToLegacy(error)) throw error;
+          console.warn("[GoogleValidationMap] Compare New failed; using Legacy", {
+            code: getGooglePlacesErrorCode(error),
+          });
+          results = await cacheSearch(legacyRequest, () => runLegacySearch(legacyRequest));
+          newResults = [];
+        }
+
+        if (newResults.length || results.length === 0) {
+          try {
+            const legacyResults = await cacheSearch(
+              legacyRequest,
+              () => runLegacySearch(legacyRequest),
+            );
+            const comparisonOptions = {
+              searchText,
+              queryContext,
+              city,
+              district,
+              center,
+            };
+            const finalLegacy = sortGoogleManualSearchResults(
+              legacyResults,
+              comparisonOptions,
+            ).slice(0, 5);
+            const finalNew = sortGoogleManualSearchResults(
+              newResults,
+              comparisonOptions,
+            ).slice(0, 5);
+            results = finalLegacy;
+            console.info("[GOOGLE_PLACES_MANUAL_COMPARE]", {
+              query,
+              displayedProvider: "legacy",
+              comparison: compareGoogleManualSearchResults(finalLegacy, finalNew),
+            });
+          } catch (legacyError) {
+            results = newResults;
+            console.warn("[GoogleValidationMap] Legacy failed during compare", legacyError);
+          }
+        }
+      }
+
+      if (searchRunIdRef.current !== runId) return;
+      if (!results.length) {
+        onSearchMessage?.("Nenhum resultado encontrado no Google Maps.");
+        return;
+      }
+
+      onSearchResults?.(
+        sortGoogleManualSearchResults(results, {
+          searchText,
+          queryContext,
+          city,
+          district,
+          center,
+        }).slice(0, 5),
+      );
+    } catch (error) {
+      if (searchRunIdRef.current !== runId) return;
+      onSearchMessage?.("NÃ£o foi possÃ­vel buscar no Google Maps. Tente novamente.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[GoogleValidationMap] manual search failed", { query, mode, error });
+      }
+    } finally {
+      if (searchRunIdRef.current === runId) onSearchLoading?.(false);
     }
   }
 

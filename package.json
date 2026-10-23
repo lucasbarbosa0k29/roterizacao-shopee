@@ -9,7 +9,8 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "node --max-old-space-size=384 node_modules/next/dist/bin/next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test app/lib/google-manual-search-cache.test.ts app/lib/google-places-new.test.ts app/lib/google-places-rate-limit.test.ts"
   },
   "dependencies": {
     "@arcgis/core": "^4.34.8",
