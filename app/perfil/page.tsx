@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 
 type AccessSnapshot = {
   activeSubscription: null | {
@@ -145,6 +146,11 @@ export default function PerfilPage() {
               <p className="truncate text-sm text-slate-500">{email}</p>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-[22px] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <h2 className="font-semibold text-slate-900">Segurança</h2>
+          <Link href="/configuracoes" className="mt-2 inline-block text-sm font-medium text-[#1f5a6b] underline">Alterar senha</Link>
         </section>
 
         {loading ? (

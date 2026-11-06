@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
-import { getUserAccessSnapshot } from "@/app/lib/access-control";
+import { AccessControlError, getUserAccessSnapshot } from "@/app/lib/access-control";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,7 @@ export async function GET() {
     const snapshot = await getUserAccessSnapshot(userId);
     return NextResponse.json(snapshot);
   } catch (error) {
+    if (error instanceof AccessControlError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     console.error("GET /api/access/me error:", error);
     return NextResponse.json(
       { error: "Erro ao carregar acesso do usuário." },

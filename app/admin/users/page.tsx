@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { isSuperAdmin } from "@/app/lib/admin-roles";
+import { PASSWORD_MIN_LENGTH, passwordPolicyError } from "@/app/lib/password-policy.js";
 
 type UserRow = {
   id: string;
@@ -256,7 +257,8 @@ export default function AdminUsersPage() {
 
     const emailClean = email.trim().toLowerCase();
     if (!emailClean) return alert("Email é obrigatório.");
-    if (!password || password.length < 6) return alert("Senha mínimo 6 caracteres.");
+    const policyError = passwordPolicyError(password);
+    if (policyError) return alert(policyError);
 
     setCreating(true);
     try {
@@ -487,8 +489,9 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (userDataModal.value.length < 6) {
-      alert("Senha precisa ter no mínimo 6 caracteres.");
+    const policyError = passwordPolicyError(userDataModal.value);
+    if (policyError) {
+      alert(policyError);
       return;
     }
 
@@ -564,10 +567,11 @@ export default function AdminUsersPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
+              minLength={PASSWORD_MIN_LENGTH}
               required
               autoComplete="new-password"
             />
-            <div className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres.</div>
+            <div className="text-xs text-slate-500 mt-1">Mínimo {PASSWORD_MIN_LENGTH} caracteres.</div>
           </div>
 
           <div>
@@ -986,10 +990,11 @@ export default function AdminUsersPage() {
                       )
                     }
                     type="password"
+                    minLength={PASSWORD_MIN_LENGTH}
                     autoComplete="new-password"
                     autoFocus
                   />
-                  <div className="mt-1 text-xs text-slate-500">Mínimo 6 caracteres.</div>
+                  <div className="mt-1 text-xs text-slate-500">Mínimo {PASSWORD_MIN_LENGTH} caracteres.</div>
                 </div>
               )}
 

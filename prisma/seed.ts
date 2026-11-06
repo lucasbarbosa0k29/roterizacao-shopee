@@ -1,10 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { passwordPolicyError } from "../app/lib/password-policy.js";
 
 const prisma = new PrismaClient();
 const isProduction = process.env.NODE_ENV === "production";
 const DEFAULT_DEV_ADMIN_EMAIL = "admin@admin.com";
-const DEFAULT_DEV_ADMIN_PASSWORD = "123456";
+const DEFAULT_DEV_ADMIN_PASSWORD = "devrotta";
 
 function getSeedAdminCredentials() {
   const email = String(process.env.SEED_ADMIN_EMAIL || "").trim().toLowerCase();
@@ -14,20 +15,15 @@ function getSeedAdminCredentials() {
     if (!email) {
       throw new Error("SEED_ADMIN_EMAIL é obrigatório em produção.");
     }
-
-    if (!password || password.length < 12) {
-      throw new Error(
-        "SEED_ADMIN_PASSWORD é obrigatório em produção e deve ter no mínimo 12 caracteres."
-      );
-    }
-
-    return { email, password };
   }
 
-  return {
+  const credentials = {
     email: email || DEFAULT_DEV_ADMIN_EMAIL,
-    password: password || DEFAULT_DEV_ADMIN_PASSWORD,
+    password: isProduction ? password : password || DEFAULT_DEV_ADMIN_PASSWORD,
   };
+  const policyError = passwordPolicyError(credentials.password);
+  if (policyError) throw new Error(`SEED_ADMIN_PASSWORD: ${policyError}`);
+  return credentials;
 }
 
 async function upsertSubscriptionPlans() {
@@ -109,6 +105,7 @@ async function main() {
       role: "ADMIN",
       active: true,
       name: "Administrador",
+      emailVerificationRequired: false,
     },
   });
 

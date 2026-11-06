@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
 import { fulfillApprovedPaymentTransaction } from "@/app/lib/payment-fulfillment";
@@ -108,19 +109,27 @@ function validateWebhookSecret(request: NextRequest) {
 
   if (!configuredSecret) {
     const message =
-      "Asaas webhook secret not configured. Set ASAAS_WEBHOOK_SECRET and use /api/webhooks/asaas?secret=... in production.";
+      "Asaas webhook secret not configured. Set ASAAS_WEBHOOK_SECRET and authenticate webhook requests.";
 
-    if (process.env.NODE_ENV === "production") {
-      console.error(message);
-      return NextResponse.json({ error: "Webhook secret not configured." }, { status: 500 });
-    }
-
-    console.warn(message);
-    return null;
+    console.error(message);
+    return NextResponse.json({ error: "Webhook secret not configured." }, { status: 500 });
   }
 
-  const providedSecret = request.nextUrl.searchParams.get("secret")?.trim();
-  if (providedSecret !== configuredSecret) {
+  const expectedDigest = createHash("sha256").update(configuredSecret).digest();
+  const matchesConfiguredSecret = (value: string | null) => {
+    const normalized = value?.trim();
+    if (!normalized) return false;
+    return timingSafeEqual(
+      createHash("sha256").update(normalized).digest(),
+      expectedDigest
+    );
+  };
+
+  // Authenticate each format independently against the same configured secret.
+  // Asaas may send a different authToken header to an already authenticated legacy URL.
+  const validHeader = matchesConfiguredSecret(request.headers.get("asaas-access-token"));
+  const validLegacyUrl = matchesConfiguredSecret(request.nextUrl.searchParams.get("secret"));
+  if (!validHeader && !validLegacyUrl) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -144,14 +153,13 @@ export async function POST(request: NextRequest) {
 
     const transaction = await findPaymentTransaction(payment);
     if (!transaction) {
-      console.error("Asaas webhook: transaction not found", {
-        event,
-        paymentId: getString(payment.id),
-        externalReference:
-          getString(payment.externalReference) || getString(payment.external_reference),
-      });
+      console.error("Asaas webhook: transaction not found");
 
       return NextResponse.json({ ok: true, ignored: true });
+    }
+
+    if (transaction.provider !== "ASAAS") {
+      return NextResponse.json({ error: "Payment provider mismatch." }, { status: 409 });
     }
 
     const asaasPaymentId = getString(payment.id);
@@ -184,11 +192,11 @@ export async function POST(request: NextRequest) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      console.error("Asaas webhook: unique conflict", error);
+      console.error("Asaas webhook: unique conflict");
       return NextResponse.json({ ok: true, duplicated: true });
     }
 
-    console.error("POST /api/webhooks/asaas error:", error);
+    console.error("POST /api/webhooks/asaas error");
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

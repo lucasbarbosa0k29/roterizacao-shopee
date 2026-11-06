@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { getCurrentAuthToken as getToken } from "@/app/lib/current-auth-token";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
 import { cleanupOldImportJobsIfNeeded } from "@/app/lib/import-job-cleanup";

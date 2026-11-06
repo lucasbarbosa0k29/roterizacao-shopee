@@ -6,6 +6,7 @@ import { prisma } from "@/app/lib/prisma";
 import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { passwordPolicyError } from "@/app/lib/password-policy.js";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 import {
@@ -122,9 +123,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email e senha são obrigatórios." }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Senha precisa ter no mínimo 6 caracteres." }, { status: 400 });
-    }
+    const policyError = passwordPolicyError(password);
+    if (policyError) return NextResponse.json({ error: policyError }, { status: 400 });
 
     if (whatsappInput && !whatsapp) {
       return NextResponse.json({ error: INVALID_WHATSAPP_MESSAGE }, { status: 400 });
@@ -163,6 +163,7 @@ export async function POST(req: Request) {
           password: hash,
           role: roleReq as any,
           active: true,
+          emailVerificationRequired: false,
         },
         select: {
           id: true,
@@ -178,8 +179,8 @@ export async function POST(req: Request) {
         data: {
           userId: createdUser.id,
           delta: 2,
-          reason: "ADJUSTMENT",
-          notes: "Créditos grátis de cadastro",
+          reason: "ADMIN_GRANT",
+          notes: "Créditos concedidos pelo administrador ao criar a conta",
         },
       });
 

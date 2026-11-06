@@ -10,6 +10,7 @@ type MenuItem = {
 };
 
 const baseItems: MenuItem[] = [
+  { label: "Segurança", href: "/configuracoes", note: "Alterar senha" },
   { label: "Tutorial", href: "/tutorial" },
   { label: "Minha Assinatura", href: "/planos", note: "Renovar e comprar créditos" },
 ];

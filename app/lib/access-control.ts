@@ -1,5 +1,6 @@
 import { prisma } from "@/app/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { canUseAccount } from "./account-security";
 
 type AccessPlanCode = "FREE" | "BASIC" | "PRO";
 type AccessRole = "ADMIN" | "USER";
@@ -275,6 +276,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
       id: true,
       role: true,
       active: true,
+      emailVerificationRequired: true,
+      emailVerifiedAt: true,
       accessBlockedAt: true,
       accessBlockReason: true,
     },
@@ -285,7 +288,8 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
   }
 
   const isAdmin = user.role === "ADMIN";
-  const isBlocked = !!user.accessBlockedAt;
+  const isBlocked = !!user.accessBlockedAt || !canUseAccount(user);
+  if (!canUseAccount(user)) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail e verifique se sua conta está ativa.");
 
   if (isAdmin) {
     return {
@@ -525,6 +529,8 @@ export async function consumeRouteAllowance({
   jobId,
   role,
 }: ConsumeRouteAllowanceInput): Promise<ConsumeRouteAllowanceResult> {
+  const account = await prisma.user.findUnique({ where: { id: userId }, select: { active: true, emailVerificationRequired: true, emailVerifiedAt: true } });
+  if (!account || !canUseAccount(account)) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail para criar rotas.");
   if (role === "ADMIN") {
     const existing = await prisma.routeUsage.findUnique({
       where: { importJobId: jobId },
@@ -572,6 +578,9 @@ export async function consumeRouteAllowance({
               id: true,
               accessBlockedAt: true,
               accessBlockReason: true,
+              active: true,
+              emailVerificationRequired: true,
+              emailVerifiedAt: true,
             },
           });
 
@@ -579,7 +588,7 @@ export async function consumeRouteAllowance({
             throw new AccessControlError("NO_ACTIVE_SUBSCRIPTION", "Usuário não encontrado.");
           }
 
-          if (user.accessBlockedAt) {
+          if (user.accessBlockedAt || !canUseAccount(user)) {
             throw new AccessControlError(
               "ACCESS_BLOCKED",
               user.accessBlockReason ?? "Seu acesso está bloqueado."

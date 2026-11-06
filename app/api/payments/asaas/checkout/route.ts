@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/app/lib/auth";
+import { canUseAccount, checkoutCustomerData } from "@/app/lib/account-security";
 import { prisma } from "@/app/lib/prisma";
+import { localDevelopmentEnabled } from "@/app/lib/local-development.js";
 
 export const runtime = "nodejs";
 
@@ -144,6 +146,7 @@ async function createPaymentTransaction(params: {
 
 export async function POST(request: Request) {
   try {
+    if (localDevelopmentEnabled()) return NextResponse.json({ error: "Pagamentos reais estão desativados no ambiente local." }, { status: 503 });
     const accessToken = process.env.ASAAS_ACCESS_TOKEN;
 
     if (!accessToken) {
@@ -178,10 +181,10 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { active: true },
+      select: { active: true, emailVerificationRequired: true, emailVerifiedAt: true, cpf: true, company: { select: { cnpj: true } }, name: true, email: true },
     });
 
-    if (!user?.active) {
+    if (!user || !canUseAccount(user)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -200,6 +203,7 @@ export async function POST(request: Request) {
     });
 
     const checkoutPayload = {
+      customerData: checkoutCustomerData(user),
       billingTypes: ["PIX", "CREDIT_CARD"],
       chargeTypes: ["DETACHED"],
       externalReference: transaction.externalReference,

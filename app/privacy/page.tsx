@@ -10,6 +10,7 @@ const sections = [
     title: "1. Informações que coletamos",
     paragraphs: [
       "Podemos coletar informações fornecidas diretamente pelo usuário, como nome, e-mail, dados de conta, informações de assinatura, dados de pagamento processados por provedores externos e arquivos ou planilhas enviados para processamento.",
+      "O cadastro também utiliza WhatsApp e CPF ou CNPJ para identificação da conta, prevenção de cadastros duplicados e preenchimento do checkout. A validação matemática do CPF não comprova a identidade ou a titularidade do documento.",
       "Também podemos processar informações operacionais contidas nas planilhas enviadas, incluindo endereços, bairros, ruas, quadras, lotes, coordenadas, observações de entrega e demais dados necessários para a geração, revisão e exportação de rotas.",
     ],
   },
@@ -23,6 +24,7 @@ const sections = [
     title: "3. Como usamos as informações",
     paragraphs: [
       "As informações são utilizadas para permitir o funcionamento do Rotta, processar planilhas, validar e organizar endereços, gerar rotas, permitir revisão em mapa, salvar correções confirmadas pelo usuário, gerenciar contas, planos e créditos, fornecer suporte, melhorar a precisão do sistema e manter a segurança da plataforma.",
+      "Para impedir a reutilização de benefícios gratuitos após a exclusão de uma conta, mantemos um identificador protegido do documento, o tipo e a quantidade do benefício e sua data de concessão. Esse registro não contém o CPF ou CNPJ completo, nome ou e-mail, e permanece separado dos dados da conta.",
     ],
   },
   {
@@ -37,6 +39,7 @@ const sections = [
     paragraphs: [
       "O Rotta poderá utilizar serviços de terceiros necessários para seu funcionamento, incluindo provedores de mapas, geolocalização, hospedagem, pagamentos, autenticação, análise técnica e infraestrutura.",
       "Esses serviços podem incluir HERE Technologies, Google Maps, Asaas, Render e outros fornecedores necessários à operação da plataforma.",
+      "Utilizamos o Resend para enviar códigos de confirmação de e-mail e recuperação de senha. O endereço de e-mail e o conteúdo dessas mensagens são processados por esse fornecedor para o envio. Senhas não são enviadas por e-mail.",
       "O Rotta não vende dados pessoais dos usuários.",
     ],
   },

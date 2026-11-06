@@ -1,3 +1,5 @@
+import { localDevelopmentEnabled } from "./local-development.js";
+
 export type CnpjProvider = "BRASILAPI" | "RECEITAWS";
 export type CnpjVerificationStatus = "VERIFIED" | "PENDING_VERIFICATION";
 export type CnpjVerificationReason = "API_UNAVAILABLE" | "NOT_FOUND" | "RATE_LIMIT";
@@ -45,15 +47,16 @@ const CNPJ_NOT_FOUND_MESSAGE =
   "CNPJ não localizado nas bases consultadas. Se o seu MEI/CNPJ foi aberto recentemente, entre em contato com o suporte pelo WhatsApp.";
 
 export function cleanCnpj(cnpj: string) {
-  return String(cnpj ?? "").replace(/\D/g, "");
+  return String(cnpj ?? "").replace(/[.\/\s-]/g, "").toUpperCase();
 }
 
 export function isValidCnpj(cnpj: string) {
   const digits = cleanCnpj(cnpj);
-  if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false;
+  if (!/^[A-Z0-9]{12}[0-9]{2}$/.test(digits) || /^(\d)\1{13}$/.test(digits)) return false;
 
   const calcDigit = (base: string, weights: number[]) => {
-    const sum = weights.reduce((acc, weight, index) => acc + Number(base[index]) * weight, 0);
+    // Receita Federal: numeric and alphanumeric CNPJ use character ASCII minus 48.
+    const sum = weights.reduce((acc, weight, index) => acc + (base.charCodeAt(index) - 48) * weight, 0);
     const remainder = sum % 11;
     return remainder < 2 ? 0 : 11 - remainder;
   };
@@ -199,7 +202,13 @@ async function lookupReceitaWs(cnpj: string): Promise<CnpjProviderResult> {
   const situacaoCadastral = data?.situacao;
 
   if (!data) return { kind: "UNAVAILABLE" };
-  if (data.status === "ERROR") return { kind: "NOT_FOUND" };
+  if (data.status === "ERROR") {
+    // A cache miss is not proof of nonexistence; other provider errors are temporary.
+    const message = hasText(data.message) ? data.message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+    return /not in cache|cnpj.*(?:nao (?:encontrado|localizado)|inexistente)/.test(message)
+      ? { kind: "NOT_FOUND" }
+      : { kind: "UNAVAILABLE" };
+  }
   if (!hasText(razaoSocial) || !hasText(situacaoCadastral)) return { kind: "UNAVAILABLE" };
 
   return {
@@ -236,7 +245,7 @@ export function resolveCnpjVerificationOutcome(
     return { kind: "VERIFIED", company: receitaWsResult.company };
   }
 
-  if (brasilApiResult.kind === "NOT_FOUND" || receitaWsResult.kind === "NOT_FOUND") {
+  if (brasilApiResult.kind === "NOT_FOUND" && receitaWsResult.kind === "NOT_FOUND") {
     return { kind: "NOT_FOUND" };
   }
 
@@ -251,6 +260,13 @@ export async function validateCnpjCompany(cnpj: string): Promise<CnpjVerificatio
   const digits = cleanCnpj(cnpj);
   if (!isValidCnpj(digits)) {
     throw new CnpjValidationError("INVALID", "CNPJ inválido. Verifique os números informados.");
+  }
+
+  if (localDevelopmentEnabled()) {
+    return { kind: "PENDING_VERIFICATION", reason: "API_UNAVAILABLE", company: {
+      ...buildPendingCompany(digits, "API_UNAVAILABLE"), razaoSocial: "Empresa fictícia — teste local",
+      rawData: { localSimulation: true },
+    } };
   }
 
   const brasilApiResult = await lookupBrasilApi(digits);

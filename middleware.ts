@@ -5,6 +5,8 @@ import { SUPER_ADMIN_EMAIL } from "@/app/lib/admin-roles";
 
 const PUBLIC_PATHS = [
   "/login",
+  "/confirmar-email",
+  "/esqueci-senha",
   "/terms",
   "/privacy",
   "/excluir-conta",

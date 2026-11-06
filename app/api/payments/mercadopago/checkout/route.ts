@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { localDevelopmentEnabled } from "@/app/lib/local-development.js";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
@@ -113,6 +114,7 @@ async function createPaymentTransaction(params: {
 
 export async function POST(request: Request) {
   try {
+    if (localDevelopmentEnabled()) return NextResponse.json({ error: "Pagamentos reais estão desativados no ambiente local." }, { status: 503 });
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     const notificationUrl = process.env.MERCADOPAGO_NOTIFICATION_URL;
     const baseUrl =

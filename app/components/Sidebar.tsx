@@ -384,6 +384,11 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 {chevron}
               </Link>
 
+              <Link href="/configuracoes" onClick={onClose} className={`${itemRowBase} ${isActive("/configuracoes") ? activeRow : idleRow}`}>
+                <span className="text-[15px] font-semibold text-white">Segurança da conta</span>
+                {chevron}
+              </Link>
+
               {isAdmin && (
                 <>
                   <Link

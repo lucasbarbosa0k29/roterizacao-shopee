@@ -39,6 +39,7 @@ enum RouteUsageSource {
 }
 
 enum RouteCreditReason {
+  PROMOTIONAL
   ADMIN_GRANT
   MANUAL_PAYMENT
   ADJUSTMENT
@@ -91,7 +92,7 @@ model Company {
   cnpjVerifiedAt     DateTime?
   rawData            Json?
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  updatedAt          DateTime     @default(now()) @updatedAt
 
   users User[]
 
@@ -106,6 +107,12 @@ model User {
   name              String?
   email             String    @unique
   password          String
+  documentType      DocumentType?
+  cpf               String?   @unique
+  emailVerifiedAt   DateTime?
+  emailVerificationRequired Boolean @default(true)
+  sessionVersion    Int       @default(0)
+  authChallenges    AuthChallenge[]
   whatsapp          String?   @unique
   companyId         String?
   role              Role      @default(USER)
@@ -130,6 +137,44 @@ model User {
   @@index([companyId])
   @@index([createdAt])
   @@index([accessBlockedAt])
+}
+
+enum DocumentType {
+  CPF
+  CNPJ
+}
+
+enum AuthChallengePurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model AuthChallenge {
+  id             String @id @default(cuid())
+  userId         String
+  purpose        AuthChallengePurpose
+  generation     String
+  codeHash       String
+  expiresAt      DateTime
+  requestedAt    DateTime @default(now())
+  delivered      Boolean @default(false)
+  attempts       Int @default(0)
+  consumedAt     DateTime?
+  resetTokenHash String?
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, purpose])
+  @@index([expiresAt])
+}
+
+// Deliberately independent of User: deleting an account must not renew a benefit.
+// Contains a keyed fingerprint, never the original document or email.
+model SignupBenefit {
+  id                  String @id @default(cuid())
+  documentFingerprint String @unique
+  documentType        DocumentType
+  quantity            Int
+  grantedAt           DateTime @default(now())
 }
 
 enum ImportStatus {

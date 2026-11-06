@@ -5,7 +5,7 @@ import {
 } from "@/app/lib/job-storage";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { getToken } from "next-auth/jwt";
+import { getCurrentAuthToken as getToken } from "@/app/lib/current-auth-token";
 import { logMemory } from "@/app/lib/memory-observability";
 
 export const runtime = "nodejs";

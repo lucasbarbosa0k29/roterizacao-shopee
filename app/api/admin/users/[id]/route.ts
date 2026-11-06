@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/prisma";
 import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+import { passwordPolicyError } from "@/app/lib/password-policy.js";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 
@@ -285,9 +286,10 @@ export async function PATCH(req: Request, ctx: any) {
         );
       }
 
-      if (!newPassword || newPassword.length < 6) {
+      const policyError = passwordPolicyError(newPassword);
+      if (policyError) {
         return NextResponse.json(
-          { error: "Senha precisa ter no mínimo 6 caracteres." },
+          { error: policyError },
           { status: 400 }
         );
       }
@@ -298,8 +300,9 @@ export async function PATCH(req: Request, ctx: any) {
       await prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id },
-          data: { password: hash },
+          data: { password: hash, sessionVersion: { increment: 1 } },
         });
+        await tx.authChallenge.updateMany({ where: { userId: id, purpose: "RESET_PASSWORD" }, data: { consumedAt: now, resetTokenHash: null } });
 
         await logAdminAction(tx, {
           adminId,

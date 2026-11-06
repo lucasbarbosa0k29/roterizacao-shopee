@@ -1,5 +1,6 @@
 import { resolveMx } from "node:dns/promises";
 import { isFakeDomain } from "fakefilter";
+import { localDevelopmentEnabled } from "./local-development.js";
 
 export const INVALID_EMAIL_MESSAGE = "Informe um e-mail válido.";
 export const DISPOSABLE_EMAIL_MESSAGE = "E-mails temporários não são permitidos.";
@@ -127,6 +128,8 @@ export async function validatePublicSignupEmail(input: string): Promise<EmailVal
   }
 
   const domain = email.split("@")[1];
+  // Reserved .test domains are fictional and cannot have public MX records.
+  if (localDevelopmentEnabled() && domain.endsWith(".test")) return { ok: true, email, domain };
   if (isDisposableEmailDomain(domain)) {
     return { ok: false, message: DISPOSABLE_EMAIL_MESSAGE };
   }

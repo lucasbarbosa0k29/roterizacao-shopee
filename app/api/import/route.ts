@@ -1,5 +1,5 @@
 // app/api/import/route.ts
-import * as XLSX from "xlsx";
+import { MAX_IMPORT_FILE_BYTES, MAX_ROUTE_STOPS, readImportRows, SpreadsheetImportError } from "@/app/lib/spreadsheet-import";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -11,8 +11,6 @@ import { parseWhatsAppTxtImport } from "@/app/lib/whatsapp-txt-import";
 import { parseImileTxtImport } from "@/app/lib/imile-txt-import";
 
 export const runtime = "nodejs";
-const MAX_ROUTE_STOPS = 200;
-const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMPORT_EXTENSIONS = new Set([".xlsx", ".xls", ".csv", ".txt"]);
 
 function getFileExtension(fileName: string) {
@@ -21,7 +19,7 @@ function getFileExtension(fileName: string) {
   return fileName.slice(dotIndex).toLowerCase();
 }
 
-function pickFirst(row: any, keys: string[]) {
+function pickFirst(row: Record<string, unknown>, keys: string[]) {
   for (const k of keys) {
     const v = row?.[k];
     if (v !== undefined && v !== null && String(v).trim() !== "") return v;
@@ -48,12 +46,12 @@ function normCity(v: string) {
   return s;
 }
 
-function parseMaybeNumber(v: any) {
+function parseMaybeNumber(v: unknown) {
   const n = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(n) ? n : null;
 }
 
-function hasDeliveryListCsvHeaders(rawRows: any[]) {
+function hasDeliveryListCsvHeaders(rawRows: Record<string, unknown>[]) {
   const firstRow = rawRows[0];
   if (!firstRow || typeof firstRow !== "object") return false;
 
@@ -75,7 +73,7 @@ export async function POST(req: Request) {
     void cleanupOldImportJobsIfNeeded();
 
     const session = await getServerSession(authOptions);
-    const userId = (session?.user as any)?.id as string | undefined;
+    const userId = (session?.user as { id?: string } | undefined)?.id;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -307,29 +305,12 @@ export async function POST(req: Request) {
       });
     }
 
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-
-    const rawRows = XLSX.utils.sheet_to_json<any>(sheet, { defval: "" });
-
-    if (rawRows.length > MAX_ROUTE_STOPS) {
-      return NextResponse.json(
-        { error: "A planilha excede o limite máximo de 200 paradas." },
-        { status: 400 }
-      );
-    }
+    const rawRows = readImportRows(buffer, extension);
 
     const isDeliveryListCsv = extension === ".csv" && hasDeliveryListCsvHeaders(rawRows);
 
     const rows = isDeliveryListCsv
-      ? XLSX.utils
-          .sheet_to_json<any>(
-            XLSX.read(buffer.toString("utf8"), { type: "string" }).Sheets[sheetName],
-            { defval: "" }
-          )
-          .map((row: any, index: number) => {
+      ? rawRows.map((row, index) => {
             const original = String(row?.Address || "").trim();
 
             return {
@@ -342,7 +323,7 @@ export async function POST(req: Request) {
               lngFromSheet: null,
             };
           })
-      : rawRows.map((row: any) => {
+      : rawRows.map((row) => {
           const sequence = String(
             pickFirst(row, ["Sequence", "SEQUENCE", "Sequência", "sequencia", "SEQ", "seq"])
           ).trim();
@@ -411,7 +392,10 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ jobId: job.id, total: rows.length, rows });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    if (err instanceof SpreadsheetImportError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     console.error("Erro /api/import:", err);
     return NextResponse.json({ error: "Erro ao importar planilha" }, { status: 500 });
   }

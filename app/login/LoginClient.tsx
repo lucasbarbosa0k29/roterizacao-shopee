@@ -1,9 +1,14 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
+import { DocumentFields } from "../components/DocumentFields";
+import { isValidCpf } from "../lib/cpf";
+import { writeSessionHint } from "../lib/browser-session";
+import { PASSWORD_MIN_LENGTH, passwordPolicyError } from "../lib/password-policy.js";
 
 const WHATSAPP_SUPPORT_URL = "https://wa.me/5562996344134";
 const CNPJ_NOT_FOUND_MESSAGE =
@@ -16,15 +21,9 @@ const highlights = [
 ];
 
 type AuthMode = "login" | "signup";
-
-function maskCnpj(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 14);
-  return digits
-    .replace(/^(\d{2})(\d)/, "$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1/$2")
-    .replace(/(\d{4})(\d)/, "$1-$2");
-}
+const subscribeHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
 
 function maskWhatsapp(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -47,47 +46,57 @@ function WhatsAppIcon() {
 }
 
 export default function LoginClient() {
+  const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
+  if (!hydrated) return <main role="status" className="min-h-screen bg-[#f4f7f6] p-10 text-center text-slate-700">Carregando formulário seguro...</main>;
+  return <LoginFields />;
+}
+
+function LoginFields() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/importar-planilha";
+  const requestedCallback = searchParams.get("callbackUrl") || "/importar-planilha";
+  const callbackUrl = requestedCallback.startsWith("/") && !requestedCallback.startsWith("//") && !requestedCallback.includes("\\") ? requestedCallback : "/importar-planilha";
   const isTwaModeDetected = useStandaloneDisplayMode();
-  const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<AuthMode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [cnpj, setCnpj] = useState("");
+  const [documentType, setDocumentType] = useState<"CPF" | "CNPJ">("CNPJ");
+  const [cpf, setCpf] = useState("");
   const [cnpjResponsibilityAccepted, setCnpjResponsibilityAccepted] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(() => searchParams.get("passwordChanged") === "1" ? "Senha alterada com sucesso. Entre novamente com a nova senha." : null);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-  }, []);
-
-  const showTwaLogin = mounted && isTwaModeDetected;
+  const showTwaLogin = isTwaModeDetected;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setErr(null);
     setInfo(null);
+    setPendingConfirmation(false);
 
     const res = await signIn("credentials", {
       redirect: false,
       email: email.trim().toLowerCase(),
       password,
       callbackUrl,
-    });
+    }).catch(() => null);
 
     setLoading(false);
 
     if (!res || res.error) {
+      if (res?.error === "EMAIL_VERIFICATION_REQUIRED") {
+        writeSessionHint("rotta-confirm-email", email.trim().toLowerCase());
+        setPendingConfirmation(true);
+        return;
+      }
       setErr("Usuário ou senha inválidos.");
       return;
     }
@@ -105,8 +114,15 @@ export default function LoginClient() {
       return;
     }
 
+    const policyError = passwordPolicyError(password);
+    if (policyError) { setErr(policyError); return; }
+
     if (!cnpjResponsibilityAccepted) {
-      setErr("Você precisa confirmar que está autorizado a utilizar este CNPJ.");
+      setErr("Você precisa confirmar que está autorizado a utilizar este documento.");
+      return;
+    }
+    if (documentType === "CPF" && !isValidCpf(cpf)) {
+      setErr("CPF inválido. Verifique os números informados.");
       return;
     }
 
@@ -126,8 +142,17 @@ export default function LoginClient() {
         whatsapp,
         password,
         cnpj,
+        cpf,
+        documentType,
+        termsAccepted,
+        documentResponsibilityAccepted: cnpjResponsibilityAccepted,
       }),
-    });
+    }).catch(() => null);
+    if (!res) {
+      setLoading(false);
+      setErr("Falha de conexão. Tente novamente ou retome a confirmação se sua conta já foi criada.");
+      return;
+    }
 
     const data = await res.json().catch(() => ({}));
 
@@ -142,43 +167,12 @@ export default function LoginClient() {
       return;
     }
 
-    const pendingCnpjMessage =
-      data?.cnpjVerificationStatus === "PENDING_VERIFICATION"
-        ? "Cadastro criado com sucesso. Seu CNPJ ficou pendente de verificação, mas você já pode acessar o Rotta normalmente."
-        : null;
-
-    if (pendingCnpjMessage) {
-      setInfo(pendingCnpjMessage);
-    }
-
-    const loginRes = await signIn("credentials", {
-      redirect: false,
-      email: email.trim().toLowerCase(),
-      password,
-      callbackUrl,
-    });
-
+    writeSessionHint("rotta-confirm-email", email.trim().toLowerCase());
+    writeSessionHint("rotta-confirm-message", String(data.message || "Confirme seu e-mail para continuar."));
     setLoading(false);
-
-    if (!loginRes || loginRes.error) {
-      setMode("login");
-      setCnpjResponsibilityAccepted(false);
-      setTermsAccepted(false);
-      setPassword("");
-      setConfirmPassword("");
-      setErr(
-        pendingCnpjMessage
-          ? `${pendingCnpjMessage} Entre com seu e-mail e senha para continuar.`
-          : "Conta criada. Entre com seu e-mail e senha para continuar."
-      );
-      return;
-    }
-
-    setCnpjResponsibilityAccepted(false);
-    setTermsAccepted(false);
     setPassword("");
     setConfirmPassword("");
-    router.push(callbackUrl);
+    router.push("/confirmar-email");
   }
 
   if (showTwaLogin) {
@@ -206,6 +200,7 @@ export default function LoginClient() {
                 type="button"
                 onClick={() => {
                   setMode("login");
+                  setPendingConfirmation(false);
                   setErr(null);
                   setInfo(null);
                   setCnpjResponsibilityAccepted(false);
@@ -221,6 +216,7 @@ export default function LoginClient() {
                 type="button"
                 onClick={() => {
                   setMode("signup");
+                  setPendingConfirmation(false);
                   setErr(null);
                   setInfo(null);
                   setCnpjResponsibilityAccepted(false);
@@ -235,6 +231,7 @@ export default function LoginClient() {
             </div>
 
             <form onSubmit={isSignup ? onSignupSubmit : onSubmit} className="mt-6 space-y-4">
+              {isSignup && <p className="text-sm">Use uma senha com pelo menos {PASSWORD_MIN_LENGTH} caracteres.</p>}
               {isSignup && (
                 <div>
                   <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
@@ -260,7 +257,7 @@ export default function LoginClient() {
                   className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
                   placeholder="voce@empresa.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setPendingConfirmation(false); }}
                   required
                 />
               </div>
@@ -281,20 +278,7 @@ export default function LoginClient() {
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/62">
-                      CNPJ
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
-                      placeholder="00.000.000/0000-00"
-                      value={cnpj}
-                      onChange={(e) => setCnpj(maskCnpj(e.target.value))}
-                      required
-                    />
-                  </div>
+                  <DocumentFields dark type={documentType} setType={setDocumentType} value={documentType === "CPF" ? cpf : cnpj} setValue={documentType === "CPF" ? setCpf : setCnpj} />
 
                   <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm leading-5 text-white/78">
                     <input
@@ -304,7 +288,7 @@ export default function LoginClient() {
                       className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#2dd4bf]"
                     />
                     <span>
-                      Declaro que este CNPJ é meu. O uso indevido de CNPJ de terceiros poderá resultar no bloqueio permanente da conta, sem aviso prévio.
+                      Declaro que sou titular deste CPF ou estou autorizado a usar este CNPJ. O uso indevido poderá resultar no bloqueio da conta.
                     </span>
                   </label>
 
@@ -348,8 +332,9 @@ export default function LoginClient() {
                   type="password"
                   className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
                   placeholder="Digite sua senha"
+                  minLength={isSignup ? PASSWORD_MIN_LENGTH : undefined}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setPendingConfirmation(false); }}
                   required
                 />
               </div>
@@ -363,6 +348,7 @@ export default function LoginClient() {
                     type="password"
                     className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3.5 text-white outline-none transition placeholder:text-white/34 focus:border-[#2dd4bf] focus:bg-white/8 focus:ring-4 focus:ring-cyan-400/12"
                     placeholder="Confirme sua senha"
+                    minLength={PASSWORD_MIN_LENGTH}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -382,6 +368,13 @@ export default function LoginClient() {
                 </div>
               )}
 
+              {!isSignup && pendingConfirmation && (
+                <div role="status" className="rounded-2xl border border-emerald-300/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-50">
+                  <p>Seu e-mail ainda não foi confirmado. Conclua a confirmação para entrar.</p>
+                  <Link href="/confirmar-email" className="mt-2 inline-block font-semibold underline">Concluir confirmação de e-mail</Link>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -390,6 +383,12 @@ export default function LoginClient() {
                 {loading ? (isSignup ? "Criando..." : "Entrando...") : isSignup ? "Criar conta" : "Entrar"}
               </button>
             </form>
+
+            {!isSignup && (
+              <div className="mt-3 text-center text-sm text-white/80">
+                <a className="inline-block py-1 underline underline-offset-4 transition hover:text-white" href="/esqueci-senha">Esqueceu sua senha?</a>
+              </div>
+            )}
 
             <a
               href={WHATSAPP_SUPPORT_URL}
@@ -479,6 +478,7 @@ export default function LoginClient() {
                     type="button"
                     onClick={() => {
                       setMode("login");
+                      setPendingConfirmation(false);
                       setErr(null);
                       setInfo(null);
                       setCnpjResponsibilityAccepted(false);
@@ -494,6 +494,7 @@ export default function LoginClient() {
                     type="button"
                     onClick={() => {
                       setMode("signup");
+                      setPendingConfirmation(false);
                       setErr(null);
                       setInfo(null);
                       setCnpjResponsibilityAccepted(false);
@@ -508,6 +509,7 @@ export default function LoginClient() {
                 </div>
 
                 <form onSubmit={isSignup ? onSignupSubmit : onSubmit} className="mt-6 space-y-5">
+                  {isSignup && <p className="text-sm text-slate-600">Use uma senha com pelo menos {PASSWORD_MIN_LENGTH} caracteres.</p>}
                   {isSignup && (
                     <div>
                       <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -532,7 +534,7 @@ export default function LoginClient() {
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
                       placeholder="voce@empresa.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); setPendingConfirmation(false); }}
                       required
                     />
                   </div>
@@ -553,20 +555,7 @@ export default function LoginClient() {
                         />
                       </div>
 
-                      <div>
-                        <label className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          CNPJ
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
-                          placeholder="00.000.000/0000-00"
-                          value={cnpj}
-                          onChange={(e) => setCnpj(maskCnpj(e.target.value))}
-                          required
-                        />
-                      </div>
+                      <DocumentFields type={documentType} setType={setDocumentType} value={documentType === "CPF" ? cpf : cnpj} setValue={documentType === "CPF" ? setCpf : setCnpj} />
 
                       <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-5 text-slate-700">
                         <input
@@ -576,7 +565,7 @@ export default function LoginClient() {
                           className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#1f5a6b]"
                         />
                         <span>
-                          Declaro que este CNPJ é meu. O uso indevido de CNPJ de terceiros poderá resultar no bloqueio permanente da conta, sem aviso prévio.
+                          Declaro que sou titular deste CPF ou estou autorizado a usar este CNPJ. O uso indevido poderá resultar no bloqueio da conta.
                         </span>
                       </label>
 
@@ -620,8 +609,9 @@ export default function LoginClient() {
                       type="password"
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
                       placeholder="Digite sua senha"
+                      minLength={isSignup ? PASSWORD_MIN_LENGTH : undefined}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); setPendingConfirmation(false); }}
                       required
                     />
                   </div>
@@ -635,6 +625,7 @@ export default function LoginClient() {
                         type="password"
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1f5a6b] focus:bg-white focus:ring-4 focus:ring-[#d8ece7]"
                         placeholder="Confirme sua senha"
+                        minLength={PASSWORD_MIN_LENGTH}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
@@ -654,6 +645,13 @@ export default function LoginClient() {
                     </div>
                   )}
 
+                  {!isSignup && pendingConfirmation && (
+                    <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      <p>Seu e-mail ainda não foi confirmado. Conclua a confirmação para entrar.</p>
+                      <Link href="/confirmar-email" className="mt-2 inline-block font-semibold underline">Concluir confirmação de e-mail</Link>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
                     disabled={loading}
@@ -662,6 +660,12 @@ export default function LoginClient() {
                     {loading ? (isSignup ? "Criando..." : "Entrando...") : isSignup ? "Criar conta" : "Entrar"}
                   </button>
                 </form>
+
+                {!isSignup && (
+                  <div className="mt-3 text-center text-sm text-[#1f5a6b]">
+                    <a className="inline-block py-1 underline underline-offset-4 transition hover:text-[#17313b]" href="/esqueci-senha">Esqueceu sua senha?</a>
+                  </div>
+                )}
 
                 <a
                   href={WHATSAPP_SUPPORT_URL}

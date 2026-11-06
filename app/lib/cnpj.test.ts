@@ -72,24 +72,26 @@ test("BrasilAPI NOT_FOUND + ReceitaWS NOT_FOUND => bloqueia", () => {
   assert.equal(outcome.kind, "NOT_FOUND");
 });
 
-test("BrasilAPI NOT_FOUND + ReceitaWS UNAVAILABLE => bloqueia", () => {
+test("BrasilAPI NOT_FOUND + ReceitaWS UNAVAILABLE => resultado temporariamente inconclusivo", () => {
   const outcome = resolveCnpjVerificationOutcome(
     "12345678000195",
     { kind: "NOT_FOUND" },
     { kind: "UNAVAILABLE" }
   );
 
-  assert.equal(outcome.kind, "NOT_FOUND");
+  assert.equal(outcome.kind, "PENDING_VERIFICATION");
+  assert.equal(outcome.reason, "API_UNAVAILABLE");
 });
 
-test("BrasilAPI UNAVAILABLE + ReceitaWS NOT_FOUND => bloqueia", () => {
+test("BrasilAPI UNAVAILABLE + ReceitaWS NOT_FOUND => resultado temporariamente inconclusivo", () => {
   const outcome = resolveCnpjVerificationOutcome(
     "12345678000195",
     { kind: "UNAVAILABLE" },
     { kind: "NOT_FOUND" }
   );
 
-  assert.equal(outcome.kind, "NOT_FOUND");
+  assert.equal(outcome.kind, "PENDING_VERIFICATION");
+  assert.equal(outcome.reason, "API_UNAVAILABLE");
 });
 
 test("BrasilAPI UNAVAILABLE + ReceitaWS UNAVAILABLE => PENDING", () => {
@@ -114,12 +116,13 @@ test("BrasilAPI RATE_LIMIT + ReceitaWS UNAVAILABLE => PENDING", () => {
   assert.equal(outcome.reason, "RATE_LIMIT");
 });
 
-test("RATE_LIMIT + NOT_FOUND => bloqueia", () => {
+test("RATE_LIMIT + NOT_FOUND => resultado temporariamente inconclusivo", () => {
   const outcome = resolveCnpjVerificationOutcome(
     "12345678000195",
     { kind: "RATE_LIMIT" },
     { kind: "NOT_FOUND" }
   );
 
-  assert.equal(outcome.kind, "NOT_FOUND");
+  assert.equal(outcome.kind, "PENDING_VERIFICATION");
+  assert.equal(outcome.reason, "RATE_LIMIT");
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { readSessionHint, writeSessionHint } from "./browser-session";
 
 const TWA_FLAG_KEY = "rotta_twa";
 const TWA_DEV_FLAG_KEY = "rotta_twa_dev";
@@ -25,7 +26,7 @@ function shouldUseTwa(url: URL) {
   const isLocalhost = isLocalTwaHost(url.hostname);
   const hasTwaSource = url.searchParams.get("source") === "twa";
   const devFlag =
-    typeof window !== "undefined" ? window.sessionStorage.getItem(TWA_DEV_FLAG_KEY) === "1" : false;
+    typeof window !== "undefined" ? readSessionHint(TWA_DEV_FLAG_KEY) === "1" : false;
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
 
   return isStandalone || (isLocalhost && (hasTwaSource || devFlag));
@@ -39,31 +40,35 @@ function clearLegacyTwaFlags() {
       window.sessionStorage.removeItem(TWA_DEV_FLAG_KEY);
       window.localStorage.removeItem(TWA_DEV_FLAG_KEY);
     }
-  } catch (error) {}
+  } catch { /* Storage is optional for display-mode detection. */ }
 }
 
-export function useStandaloneDisplayMode() {
-  const [isStandalone, setIsStandalone] = useState(() => {
-    if (typeof window === "undefined") return false;
+function standaloneSnapshot() {
+  return typeof window !== "undefined" && shouldUseTwa(new URL(window.location.href));
+}
 
-    const url = new URL(window.location.href);
-    return shouldUseTwa(url);
-  });
+function subscribeStandalone(onChange: () => void) {
+  const media = window.matchMedia("(display-mode: standalone)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+const serverStandaloneSnapshot = () => false;
+
+export function useStandaloneDisplayMode() {
+  const isStandalone = useSyncExternalStore(subscribeStandalone, standaloneSnapshot, serverStandaloneSnapshot);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const mq = window.matchMedia("(display-mode: standalone)");
     const url = new URL(window.location.href);
     const isLocalhost = isLocalTwaHost(url.hostname);
     const hasTwaSource = url.searchParams.get("source") === "twa";
-    const hasDevFlag = window.sessionStorage.getItem(TWA_DEV_FLAG_KEY) === "1";
-    const twa = mq.matches || (isLocalhost && (hasTwaSource || hasDevFlag));
 
     clearLegacyTwaFlags();
 
     if (isLocalhost && hasTwaSource) {
-      window.sessionStorage.setItem(TWA_DEV_FLAG_KEY, "1");
+      writeSessionHint(TWA_DEV_FLAG_KEY, "1");
     }
 
     if (!isLocalhost && hasTwaSource) {
@@ -71,7 +76,6 @@ export function useStandaloneDisplayMode() {
       window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    setIsStandalone(twa);
   }, []);
 
   return isStandalone;

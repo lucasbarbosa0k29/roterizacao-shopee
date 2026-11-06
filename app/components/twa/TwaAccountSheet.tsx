@@ -329,6 +329,7 @@ export function TwaAccountSheet({ open, onClose, displayName }: TwaAccountSheetP
                   </section>
 
                   <section className="border-t border-slate-200 pt-0.5">
+                    <Link href="/configuracoes" onClick={onClose} className="block py-3 text-sm font-medium text-[#17313b]">Segurança da conta</Link>
                     <Link
                       href="/tutorial"
                       className="flex items-center justify-between px-0.5 py-1 text-[12px] text-slate-800"
