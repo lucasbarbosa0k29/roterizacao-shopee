@@ -270,6 +270,19 @@ function serializeActiveSubscription(activeSubscription: NonNullable<Awaited<Ret
 }
 
 export async function getUserAccessSnapshot(userId: string): Promise<UserAccessSnapshot> {
+  return buildUserAccessSnapshot(userId, "protected");
+}
+
+// Read-only inspection after the caller authorizes the administrator.
+// Protected features must keep using getUserAccessSnapshot instead.
+export async function getAdminUserAccessSnapshot(userId: string): Promise<UserAccessSnapshot> {
+  return buildUserAccessSnapshot(userId, "admin");
+}
+
+async function buildUserAccessSnapshot(
+  userId: string,
+  context: "protected" | "admin"
+): Promise<UserAccessSnapshot> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -288,10 +301,11 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
   }
 
   const isAdmin = user.role === "ADMIN";
-  const isBlocked = !!user.accessBlockedAt || !canUseAccount(user);
-  if (!canUseAccount(user)) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail e verifique se sua conta está ativa.");
+  const accountEligible = canUseAccount(user);
+  const isBlocked = !!user.accessBlockedAt || !accountEligible;
+  if (context === "protected" && !accountEligible) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail e verifique se sua conta está ativa.");
 
-  if (isAdmin) {
+  if (isAdmin && accountEligible) {
     return {
       userId: user.id,
       role: user.role,
@@ -353,7 +367,7 @@ export async function getUserAccessSnapshot(userId: string): Promise<UserAccessS
     return {
       userId: user.id,
       role: user.role,
-      isAdmin: false,
+      isAdmin,
       isBlocked: true,
       blockReason: user.accessBlockReason ?? null,
       activeSubscription: activeSubscription

@@ -74,6 +74,9 @@ function LoginFields() {
   const [info, setInfo] = useState<string | null>(() => searchParams.get("passwordChanged") === "1" ? "Senha alterada com sucesso. Entre novamente com a nova senha." : null);
 
   const showTwaLogin = isTwaModeDetected;
+  const documentResponsibilityLabel = documentType === "CPF"
+    ? "Declaro que sou titular do CPF informado e que os dados fornecidos são verdadeiros."
+    : "Declaro que sou representante legal da empresa ou possuo autorização para utilizar o CNPJ informado.";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -288,7 +291,7 @@ function LoginFields() {
                       className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent accent-[#2dd4bf]"
                     />
                     <span>
-                      Declaro que sou titular deste CPF ou estou autorizado a usar este CNPJ. O uso indevido poderá resultar no bloqueio da conta.
+                      {documentResponsibilityLabel}
                     </span>
                   </label>
 
@@ -565,7 +568,7 @@ function LoginFields() {
                           className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#1f5a6b]"
                         />
                         <span>
-                          Declaro que sou titular deste CPF ou estou autorizado a usar este CNPJ. O uso indevido poderá resultar no bloqueio da conta.
+                          {documentResponsibilityLabel}
                         </span>
                       </label>
 

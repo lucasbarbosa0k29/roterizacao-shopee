@@ -92,12 +92,20 @@ function AccountSecurityFields({ mode }: { mode: Mode }) {
     finally { setBusy(false); }
   }
 
+  const recoveryCodeStage = mode === "recover" && stage === "code";
+
   return <main className="flex min-h-screen items-start justify-center bg-[#f4f7f6] px-4 py-10 text-slate-900 sm:py-16">
     <section className="w-full max-w-md rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1f5a6b]">Rotta</p>
-      <h1 className="mt-3 text-2xl font-semibold">{mode === "verify" ? "Confirme seu e-mail" : mode === "recover" ? "Recuperar senha" : "Segurança"}</h1>
-      <p className="mt-2 text-sm text-slate-600">{mode === "change" ? "Altere sua senha. Após salvar, entre novamente nos seus dispositivos." : "Os códigos são válidos por 10 minutos. Confira também a caixa de spam."}</p>
-      {message && <p role="status" className="mt-5 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">{message}</p>}
+      <h1 className="mt-3 text-2xl font-semibold">{mode === "verify" ? "Confirme seu e-mail" : mode === "recover" ? recoveryCodeStage ? "Confira seu e-mail" : "Recuperar senha" : "Segurança"}</h1>
+      <p className="mt-2 text-sm text-slate-600">{mode === "change"
+        ? "Altere sua senha. Após salvar, entre novamente nos seus dispositivos."
+        : recoveryCodeStage
+          ? "Se o endereço informado estiver cadastrado, enviaremos um código de 6 dígitos para redefinir sua senha."
+          : "Os códigos são válidos por 10 minutos. Confira também a caixa de spam."}</p>
+      {(message || recoveryCodeStage) && <p role="status" className="mt-5 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">{recoveryCodeStage
+        ? "O código é válido por 10 minutos. Não recebeu? Verifique a caixa de spam ou solicite um novo código."
+        : message}</p>}
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {!done && <form onSubmit={submit} className="mt-6 space-y-5">
         {mode !== "change" && <label className="block text-sm font-medium">E-mail

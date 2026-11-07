@@ -7,7 +7,7 @@ import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { passwordPolicyError } from "@/app/lib/password-policy.js";
-import { getUserAccessSnapshot } from "@/app/lib/access-control";
+import { getAdminUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 import {
   DUPLICATE_WHATSAPP_MESSAGE,
@@ -90,7 +90,7 @@ export async function GET() {
       2,
       async (user) => ({
         ...user,
-        access: await getUserAccessSnapshot(user.id),
+        access: await getAdminUserAccessSnapshot(user.id),
       })
     );
 

@@ -170,7 +170,7 @@ try {
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
     await page.getByLabel('Tipo de cadastro').selectOption('CPF');
     await page.getByPlaceholder('000.000.000-00').fill('52998224725');
-    assert.ok(await page.getByText('1 crédito experimental', { exact: false }).isVisible());
+    assert.ok(await page.getByText('Ao se cadastrar com CPF, você receberá apenas 1 crédito gratuito para experimentar o Rotta, após confirmar seu e-mail.', { exact: true }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');
     await page.screenshot({ path: join(artifacts, `signup-${width}.png`), fullPage: true });
     await page.getByLabel('Tipo de cadastro').selectOption('CNPJ');
@@ -212,7 +212,7 @@ try {
   await twaPage.getByRole('button', { name: 'Criar conta', exact: true }).click();
   await twaPage.getByLabel('Tipo de cadastro').selectOption('CPF');
   await twaPage.getByPlaceholder('000.000.000-00').fill('52998224725');
-  assert.ok(await twaPage.getByText('1 crédito experimental', { exact: false }).isVisible());
+  assert.ok(await twaPage.getByText('Ao se cadastrar com CPF, você receberá apenas 1 crédito gratuito para experimentar o Rotta, após confirmar seu e-mail.', { exact: true }).isVisible());
   assert.ok(await twaPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await twaPage.screenshot({ path: join(artifacts, 'signup-twa-390.png'), fullPage: true });
   await twaPage.close();

@@ -21,6 +21,14 @@ export function DocumentFields({ type, setType, value, setValue, dark = false }:
     <label className="block text-sm">{type}
       <input required inputMode={type === "CPF" ? "numeric" : "text"} autoCapitalize="characters" autoComplete="off" value={value} onChange={e => setValue(mask(e.target.value))} className={`${field} mt-2`} placeholder={type === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"} />
     </label>
-    <p className="text-xs opacity-80">{type === "CPF" ? "1 crédito experimental após confirmar seu e-mail, uma única vez por CPF. A validação dos dígitos não comprova a titularidade do documento." : "2 créditos gratuitos após confirmar seu e-mail, uma única vez por CNPJ."}</p>
+    <div role="status" className={`rounded-2xl border px-4 py-3 text-sm leading-5 ${type === "CPF"
+      ? dark ? "border-amber-300/20 bg-amber-300/10 text-amber-100" : "border-amber-200 bg-amber-50 text-amber-900"
+      : dark ? "border-teal-300/20 bg-teal-300/10 text-teal-100" : "border-teal-200 bg-teal-50 text-teal-900"}`}>
+      <p className="font-semibold">{type === "CPF" ? "Atenção!" : "2 ROTAS GRÁTIS!"}</p>
+      <p className="mt-1">{type === "CPF"
+        ? "Ao se cadastrar com CPF, você receberá apenas 1 crédito gratuito para experimentar o Rotta, após confirmar seu e-mail."
+        : "Cadastre-se com CNPJ e receba 2 créditos gratuitos após confirmar seu e-mail."}</p>
+    </div>
+    <p className="text-xs opacity-80">Cada crédito permite utilizar uma rota, conforme as regras do sistema. Benefício concedido uma única vez por documento elegível.{type === "CPF" && " A validação dos dígitos não comprova a titularidade do documento."}</p>
   </div>;
 }
