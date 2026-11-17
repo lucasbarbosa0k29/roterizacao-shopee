@@ -46,7 +46,8 @@ function loadRouteParser() {
   const routeSource = fs.readFileSync(path.join(root, "app/api/process/route.ts"), "utf8");
   const parserSource = [
     sourceBlock(routeSource, "function separateCompactQuadraLoteTokens", "function stripQuadraLoteFromStreet"),
-    sourceBlock(routeSource, "function normalizeQLValue", "function isAparecidaBairroNoise"),
+    'const { normalizeQLValue } = require("@/app/lib/quadra-lote-normalization.ts");',
+    sourceBlock(routeSource, "const QUADRA_LOTE_CONTEXT_NOISE", "function isAparecidaBairroNoise"),
     "exports.__test = { extractQuadraLoteSmart };",
   ].join("\n");
   const output = ts.transpileModule(parserSource, {

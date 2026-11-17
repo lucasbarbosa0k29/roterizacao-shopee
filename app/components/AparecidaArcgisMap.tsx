@@ -173,7 +173,6 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
     }
 
     let mounted = true;
-    mapInitialized = true;
 
     (async () => {
       try {
@@ -193,9 +192,15 @@ export default function AparecidaArcgisMap({ center, onPick }: Props) {
         if (apiKey) esriConfig.apiKey = apiKey;
 
         if (!mounted || !container) {
-          mapInitialized = false;
           return;
         }
+
+        // Another valid mount may have completed the same async import first.
+        if (mapInitialized) {
+          attachSharedView(container);
+          return;
+        }
+        mapInitialized = true;
 
         const lotsUrl =
           typeof window !== "undefined"

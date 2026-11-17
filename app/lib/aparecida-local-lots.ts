@@ -1,5 +1,7 @@
 import fs from "fs";
 import path from "path";
+import { checkAparecidaTerritory } from "@/app/lib/aparecida-territory";
+import { normalizeQLIdentity } from "@/app/lib/quadra-lote-normalization";
 
 import RBush from "rbush";
 import bbox from "@turf/bbox";
@@ -7,7 +9,7 @@ import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
 import { point } from "@turf/helpers";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
-import { normalizeStreetNameWithoutType } from "@/app/lib/street-normalization";
+import { normalizeStreetNameWithoutType, normalizeStreetText } from "@/app/lib/street-normalization";
 import type {
   LocalFirstCandidateValidationInput,
   LocalFirstCandidateValidationResult,
@@ -79,6 +81,10 @@ export type AparecidaLocalLotCandidate = {
   bairroPriority?: "exact" | "alias" | "mismatch";
   bairroMismatchLocalFirst?: boolean;
   canFinalizeLocalFirst?: boolean;
+  territoryVerified?: boolean;
+  streetVerified?: boolean;
+  validationReason?: string;
+  stopPaidSearch?: boolean;
 };
 
 const dataset: LoadedDataset = {};
@@ -259,39 +265,8 @@ function repairAparecidaBairroEncoding(value: string) {
     .replace(/GOI\uFFFDNIA/gi, "GOIANIA");
 }
 
-function canonicalLot(value: string) {
-  let t = String(value || "")
-    .toUpperCase()
-    .trim()
-    .replace(/^[\s\-:]+|[\s\-:]+$/g, "")
-    .replace(/[^A-Z0-9\-]/g, "");
-
-  if (/^[A-Z]/.test(t)) {
-    const compact = t.replace(/-/g, "");
-    if (/^[A-Z]$/.test(compact)) return compact;
-    const m = compact.match(/^([A-Z])(\d+[A-Z0-9]*)?$/);
-    if (m) return `${m[1]}${m[2] || ""}`;
-    return compact;
-  }
-
-  if (/^\d/.test(t)) {
-    const compact = t.replace(/-/g, "");
-    const m = compact.match(/^0*(\d+)([A-Z][A-Z0-9]*)?$/);
-    if (m) return `${String(Number(m[1]))}${m[2] || ""}`;
-    if (/^\d+$/.test(compact)) return String(Number(compact));
-    return compact;
-  }
-
-  const m = t.match(/^0*(\d+)([A-Z][A-Z0-9\-]*)?$/);
-  if (m) return `${String(Number(m[1]))}${m[2] || ""}`;
-
-  if (/^\d+$/.test(t)) return String(Number(t));
-  return "";
-}
-
-function normalizeQuadraLoteValue(value: string) {
-  return canonicalLot(value);
-}
+const canonicalLot = normalizeQLIdentity;
+const normalizeQuadraLoteValue = normalizeQLIdentity;
 
 function normalizeBairroValue(value: string) {
   return normalizeText(repairAparecidaBairroEncoding(value))
@@ -300,17 +275,22 @@ function normalizeBairroValue(value: string) {
 }
 
 function normalizeAparecidaBairroPairKey(left: string, right: string) {
-  const a = normalizeAparecidaBairroForCompare(left);
-  const b = normalizeAparecidaBairroForCompare(right);
+  const a = normalizeAparecidaBairroForLocalFirstCompare(left);
+  const b = normalizeAparecidaBairroForLocalFirstCompare(right);
   if (!a || !b) return "";
   return a < b ? `${a}|||${b}` : `${b}|||${a}`;
 }
 
-function normalizeAparecidaBairroForLocalFirstCompare(value: string) {
-  return normalizeAparecidaBairroForCompare(value)
-    .replace(/\b(?:QDRA|QUADRA|QDR|QDA|QD|LTS|LTT|LTE|LOTE|LOT|LT)\d*\b.*$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+export function normalizeAparecidaBairroForLocalFirstCompare(value: string, normalizeTypography = true) {
+  let text = normalizeAparecidaBairroForCompare(value);
+  if (normalizeTypography) text = text
+    .replace(/[-–—.,;:()[\]{}]/g, " ")
+    .replace(/\b(PRIMEIR[AO]|SEGUND[AO]|TERCEIR[AO]|QUART[AO]|QUINT[AO]|SEXT[AO]|SETIM[AO]|OITAV[AO]|NON[AO]|DECIM[AO])(?=\s+(?:ETAPA|COMPLEMENTO|GLEBA)\b)/g, (word) => {
+      const ordinals: Record<string, string> = { PRIMEIRA: "1", PRIMEIRO: "1", SEGUNDA: "2", SEGUNDO: "2", TERCEIRA: "3", TERCEIRO: "3", QUARTA: "4", QUARTO: "4", QUINTA: "5", QUINTO: "5", SEXTA: "6", SEXTO: "6", SETIMA: "7", SETIMO: "7", OITAVA: "8", OITAVO: "8", NONA: "9", NONO: "9", DECIMA: "10", DECIMO: "10" };
+      return ordinals[word] || word;
+    });
+  return text.replace(/\b(?:QDRA|QUADRA|QDR|QDA|QD|LTS|LTT|LTE|LOTE|LOT|LT)\d*\b.*$/g, "")
+    .replace(/\s+/g, " ").trim();
 }
 
 function normalizeAparecidaBairroStageToken(token: string) {
@@ -330,8 +310,15 @@ function normalizeAparecidaBairroStageToken(token: string) {
   return stageMap[token] || token;
 }
 
-function normalizeAparecidaBairroForLocalFirstTokens(value: string) {
+export function normalizeAparecidaTerritoryName(value: string) {
   return normalizeAparecidaBairroForLocalFirstCompare(value)
+    .replace(/^(?:(?:JARDIM|JD|SETOR|ST|RESIDENCIAL|RES|PARQUE|PQ|VILA|VL|LOTEAMENTO)\s+)+/, "")
+    .replace(/\b(?:PLANICIES|PLANICES)\b/g, "PLANICIE")
+    .split(" ").map(normalizeAparecidaBairroStageToken).join(" ");
+}
+
+function normalizeAparecidaBairroForLocalFirstTokens(value: string, normalizeTypography = true) {
+  return normalizeAparecidaBairroForLocalFirstCompare(value, normalizeTypography)
     .split(" ")
     .filter(Boolean)
     .map(normalizeAparecidaBairroStageToken)
@@ -376,6 +363,7 @@ const APARECIDA_BAIRRO_DENYLIST = new Set([
 ]);
 
 const APARECIDA_BAIRRO_ALLOWLIST = new Set([
+  normalizeAparecidaBairroPairKey("SETOR PLANICIE", "PLANICIES"),
   normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - JARDINS MONACO"),
   normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - JARDINS VIENA"),
   normalizeAparecidaBairroPairKey("CIDADE VERA CRUZ", "CIDADE VERA CRUZ - COND. EMPRESARIAL VILLAGE"),
@@ -444,16 +432,17 @@ export function normalizeAparecidaBairroForCompare(value: string) {
   return normalizeBairroValue(value);
 }
 
-export function areAparecidaBairrosCompatible(expected: string, actual: string) {
-  const left = normalizeAparecidaBairroForLocalFirstCompare(expected);
-  const right = normalizeAparecidaBairroForLocalFirstCompare(actual);
+export function areAparecidaBairrosCompatible(expected: string, actual: string, normalizeTypography = true) {
+  const left = normalizeAparecidaBairroForLocalFirstCompare(expected, normalizeTypography);
+  const right = normalizeAparecidaBairroForLocalFirstCompare(actual, normalizeTypography);
   if (!left || !right) return false;
   if (isAparecidaBairroDenied(left, right)) return false;
-  if (isAparecidaBairroAllowed(left, right)) return true;
+  const newTerritorialAlias = normalizeAparecidaBairroPairKey(left, right) === normalizeAparecidaBairroPairKey("SETOR PLANICIE", "PLANICIES");
+  if (isAparecidaBairroAllowed(left, right) && (normalizeTypography || !newTerritorialAlias)) return true;
   if (left === right) return true;
 
-  const leftTokens = normalizeAparecidaBairroForLocalFirstTokens(left);
-  const rightTokens = normalizeAparecidaBairroForLocalFirstTokens(right);
+  const leftTokens = normalizeAparecidaBairroForLocalFirstTokens(left, normalizeTypography);
+  const rightTokens = normalizeAparecidaBairroForLocalFirstTokens(right, normalizeTypography);
   if (!leftTokens.length || !rightTokens.length) return false;
 
   const leftKey = leftTokens.join(" ");
@@ -475,7 +464,7 @@ function bairroCompatible(expected: string, actual: string) {
   return areAparecidaBairrosCompatible(expected, actual);
 }
 
-function centroidDistanceMeters(a: CentroidRecord, b: CentroidRecord) {
+function centroidDistanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371000;
   const rad = Math.PI / 180;
   const lat1 = a.lat * rad;
@@ -790,6 +779,7 @@ export function findAparecidaLocalStreetCandidate(args: {
   bairro: string;
   quadra: string;
   lote: string;
+  position?: { lat: number; lng: number };
 }): { streetFullName: string; nearDist: number | null } | null {
   const { records, index, missing } = loadAparecidaStreetCentroids();
   if (missing || !records || !index) return null;
@@ -802,7 +792,7 @@ export function findAparecidaLocalStreetCandidate(args: {
 
   const candidates = bucket
     .map((recordIndex) => records[recordIndex])
-    .filter(Boolean) as StreetCentroidRecord[];
+    .filter((record) => !!record && (!args.position || centroidDistanceMeters(record, args.position) < 1)) as StreetCentroidRecord[];
   if (!candidates.length) return null;
 
   candidates.sort(compareStreetCentroidCandidate);
@@ -987,109 +977,68 @@ export function findAparecidaLocalLotCandidate(args: {
     .map((recordIndex) => records[recordIndex])
     .filter(Boolean) as CentroidRecord[];
 
-  const candidates = bucketRecords
-    .map((record) => {
-      const featureBairro = record.bairro;
-      const candidate: AparecidaLocalLotCandidate = {
-        quadra: normalizeQuadraLoteValue(record.quadra),
-        lote: canonicalLot(record.lote),
-        bairro: featureBairro,
-        centroid: { lat: record.lat, lng: record.lng },
-        strongMatch: true,
-      };
-
-      const sheetNorm = sheetBairro;
-      const featureNorm = normalizeAparecidaBairroForCompare(featureBairro);
-      if (sheetNorm && featureNorm && sheetNorm === featureNorm) {
-        candidate.bairroPriority = "exact";
-        candidate.canFinalizeLocalFirst = true;
-      } else if (sheetBairro && areAparecidaBairrosCompatible(sheetBairro, featureBairro)) {
-        candidate.bairroPriority = "alias";
-        candidate.localAliasAccepted = true;
-        candidate.canFinalizeLocalFirst = true;
-      } else {
-        candidate.bairroPriority = "mismatch";
-        candidate.bairroMismatchLocalFirst = !!sheetBairro;
-        candidate.canFinalizeLocalFirst = !sheetBairro;
-      }
-
-      return candidate;
-    })
-    .filter(Boolean) as AparecidaLocalLotCandidate[];
-
-  if (!candidates.length) {
-    const city = normalizeText(args.cidade || "");
-    const allowStrongBairroAlias =
-      args.allowStrongBairroAlias === true &&
-      city.includes("APARECIDA") &&
-      city.includes("GOIANIA");
-
-    if (allowStrongBairroAlias) {
-      const spread = maxCentroidSpreadMeters(bucketRecords);
-      if (
-        bucketRecords.length === 1 ||
-        (bucketRecords.length > 1 && spread <= LOCAL_ALIAS_MAX_SPREAD_METERS)
-      ) {
-        const record = bucketRecords[0];
-        if (isAparecidaBairroDenied(bairro, record.bairro)) return null;
-        if (!areAparecidaBairrosCompatible(bairro, record.bairro)) return null;
-        return {
-          quadra: normalizeQuadraLoteValue(record.quadra),
-          lote: canonicalLot(record.lote),
-          bairro: record.bairro,
-          centroid: { lat: record.lat, lng: record.lng },
-          strongMatch: true,
-          bairroDivergenteLocalForte: true,
-          localAliasAccepted: true,
-          bairroPriority: "alias",
-          bairroMismatchLocalFirst: false,
-          canFinalizeLocalFirst: true,
-        };
-      }
-    }
-
-    return null;
-  }
-
-  candidates.sort((a, b) => {
-    const rank = (v?: "exact" | "alias" | "mismatch") =>
-      v === "exact" ? 0 : v === "alias" ? 1 : 2;
-    const priorityDiff = rank(a.bairroPriority) - rank(b.bairroPriority);
-    if (priorityDiff !== 0) return priorityDiff;
-
-    const ba = normalizeBairroValue(a.bairro);
-    const bb = normalizeBairroValue(b.bairro);
-    const target = normalizeBairroValue(bairro);
-    const aExact = ba === target ? 1 : 0;
-    const bExact = bb === target ? 1 : 0;
-    if (aExact !== bExact) return bExact - aExact;
-    return 0;
+  // Do not turn compound parcel text into an atomic cadastral key.
+  if (!/^[A-Z0-9]+$/.test(q) || !/^[A-Z0-9]+$/.test(l)) return null;
+  const candidates = bucketRecords.map((record): AparecidaLocalLotCandidate => {
+    const position = { lat: record.lat, lng: record.lng };
+    const exact = !!sheetBairro && normalizeAparecidaBairroForCompare(record.bairro) === sheetBairro;
+    const alias = !!sheetBairro && areAparecidaBairrosCompatible(sheetBairroSource, record.bairro);
+    const existingAlias = !!sheetBairro && areAparecidaBairrosCompatible(sheetBairroSource, record.bairro, false);
+    const territory = checkAparecidaTerritory(sheetBairroSource, position, normalizeAparecidaTerritoryName);
+    const localStreet = findAparecidaLocalStreetCandidate({ bairro: record.bairro, quadra: q, lote: l, position });
+    const streetVerified = !!localStreet && localStreet.nearDist != null && localStreet.nearDist <= 20 &&
+      compareAparecidaStreetForValidation(args.rua || "", localStreet.streetFullName) === "STREET_MATCH";
+    // Existing exact names keep their path. A broader cadastral label requires
+    // independent street evidence and a confirmed polygon of the sheet bairro.
+    const spatialConflict = territory.known && !territory.matched;
+    const streetConflict = !!localStreet && localStreet.nearDist != null && localStreet.nearDist <= 20 &&
+      compareAparecidaStreetForValidation(args.rua || "", localStreet.streetFullName) === "STREET_MISMATCH";
+    // Preserve established matches. Newly enabled typography/aliases need
+    // independent territorial and street proof, never just a similar label.
+    const allowed = exact || existingAlias ? !spatialConflict : alias && territory.matched && streetVerified;
+    return {
+      quadra: normalizeQuadraLoteValue(record.quadra), lote: canonicalLot(record.lote),
+      bairro: record.bairro, centroid: position, strongMatch: true,
+      bairroPriority: exact ? "exact" : alias ? "alias" : "mismatch",
+      canFinalizeLocalFirst: allowed,
+      bairroMismatchLocalFirst: !allowed,
+      localAliasAccepted: !exact && allowed,
+      territoryVerified: territory.matched, streetVerified,
+      validationReason: allowed ? "LOCAL_CONTEXT_VALIDATED" : streetConflict ? "LOCAL_STREET_CONFLICT" : spatialConflict ? "LOCAL_TERRITORY_CONFLICT" : !alias && !exact ? "LOCAL_BAIRRO_MISMATCH" : "LOCAL_CONTEXT_UNVERIFIED",
+      // Preserve the historical bypass only for previously accepted local matches.
+      // A new street conflict blocks acceptance, not the existing HERE queries.
+      stopPaidSearch: !allowed && (exact || existingAlias),
+    };
   });
+  const accepted = candidates.filter(x => x.canFinalizeLocalFirst);
+  const distinct = new Map(accepted.map(x => [`${x.centroid.lat.toFixed(6)}|${x.centroid.lng.toFixed(6)}`, x]));
+  if (distinct.size === 1) return [...distinct.values()][0];
+  if (distinct.size > 1) return { ...accepted[0], canFinalizeLocalFirst: false, stopPaidSearch: true, validationReason: "LOCAL_MULTIPLE_PARCELS" };
+  return candidates.find(x => x.stopPaidSearch || (x.territoryVerified && x.validationReason === "LOCAL_STREET_CONFLICT")) || candidates[0] || null;
 
-  return candidates[0];
   } finally {
     releaseAparecidaCentroidLease();
   }
 }
 
-function compareAparecidaStreetForValidation(
+export function compareAparecidaStreetForValidation(
   expected: string,
   actual: string,
 ): LocalFirstStreetMatchType {
-  const left = normalizeStreetNameWithoutType(expected);
-  const right = normalizeStreetNameWithoutType(actual);
-
+  const type = (text: string) => {
+    const first = normalizeStreetText(text).split(" ")[0];
+    const types: Record<string, string> = { R: "RUA", RUA: "RUA", AV: "AVENIDA", AVENIDA: "AVENIDA", AL: "ALAMEDA", ALAMEDA: "ALAMEDA", TV: "TRAVESSA", TRAVESSA: "TRAVESSA" };
+    return types[first] || "";
+  };
+  const name = (text: string) => normalizeStreetNameWithoutType(text)
+    .replace(/^(?:DOUTOR|DR)\s+/, "")
+    .replace(/\b(?:DE|DA|DO|DAS|DOS)\b/g, " ").replace(/\s+/g, " ").trim();
+  const left = name(expected);
+  const right = name(actual);
   if (!left || !right) return "STREET_UNKNOWN";
+  if (type(expected) && type(actual) && type(expected) !== type(actual)) return "STREET_MISMATCH";
   if (left === right) return "STREET_MATCH";
-  if (left.includes(right) || right.includes(left)) {
-    return "STREET_UNKNOWN";
-  }
-
-  const leftTokens = new Set(left.split(/\s+/).filter(Boolean));
-  const rightTokens = right.split(/\s+/).filter(Boolean);
-  const hasSharedToken = rightTokens.some((token) => leftTokens.has(token));
-
-  return hasSharedToken ? "STREET_UNKNOWN" : "STREET_MISMATCH";
+  return "STREET_MISMATCH";
 }
 
 export function resolveAparecidaLocalFirstCandidate(

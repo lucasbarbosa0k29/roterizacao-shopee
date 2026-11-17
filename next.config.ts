@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@arcgis/core"],
   outputFileTracingIncludes: {
-    "/api/process": ["./app/data/goiania_local_first_by_bairro_v4/**/*.json"],
+    "/api/process": ["./app/data/goiania_local_first_by_bairro_v4/**/*.json", "./data/localfirst/aparecida/*.json"],
   },
   webpack: (config, { isServer }) => {
     if (isServer) {

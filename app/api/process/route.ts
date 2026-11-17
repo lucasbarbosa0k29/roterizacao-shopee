@@ -1,5 +1,7 @@
+import { selectAparecidaStreetCoordinate } from "@/app/lib/aparecida-here-reuse";
 ﻿// app/api/process/route.ts
 import { NextResponse } from "next/server";
+import { normalizeQLValue, normalizeQLIdentity, sameQLValue } from "@/app/lib/quadra-lote-normalization";
 import {
   getDiscoverBudgetDecision,
   reserveDiscoverUsage,
@@ -42,6 +44,7 @@ import { Prisma } from "@prisma/client";
 import {
   findAparecidaLocalLotCandidate,
   findAparecidaLocalStreetCandidate,
+  compareAparecidaStreetForValidation,
 } from "@/app/lib/aparecida-local-lots";
 import { buildCondoMemoryKeyPlan, type CondoMemoryKeyKind } from "@/app/lib/condo-memory-keys";
 import {
@@ -1358,8 +1361,8 @@ function buildAparecidaContextShadow(args: {
     !!actualQuadra &&
     !!expectedLote &&
     !!actualLote &&
-    sameText(expectedQuadra, actualQuadra) &&
-    sameText(expectedLote, actualLote);
+    sameQLValue(expectedQuadra, actualQuadra) &&
+    sameQLValue(expectedLote, actualLote);
   const localRuaNotVerified = args.source === "local" && !ruaVerified;
 
   if (bairroMismatch) flags.push("APARECIDA_BAIRRO_MISMATCH_SHADOW");
@@ -1487,40 +1490,6 @@ function extractByRegex(raw: string) {
   return { rua, quadra, lote };
 }
 // ✅ Regex SMART: pega Q/L em vários formatos (Q40 L27, QD40LT27, QUADRA 40 LOTE 27, etc)
-function normalizeQLValue(v: string, suffix = "") {
-  let t = String(v || "")
-    .toUpperCase()
-    .trim()
-    .replace(/^[\s\-:]+|[\s\-:]+$/g, "")
-    .replace(/[^A-Z0-9\-]/g, "");
-
-  const extra = String(suffix || "")
-    .toUpperCase()
-    .trim()
-    .replace(/[^A-Z0-9]/g, "");
-
-  if (/^[A-Z]/.test(t)) {
-    const compact = t.replace(/-/g, "");
-    if (/^[A-Z]$/.test(compact)) return compact;
-    const m = compact.match(/^([A-Z])(\d+[A-Z0-9]*)?$/);
-    if (m) return `${m[1]}${m[2] || extra}`;
-    return compact;
-  }
-
-  if (/^\d/.test(t)) {
-    const compact = t.replace(/-/g, "");
-    const m = compact.match(/^0*(\d+)([A-Z][A-Z0-9]*)?$/);
-    if (m) return `${String(Number(m[1]))}${m[2] || extra}`;
-    if (/^\d+$/.test(compact)) return String(Number(compact));
-    return compact;
-  }
-
-  const m = t.match(/^0*(\d+)([A-Z][A-Z0-9\-]*)?$/);
-  if (m) return `${String(Number(m[1]))}${m[2] || extra}`;
-
-  if (/^\d+$/.test(t)) return String(Number(t));
-  return "";
-}
 
 const QUADRA_LOTE_CONTEXT_NOISE =
   /\b(BLOCO|BL|APTO|APT|APARTAMENTO|CASA|EMPORIO|BARBEARIA|SHOPPING|LOJA|SALA|TORRE|CONDOMINIO|EDIFICIO|COMERCIAL)\b/;
@@ -2069,7 +2038,7 @@ function chooseAparecidaBairro(primary: string, fallback: string) {
   return "";
 }
 
-function mergeAparecidaLotValue(primary: string, fallback: string, tertiary: string) {
+function mergeAparecidaLotValue(primary: string, fallback: string, tertiary: string, canonicalize = false) {
   const normalizeGoianiaQLValue = (value: string) => {
     let t = String(value || "")
       .trim()
@@ -2102,7 +2071,7 @@ function mergeAparecidaLotValue(primary: string, fallback: string, tertiary: str
   };
 
   const values = [primary, fallback, tertiary]
-    .map((v) => normalizeGoianiaQLValue(v))
+    .map((v) => canonicalize ? normalizeQLIdentity(v) : normalizeGoianiaQLValue(v))
     .filter(Boolean);
   if (!values.length) return "";
 
@@ -2146,7 +2115,7 @@ function pickAparecidaLocalFirstCandidate(args: {
     });
 
     if (!candidate) continue;
-    if (candidate.canFinalizeLocalFirst === false) continue;
+    if (candidate.canFinalizeLocalFirst === false && !candidate.stopPaidSearch && !(candidate.territoryVerified && candidate.validationReason === "LOCAL_STREET_CONFLICT")) continue;
 
     return { candidate, matchedBy: target.label };
   }
@@ -3246,11 +3215,6 @@ function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng:
 
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
-function sameText(a: string, b: string) {
-  const x = String(a || "").trim().toUpperCase();
-  const y = String(b || "").trim().toUpperCase();
-  return !!x && !!y && x === y;
-}
 
 function scoreArcgisLotMatch(
   arc: any,
@@ -3269,8 +3233,8 @@ function scoreArcgisLotMatch(
 
   let s = 200; // achou um lote já é MUITO bom
 
-  if (wq && aq) s += sameText(wq, aq) ? 250 : -120;
-  if (wl && al) s += sameText(wl, al) ? 250 : -120;
+  if (wq && aq) s += sameQLValue(wq, aq) ? 250 : -120;
+  if (wl && al) s += sameQLValue(wl, al) ? 250 : -120;
 
   if (wb && ab) s += (ab.toUpperCase().includes(wb.toUpperCase()) || wb.toUpperCase().includes(ab.toUpperCase())) ? 30 : 0;
 
@@ -3296,8 +3260,8 @@ function scoreAparecidaRerankCandidate(args: {
   const arcLote = String(args.arc?.lote || "").trim();
   const qlConflict =
     !!args.arc?.found &&
-    ((!!args.wantArc.quadra && !!arcQuadra && !sameText(args.wantArc.quadra, arcQuadra)) ||
-      (!!args.wantArc.lote && !!arcLote && !sameText(args.wantArc.lote, arcLote)));
+    ((!!args.wantArc.quadra && !!arcQuadra && !sameQLValue(args.wantArc.quadra, arcQuadra)) ||
+      (!!args.wantArc.lote && !!arcLote && !sameQLValue(args.wantArc.lote, arcLote)));
 
   const confidence = computeGeocodeConfidence({
     source: "HERE_GEOCODE",
@@ -3832,6 +3796,7 @@ async function processOne(
           obsSmartQL.quadra,
         ),
     rx.quadra || trindadeCompactDdParser?.quadra || "",
+    isAparecidaCity(cityIn || g.normalized.cidade || ""),
   ).trim();
   const finalLote = mergeAparecidaLotValue(
     invalidGoianiaParserValue(g.normalized.lote) ? "" : g.normalized.lote || "",
@@ -3844,6 +3809,7 @@ async function processOne(
           obsSmartQL.lote,
         ),
     rx.lote || trindadeCompactDdParser?.lote || "",
+    isAparecidaCity(cityIn || g.normalized.cidade || ""),
   ).trim();
 
   const finalParserDebug =
@@ -4292,6 +4258,7 @@ async function processOne(
   let localLotLote = "";
   let localLotBairro = "";
   let localLotLocalAliasAccepted = false;
+  let localLotValidationBlocked = false;
   let localLotBairroDivergenteLocalForte = false;
   let localLotBairroMismatchLocalFirst = false;
   let localLotCanFinalizeLocalFirst = true;
@@ -4589,7 +4556,12 @@ async function processOne(
       cep: normalized.cep || cepIn,
     });
 
-    if (localFirstCandidate?.candidate) {
+    if (localFirstCandidate?.candidate.canFinalizeLocalFirst === false) {
+      localFirstBypassHere = !!localFirstCandidate.candidate.stopPaidSearch;
+      localLotValidationBlocked = true;
+      localLotBlockedByBairro = true;
+      decisionReason = "APARECIDA_LOCAL_LOT_REVIEW";
+    } else if (localFirstCandidate?.candidate) {
       const localAparecidaCandidate = localFirstCandidate.candidate;
       const localAddressLabel = cleanAddressForHere(
         [
@@ -5849,7 +5821,7 @@ if (
   if (arcgisLot?.found) {
     if (String(arcgisLot.quadra || "").trim()) quadraAuto = String(arcgisLot.quadra).trim();
     if (String(arcgisLot.lote || "").trim()) loteAuto = String(arcgisLot.lote).trim();
-    if (String(arcgisLot.bairro || "").trim()) bairroAuto = String(arcgisLot.bairro).trim();
+    if (!bairroIn && String(arcgisLot.bairro || "").trim()) bairroAuto = String(arcgisLot.bairro).trim();
   }
 }
 
@@ -6008,8 +5980,8 @@ const wantQ = String(normalized.quadra || "").trim();
 const wantL = String(normalized.lote || "").trim();
 
 const conflictQL =
-  (wantQ && quadraAuto && wantQ !== quadraAuto) ||
-  (wantL && loteAuto && wantL !== loteAuto);
+  (wantQ && quadraAuto && (isAparecida ? !sameQLValue(wantQ, quadraAuto) : wantQ !== quadraAuto)) ||
+  (wantL && loteAuto && (isAparecida ? !sameQLValue(wantL, loteAuto) : wantL !== loteAuto));
 
 if (conflictQL) {
   status = "PARCIAL";
@@ -6432,6 +6404,13 @@ const aparecidaLocalStreetShadow = buildAparecidaLocalStreetShadow({
   if (partialStreetFallbackReason) {
     decisionReason = partialStreetFallbackReason;
   }
+}
+
+if (localLotValidationBlocked) {
+  status = "PARCIAL";
+  lat = null;
+  lng = null;
+  decisionReason = "APARECIDA_LOCAL_LOT_REVIEW";
 }
 
 const aparecidaMemoryDebugFlags = [
@@ -7024,7 +7003,7 @@ if (shouldAutoSaveAddressMemory) {
     }
   }
 
-  const finalSource = trindadeLocalFirstUsedAsFinal
+  let finalSource = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalSource || "LOCALFIRST_TRINDADE"
     : hidrolandiaLocalFirstUsedAsFinal
       ? hidrolandiaLocalFirstFinalSource || "LOCALFIRST_HIDROLANDIA"
@@ -7039,7 +7018,7 @@ if (shouldAutoSaveAddressMemory) {
         : finalRankedKind === "discover"
           ? "HERE_DISCOVER"
           : "HERE_GEOCODE";
-  const finalMatchType = trindadeLocalFirstUsedAsFinal
+  let finalMatchType = trindadeLocalFirstUsedAsFinal
     ? trindadeLocalFirstFinalMatchType || "LOCALFIRST_TRINDADE"
     : hidrolandiaLocalFirstUsedAsFinal
       ? hidrolandiaLocalFirstFinalMatchType || "LOCALFIRST_HIDROLANDIA"
@@ -7109,6 +7088,56 @@ if (shouldAutoSaveAddressMemory) {
     status = "OK";
     decisionReason = "OK_HERE_HOUSENUMBER_GENERIC_DISTRICT";
     finalGeocodeConfidenceDiag = buildHereHouseNumberValidatedConfidence();
+  }
+
+  let coordinatePrecision: "LOT" | "HOUSE_NUMBER" | "MEMORY" | "STREET" | "UNRESOLVED" | undefined;
+  if (isAparecida) {
+    const hasFinalCoords = lat != null && lng != null;
+    if (memoryHit || approxMemoryHit) {
+      coordinatePrecision = hasFinalCoords ? (approxMemoryHit ? "STREET" : "MEMORY") : "UNRESOLVED";
+    } else if (localLotUsedAsFinal && localLotCanFinalizeLocalFirst && !conflictQL && hasFinalCoords) {
+      coordinatePrecision = "LOT";
+    } else {
+      const expected = { rua: normalized.rua, bairro: bairroIn || normalized.bairro,
+        cidade: cityForDecision, cep: normalized.cep || cepIn };
+      const street = !localLotValidationBlocked ? selectAparecidaStreetCoordinate(scored, expected) : null;
+      const legacyResolved = hasFinalCoords && !localLotValidationBlocked &&
+        compareAparecidaStreetForValidation(normalized.rua, String(bestItem?.address?.street || "")) === "STREET_MATCH";
+      if (legacyResolved) {
+        // This patch preserves established approvals and coordinates. It does
+        // not reinterpret an old HERE street result as new parcel evidence.
+        coordinatePrecision = bestItem?.resultType === "houseNumber" ? "HOUSE_NUMBER" : "STREET";
+      } else if (street && !hasFinalCoords && status !== "OK") {
+        lat = street.item.position!.lat;
+        lng = street.item.position!.lng;
+        bestItem = street.item;
+        finalRankedKind = scored.find(entry => entry.it === street.item)?.kind || "geocode";
+        finalSource = finalRankedKind === "discover" ? "HERE_DISCOVER" : "HERE_GEOCODE";
+        finalMatchType = "HERE_STREET_TERRITORY_VERIFIED";
+        quadraAuto = normalized.quadra || "";
+        loteAuto = normalized.lote || "";
+        arcgisLot = null;
+        status = "PARCIAL";
+        decisionReason = street.reason;
+        coordinatePrecision = "STREET";
+        partialStreetFallbackUsed = true;
+        partialStreetFallbackReason = street.reason;
+        finalGeocodeConfidenceDiag = computeGeocodeConfidence({
+          source: finalRankedKind === "discover" ? "HERE_DISCOVER" : "HERE_GEOCODE", expected,
+          actual: { rua: bestItem.address?.street || "", bairro: bestItem.address?.district || "",
+            cidade: bestItem.address?.city || "", cep: bestItem.address?.postalCode || "", resultType: "street" },
+          hasCoords: true, hasQuadra: false, hasLote: false, hereSpreadMeters,
+          memoryStrength: "NONE", hardSignals: [],
+        });
+        finalGeocodeConfidenceDiag.flags.push("APARECIDA_STREET_TERRITORY_VERIFIED", "STREET_COORDINATE_ONLY");
+      } else {
+        if (hasFinalCoords) decisionReason = "APARECIDA_COORDINATE_REVIEW";
+        lat = null;
+        lng = null;
+        status = "PARCIAL";
+        coordinatePrecision = "UNRESOLVED";
+      }
+    }
   }
 
   const poiShadowUseful = poiShadow.confidence === "POI_HIGH" && poiShadow.found;
@@ -7193,6 +7222,7 @@ if (shouldAutoSaveAddressMemory) {
         }
       : {}),
     status,
+    ...(isAparecida ? { coordinatePrecision } : {}),
     lat,
     lng,
     decisionReason,
