@@ -26,6 +26,26 @@ function loadBoundaries(): BoundaryDataset | null {
   return cached;
 }
 
+export function findTerritoryNames(
+  position: { lat: number; lng: number },
+  boundaries: AparecidaBoundary[] | null = loadBoundaries()?.boundaries ?? null,
+) {
+  return findContainingBoundaries(position, boundaries).map(x => x.name);
+}
+
+export function findContainingBoundaries(
+  position: { lat: number; lng: number },
+  boundaries: AparecidaBoundary[] | null = loadBoundaries()?.boundaries ?? null,
+) {
+  if (!boundaries || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return [];
+  const p = point([position.lng, position.lat]);
+  return boundaries.filter(x => {
+    const [minX, minY, maxX, maxY] = x.bbox;
+    if (position.lng < minX || position.lng > maxX || position.lat < minY || position.lat > maxY) return false;
+    return booleanPointInPolygon(p, { type: "Feature", properties: {}, geometry: x.geometry }, { ignoreBoundary: true });
+  });
+}
+
 // A textual alias alone cannot override the spreadsheet neighborhood.
 // No buffers, nearest-neighborhood guesses or paid reverse lookups.
 export function checkAparecidaTerritory(
@@ -43,14 +63,9 @@ export function checkAparecidaTerritory(
   if (!boundaries || !known || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) {
     return { available: !!boundaries, known, matched: false, actualNames: [] as string[] };
   }
-  const p = point([position.lng, position.lat]);
-  const containing = boundaries.filter(x => {
-    const [minX, minY, maxX, maxY] = x.bbox;
-    if (position.lng < minX || position.lng > maxX || position.lat < minY || position.lat > maxY) return false;
-    return booleanPointInPolygon(p, { type: "Feature", properties: {}, geometry: x.geometry }, { ignoreBoundary: true });
-  });
-  const keys = new Set(containing.map(x => normalizeName(x.name)));
-  return { available: true, known: true, matched: keys.size === 1 && [...keys].every(belongsToExpected), actualNames: containing.map(x => x.name) };
+  const actualNames = findTerritoryNames(position, boundaries);
+  const keys = new Set(actualNames.map(normalizeName));
+  return { available: true, known: true, matched: keys.size === 1 && [...keys].every(belongsToExpected), actualNames };
 }
 
 type StreetSegment = {
@@ -59,7 +74,7 @@ type StreetSegment = {
   geometry: { type: "LineString" | "MultiLineString"; coordinates: number[][] | number[][][] };
 };
 let streetCache: StreetSegment[] | null | undefined;
-function loadStreets(): StreetSegment[] | null {
+export function loadStreets(): StreetSegment[] | null {
   if (streetCache !== undefined) return streetCache;
   try {
     const file = path.join(process.cwd(), "data", "localfirst", "aparecida", "logradouros.json");
@@ -78,26 +93,54 @@ export function checkAparecidaStreetGeometry(
   position: { lat: number; lng: number },
   matchesStreet: (expected: string, actual: string) => boolean,
   streets: StreetSegment[] | null = loadStreets(),
+  radius = 20,
 ) {
-  const radius = 20;
   const yScale = Math.PI / 180 * 6371000;
   const xScale = yScale * Math.cos(position.lat * Math.PI / 180);
+  return checkStreetGeometry(expected, [position.lng, position.lat], matchesStreet, streets, radius, xScale, yScale);
+}
+
+export function checkStreetGeometry(
+  expected: string,
+  [x, y]: [number, number],
+  matchesStreet: (expected: string, actual: string) => boolean,
+  streets: StreetSegment[] | null,
+  radius: number,
+  xScale = 1,
+  yScale = 1,
+) {
+  const epsilon = 1e-8;
+  const xRadius = (radius + epsilon) / xScale;
+  const yRadius = (radius + epsilon) / yScale;
   let distance = Infinity;
   for (const street of streets || []) {
     const [minX, minY, maxX, maxY] = street.bbox;
-    if (position.lng < minX - radius / xScale || position.lng > maxX + radius / xScale ||
-        position.lat < minY - radius / yScale || position.lat > maxY + radius / yScale) continue;
+    if (x < minX - xRadius || x > maxX + xRadius ||
+        y < minY - yRadius || y > maxY + yRadius) continue;
     if (!matchesStreet(expected, street.name)) continue;
     const lines = street.geometry.type === "LineString"
       ? [street.geometry.coordinates as number[][]] : street.geometry.coordinates as number[][][];
     for (const line of lines) for (let i = 1; i < line.length; i++) {
-      const a = [(line[i - 1][0] - position.lng) * xScale, (line[i - 1][1] - position.lat) * yScale];
-      const b = [(line[i][0] - position.lng) * xScale, (line[i][1] - position.lat) * yScale];
+      const a = [(line[i - 1][0] - x) * xScale, (line[i - 1][1] - y) * yScale];
+      const b = [(line[i][0] - x) * xScale, (line[i][1] - y) * yScale];
       const dx = b[0] - a[0], dy = b[1] - a[1];
       const lengthSquared = dx * dx + dy * dy;
       const t = lengthSquared ? Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / lengthSquared)) : 0;
       distance = Math.min(distance, Math.hypot(a[0] + t * dx, a[1] + t * dy));
     }
   }
-  return { matched: distance <= radius, distanceMeters: Number.isFinite(distance) ? distance : null };
+  return { matched: distance <= radius + epsilon, distanceMeters: Number.isFinite(distance) ? distance : null };
+}
+
+export function polygonEdgeDistance(
+  position: { lat: number; lng: number },
+  geometry: AparecidaBoundary["geometry"],
+) {
+  const rings: number[][][] = geometry.type === "Polygon"
+    ? geometry.coordinates : geometry.coordinates.flat();
+  return checkAparecidaStreetGeometry("boundary", position, () => true, [{
+    name: "boundary",
+    bbox: [-Infinity, -Infinity, Infinity, Infinity],
+    geometry: { type: "MultiLineString", coordinates: rings },
+  }], Infinity).distanceMeters;
 }

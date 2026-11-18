@@ -1,12 +1,13 @@
 import fs from "fs";
 import path from "path";
-import { checkAparecidaTerritory } from "@/app/lib/aparecida-territory";
+import { checkAparecidaTerritory, polygonEdgeDistance } from "@/app/lib/aparecida-territory";
 import { normalizeQLIdentity } from "@/app/lib/quadra-lote-normalization";
 
 import RBush from "rbush";
 import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
 import booleanIntersects from "@turf/boolean-intersects";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { point } from "@turf/helpers";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
 import { normalizeStreetNameWithoutType, normalizeStreetText } from "@/app/lib/street-normalization";
@@ -888,6 +889,23 @@ function geometryCentroid(geometry: any): { lat: number; lng: number } | null {
   } catch {
     return null;
   }
+}
+
+// A recovery veto requires one unambiguous containing parcel. The legacy
+// lookup also uses a small buffer for its interactive map behavior.
+export function lookupStrictAparecidaParcel(lat: number, lng: number) {
+  const { geo, tree } = loadAparecidaDataset();
+  if (!geo || !tree) return null;
+  const hits = tree.search({ minX: lng, minY: lat, maxX: lng, maxY: lat })
+    .map(({ i }) => geo.features[i])
+    .filter((f) => (f.geometry?.type === "Polygon" || f.geometry?.type === "MultiPolygon") &&
+      booleanPointInPolygon([lng, lat], f.geometry, { ignoreBoundary: true }));
+  if (hits.length !== 1) return null;
+  return {
+    quadra: pickFirstString(hits[0].properties || {}, ["quadra", "num_qdr", "NUM_QDR", "QD"]),
+    lote: pickFirstString(hits[0].properties || {}, ["lote", "num_lot", "NUM_LOT", "LT"]),
+    edgeDistanceM: polygonEdgeDistance({ lat, lng }, hits[0].geometry),
+  };
 }
 
 export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {

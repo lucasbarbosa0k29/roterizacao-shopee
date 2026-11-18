@@ -170,8 +170,15 @@ test('review UI labels new street references as approximate and preserves manual
   function visit(node){if(ts.isFunctionDeclaration(node)&&names.has(node.name?.text))functions.push(node.getText(ast));ts.forEachChild(node,visit);}
   visit(ast);assert.equal(functions.length,names.size);
   const code=ts.transpileModule(functions.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
-  const ui=new Function('rows','manualEdits',code+'\nreturn {getRowStatus,getVisualStatusLabel};')(
-    [{status:'PARCIAL',coordinatePrecision:'STREET',lat:-16.8,lng:-49.2},{status:'PARCIAL'}],{1:{confirmed:true,lat:-16.8,lng:-49.2}});
+  const {isShopeeGpsCity}=h.readModule('app/lib/shopee-gps-scope.ts');
+  const ui=new Function('rows','manualEdits','isShopeeGpsCity',code+'\nreturn {getRowStatus,getVisualStatusLabel};')(
+    [{status:'PARCIAL',coordinatePrecision:'STREET',lat:-16.8,lng:-49.2},{status:'PARCIAL'}],
+    {1:{confirmed:true,lat:-16.8,lng:-49.2}}, isShopeeGpsCity);
   assert.equal(ui.getVisualStatusLabel(ui.getRowStatus(0),{status:'PARCIAL',coordinatePrecision:'STREET',source:'HERE_GEOCODE'}),'Aproximado');
   assert.equal(ui.getRowStatus(1),'CONFIRMADO');
+  const scoped={city:'Aparecida de Goiânia',lat:-16.8,lng:-49.2};
+  assert.equal(ui.getVisualStatusLabel('OK',scoped),'Validado');
+  assert.equal(ui.getVisualStatusLabel('NAO_ENCONTRADO',{city:scoped.city}),'Aproximado');
+  assert.equal(ui.getVisualStatusLabel('CONFIRMADO',scoped),'Confirmado');
+  assert.equal(ui.getVisualStatusLabel('NAO_ENCONTRADO',{city:'Anápolis'}),'Pendente');
 });

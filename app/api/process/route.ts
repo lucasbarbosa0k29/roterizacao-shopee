@@ -1,3 +1,5 @@
+import { isShopeeGpsCity } from "@/app/lib/shopee-gps-scope";
+import { assessShopeeSheetGps, readShopeeAddressParcel, recoverShopeeSheetGps } from "@/app/lib/shopee-sheet-gps";
 import { selectAparecidaStreetCoordinate } from "@/app/lib/aparecida-here-reuse";
 ﻿// app/api/process/route.ts
 import { NextResponse } from "next/server";
@@ -402,6 +404,8 @@ type Normalized = {
 
 type InputRow = {
   sequence?: any;
+  latFromSheet?: unknown;
+  lngFromSheet?: unknown;
   sourceType?: any;
   cliente?: any;
   original: string; // <-- TEM QUE SER O "Destination Address" cru
@@ -3500,6 +3504,11 @@ async function processOne(
   const bairroIn = row?.bairro ? String(row.bairro) : "";
   const cityIn = row?.city ? String(row.city) : "";
   const cepIn = normalizeCep(String(row?.cep || ""));
+  const shopeeGpsScope = isShopeeGpsCity(cityIn);
+  const sheetCoordinates = {
+    latFromSheet: typeof row?.latFromSheet === "number" && Number.isFinite(row.latFromSheet) ? row.latFromSheet : null,
+    lngFromSheet: typeof row?.lngFromSheet === "number" && Number.isFinite(row.lngFromSheet) ? row.lngFromSheet : null,
+  };
 
   if (!addressRaw) {
     return {
@@ -3511,7 +3520,8 @@ async function processOne(
       original: "",
       normalized: null,
       normalizedLine: "",
-      status: "NAO_ENCONTRADO",
+      status: shopeeGpsScope ? "PARCIAL" : "NAO_ENCONTRADO",
+      ...(shopeeGpsScope ? { ...sheetCoordinates, decisionReason: "SHOPEE_GPS_ADDRESS_EMPTY", locationResolved: false } : {}),
       lat: null,
       lng: null,
       model: "",
@@ -3542,6 +3552,8 @@ async function processOne(
     | "base"
     | CondoMemoryKeyKind = null;
   let matchedMemoryKey: string | null = null;
+  let manualMemoryConfirmed = false;
+  let automaticMemory: { lat: number; lng: number; label?: string | null; exact: boolean } | null = null;
   let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
   let approxShadowSearchHint: ApproxMemorySearchHint | null = null;
@@ -3578,12 +3590,18 @@ async function processOne(
     for (const candidate of condoMemoryKeyCandidates) {
       const mem = await prisma.addressMemory.findUnique({
         where: { key: candidate.key },
-        select: { lat: true, lng: true, label: true },
+        select: { lat: true, lng: true, label: true, createdBy: true },
       });
 
-      if (mem?.lat == null || mem?.lng == null) continue;
+      if (!mem || !Number.isFinite(mem.lat) || !Number.isFinite(mem.lng)) continue;
+      if (shopeeGpsScope && (mem.lat === 0 || mem.lng === 0 || Math.abs(mem.lat) > 90 || Math.abs(mem.lng) > 180)) continue;
+      if (shopeeGpsScope && !mem.createdBy) {
+        automaticMemory ??= { ...mem, exact: candidate.kind === "exact" };
+        continue;
+      }
 
-      memoryHit = mem;
+      manualMemoryConfirmed = shopeeGpsScope && !!mem.createdBy && candidate.kind === "exact";
+      memoryHit = { lat: mem.lat, lng: mem.lng, label: mem.label };
       memoryHitKind = candidate.kind;
       matchedMemoryKey = candidate.key;
 
@@ -3938,7 +3956,11 @@ async function processOne(
 
   const isRuaFraca = isWeakStreetForMemoryHint(normalized.rua);
 
-  if (!memoryHit) {
+  if (!memoryHit && automaticMemory) {
+    approxMemoryHit = automaticMemory;
+    approxMemoryUsedAsFinal = true;
+  }
+  if (!memoryHit && !approxMemoryHit) {
     const approx = await tryApproximateMemoryMatch({
       addressRaw,
       city: normalized.cidade || cityIn,
@@ -4042,6 +4064,31 @@ async function processOne(
     contextName: normalized.addressContextName ?? null,
   });
   const isAparecida = isAparecidaCity(cityForDecision);
+  const originalStreetForGps = shopeeGpsScope ? stripQuadraLoteFromStreet(extractByRegex(
+    addressRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+  ).rua || "").trim() : "";
+  const gpsAddress = {
+    city: cityIn,
+    normalizedCity: cityIn,
+    state: "GO",
+    bairro: bairroIn,
+    ...readShopeeAddressParcel(shopeeGpsScope ? addressRaw : ""),
+  };
+  // An automatic legacy entry has no stored status. Reuse it as validated
+  // only if an exact key is corroborated by current geographic evidence.
+  const validatedAutomaticMemory = !memoryHit && automaticMemory?.exact &&
+    assessShopeeSheetGps({ ...gpsAddress, street: originalStreetForGps, ...automaticMemory }).position?.quality === "STREET_STRONG"
+    ? automaticMemory : null;
+  const hasSheetCoordinate = row.latFromSheet != null || row.lngFromSheet != null;
+  const shopeeGpsAssessment = shopeeGpsScope && !memoryHit && hasSheetCoordinate
+    ? assessShopeeSheetGps({
+        ...gpsAddress,
+        lat: row.latFromSheet,
+        lng: row.lngFromSheet,
+        street: originalStreetForGps,
+      })
+    : null;
+  const shopeeGps = shopeeGpsAssessment?.position ?? null;
   const goianiaLocalFirstShadowEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_SHADOW === "1";
   const goianiaLocalFirstBypassEnabled = process.env.ROTTA_GOIANIA_LOCAL_FIRST_BYPASS === "1";
   const goianiaRankingV2FinalEnabled = true;
@@ -4322,9 +4369,9 @@ async function processOne(
       if (
         hidrolandiaLocalFirstPromotionEnabled &&
         !memoryHit &&
-        !approxMemoryHit &&
+        (!approxMemoryHit || shopeeGps || validatedAutomaticMemory) &&
         ((decision.canPromote && decision.candidate) ||
-          (decision.canApplyPartial && decision.partialCandidate)) &&
+          (!shopeeGps && !validatedAutomaticMemory && decision.canApplyPartial && decision.partialCandidate)) &&
         Number.isFinite(Number((decision.candidate || decision.partialCandidate)?.lat)) &&
         Number.isFinite(Number((decision.candidate || decision.partialCandidate)?.lng))
       ) {
@@ -4436,7 +4483,7 @@ async function processOne(
 
   if (
     !memoryHit &&
-    !approxMemoryHit &&
+    (!approxMemoryHit || shopeeGps || validatedAutomaticMemory) &&
     goianiaJardimCerradoRegional.applied &&
     !goianiaJardimCerradoRegional.anchorOnly &&
     goianiaJardimCerradoRegional.candidate
@@ -4545,8 +4592,18 @@ async function processOne(
     localFirstGoianiaUsedAsFinal = true;
   }
 
-  if (isAparecida && !memoryHit && !approxMemoryHit && normalized.quadra && normalized.lote) {
-    const localFirstCandidate = pickAparecidaLocalFirstCandidate({
+  const lookupAparecidaFallbackLot = () => findAparecidaLocalLotCandidate({
+    quadra: normalized.quadra,
+    lote: normalized.lote,
+    bairro: normalized.bairro || bairroIn,
+    planilhaBairro: bairroIn || normalized.bairro || "",
+    rua: normalized.rua,
+    cidade: normalized.cidade || cityIn,
+    cep: normalized.cep || cepIn,
+  });
+
+  if (isAparecida && !memoryHit && (!approxMemoryHit || shopeeGps || validatedAutomaticMemory) && normalized.quadra && normalized.lote) {
+    let localFirstCandidate = pickAparecidaLocalFirstCandidate({
       quadra: normalized.quadra,
       lote: normalized.lote,
       normalizedBairro: normalized.bairro || "",
@@ -4555,6 +4612,13 @@ async function processOne(
       cidade: normalized.cidade || cityIn,
       cep: normalized.cep || cepIn,
     });
+
+    if (!localFirstCandidate && (shopeeGps || validatedAutomaticMemory)) {
+      const fallback = lookupAparecidaFallbackLot();
+      if (fallback?.strongMatch && fallback.canFinalizeLocalFirst !== false) {
+        localFirstCandidate = { candidate: fallback, matchedBy: "original" };
+      }
+    }
 
     if (localFirstCandidate?.candidate.canFinalizeLocalFirst === false) {
       localFirstBypassHere = !!localFirstCandidate.candidate.stopPaidSearch;
@@ -4702,7 +4766,23 @@ async function processOne(
     }
   }
 
-  if (!memoryHit && !approxMemoryHit && !localFirstBypassHere) {
+  // Let the local stages decide before involving HERE. Trindade's
+  // cadastral resolver also runs on this path with no provider coordinates.
+  // A rejected cadastral candidate is not a veto on independent sheet evidence.
+  const shopeeGpsWinner = !localFirstBypassHere || localLotValidationBlocked ? shopeeGps : null;
+  const shopeeGpsCanSkipHere = !!shopeeGpsWinner && !validatedAutomaticMemory;
+  if ((shopeeGps || validatedAutomaticMemory) &&
+      (shopeeGpsCanSkipHere || localLotUsedAsFinal || hidrolandiaLocalFirstUsedAsFinal ||
+        localFirstGoianiaUsedAsFinal || (goianiaJardimCerradoRegionalUsedAsFinal && !goianiaJardimCerradoRegionalAnchorOnly))) {
+    approxMemoryHit = null;
+    approxMemoryUsedAsFinal = false;
+    if (shopeeGpsCanSkipHere) {
+      lat = null;
+      lng = null;
+    }
+  }
+
+  if (!memoryHit && !approxMemoryHit && !localFirstBypassHere && !shopeeGpsCanSkipHere) {
     discoverGateDebug = {
       preliminaryGeocodeConfidence: null,
       preliminaryGeocodeHardMismatch: false,
@@ -4991,17 +5071,7 @@ async function processOne(
       }
     }
 
-    const localAparecidaCandidate = isAparecida
-      ? findAparecidaLocalLotCandidate({
-          quadra: normalized.quadra,
-          lote: normalized.lote,
-          bairro: normalized.bairro || bairroIn,
-          planilhaBairro: bairroIn || normalized.bairro || "",
-          rua: normalized.rua,
-          cidade: normalized.cidade || cityIn,
-          cep: normalized.cep || cepIn,
-        })
-      : null;
+    const localAparecidaCandidate = isAparecida ? lookupAparecidaFallbackLot() : null;
 
     if (localAparecidaCandidate) {
       localLotCandidateFound = true;
@@ -6143,7 +6213,8 @@ if (status === "OK") {
     hidrolandiaLocalFirstModule &&
     !memoryHit &&
     !approxMemoryHit &&
-    !hidrolandiaLocalFirstUsedAsFinal
+    !hidrolandiaLocalFirstUsedAsFinal &&
+    !shopeeGpsCanSkipHere
   ) {
     const currentHereSource =
       finalRankedKind === "discover"
@@ -6830,7 +6901,7 @@ if (shouldAutoSaveAddressMemory) {
                       shadow.matchedLayer !== "logradouros"
                         ? "unsafe_match_layer"
                         : null;
-        if (trindadeLocalFirstCanApply && trindadeLocalFirstCandidate) {
+        if (trindadeLocalFirstCanApply && trindadeLocalFirstCandidate && !(shopeeGpsScope && memoryHit)) {
           lat = Number(trindadeLocalFirstCandidate.lat);
           lng = Number(trindadeLocalFirstCandidate.lng);
           trindadeLocalFirstUsedAsFinal = true;
@@ -6840,6 +6911,7 @@ if (shouldAutoSaveAddressMemory) {
         }
         if (
           trindadeLocalFirstInspectAllEnabled &&
+          !(shopeeGpsScope && memoryHit) &&
           !trindadeLocalFirstUsedAsFinal &&
           trindadeDecisionCityDetected &&
           trindadeLocalFirstCandidate &&
@@ -7140,6 +7212,133 @@ if (shouldAutoSaveAddressMemory) {
     }
   }
 
+  const trindadeTrustedLocalFirst = trindadeLocalFirstUsedAsFinal && !trindadeLocalFirstInspectApplied &&
+    trindadeShadowAudit?.matchedLayer !== "logradouros";
+  const trustedLocal = trindadeTrustedLocalFirst || trindadeLocalFirstValidated || hidrolandiaLocalFirstValidated ||
+    localFirstGoianiaUsedAsFinal || (goianiaJardimCerradoRegionalUsedAsFinal && !goianiaJardimCerradoRegionalAnchorOnly) ||
+    (localLotUsedAsFinal && localLotCanFinalizeLocalFirst && localLotStrongMatch && !conflictQL && status === "OK");
+  const trustedHere = lat != null && lng != null && status === "OK" &&
+    (strictHereHouseNumberAddressOk || hereHouseNumberGenericDistrictValidated);
+  const useValidatedMemory = !memoryHit && !trustedLocal ? validatedAutomaticMemory : null;
+  const selectedSheetPoint = shopeeGpsWinner && !trustedLocal && !trustedHere && !useValidatedMemory
+    ? shopeeGpsWinner : null;
+  const replacedApproximateHere = !!selectedSheetPoint && lat != null && lng != null &&
+    !trustedHere && !approxMemoryUsedAsFinal && !trindadeLocalFirstUsedAsFinal && !hidrolandiaLocalFirstUsedAsFinal &&
+    (finalSource === "HERE_GEOCODE" || finalSource === "HERE_DISCOVER");
+  if (selectedSheetPoint) {
+    ({ lat, lng } = selectedSheetPoint);
+    const strong = selectedSheetPoint.quality === "STREET_STRONG";
+    decisionReason = strong ? "SHOPEE_GPS_STREET_VALIDATED" :
+      selectedSheetPoint.quality === "STREET_NEAR" ? "SHOPEE_GPS_STREET_TERRITORY_VERIFIED" : "SHOPEE_GPS_BAIRRO_VERIFIED";
+    status = strong ? "OK" : "PARCIAL";
+    finalSource = "SHOPEE_GPS";
+    finalMatchType = decisionReason;
+    coordinatePrecision = selectedSheetPoint.quality === "BAIRRO_ONLY" ? undefined : "STREET";
+    arcgisLot = null;
+    approxMemoryUsedAsFinal = false;
+    quadraAuto = normalized.quadra || "";
+    loteAuto = normalized.lote || "";
+    finalGeocodeConfidenceDiag = {
+      confidence: strong ? 90 : selectedSheetPoint.quality === "STREET_NEAR" ? 68 : 55,
+      level: strong ? "HIGH" : "MEDIUM",
+      hardMismatch: false,
+      flags: ["SOURCE_SHOPEE_GPS", "HAS_COORDS", selectedSheetPoint.quality],
+      reasons: [strong ? "GPS, eixo da rua e bairro corroborados localmente." : "GPS da planilha com evid?ncia territorial parcial."],
+    };
+  } else if (useValidatedMemory) {
+    ({ lat, lng } = useValidatedMemory);
+    status = "OK";
+    finalSource = "MEMORY_AUTOMATIC";
+    finalMatchType = "MEMORY_AUTOMATIC_VALIDATED";
+    decisionReason = "MEMORY_AUTOMATIC_VALIDATED";
+    coordinatePrecision = "MEMORY";
+    approxMemoryUsedAsFinal = false;
+    finalGeocodeConfidenceDiag = {
+      confidence: 90,
+      level: "HIGH",
+      hardMismatch: false,
+      flags: ["SOURCE_MEMORY_AUTOMATIC", "HAS_COORDS", "STREET_STRONG"],
+      reasons: ["Memória automática exata corroborada pela rua e pelo bairro."],
+    };
+  } else if (shopeeGpsScope && approxMemoryUsedAsFinal && approxMemoryHit &&
+      lat === approxMemoryHit.lat && lng === approxMemoryHit.lng && !trustedLocal) {
+    status = "PARCIAL";
+    finalSource = "MEMORY_APPROX";
+    finalMatchType = "MEMORY_APPROX";
+  }
+
+  const finalManualStatus = shopeeGpsScope && memoryHit && manualMemoryConfirmed
+    ? "CONFIRMADO" as const : null;
+  if (shopeeGpsScope && memoryHit) {
+    ({ lat, lng } = memoryHit);
+    status = "OK";
+    finalSource = "MEMORY";
+    finalMatchType = "MEMORY";
+    coordinatePrecision = "MEMORY";
+  }
+  // Preserve the legacy API codes for compatibility. Unresolved scoped rows
+  // have PARCIAL plus locationResolved=false, and become eligible for recovery.
+  if (shopeeGpsScope && (lat == null || lng == null)) status = "PARCIAL";
+  const shouldRecoverSheetGps = shopeeGpsScope && status === "PARCIAL" && (lat == null || lng == null) && !memoryHit;
+  const shopeeGpsRecovery = shouldRecoverSheetGps && hasSheetCoordinate
+    ? recoverShopeeSheetGps({ ...gpsAddress, lat: row.latFromSheet, lng: row.lngFromSheet })
+    : null;
+  const shopeeGpsPreviousDecisionReason = shopeeGpsRecovery?.position ? decisionReason : null;
+  if (shopeeGpsRecovery?.position) {
+    ({ lat, lng } = shopeeGpsRecovery.position);
+    finalSource = "SHOPEE_GPS";
+    finalMatchType = "SHOPEE_GPS_RECOVERED_NO_COORDS";
+    decisionReason = "SHOPEE_GPS_RECOVERED_NO_COORDS";
+    coordinatePrecision = undefined;
+    approxMemoryUsedAsFinal = false;
+    arcgisLot = null;
+    finalGeocodeConfidenceDiag = {
+      confidence: 45,
+      level: "LOW",
+      hardMismatch: false,
+      flags: ["SOURCE_SHOPEE_GPS", "HAS_COORDS", "SHOPEE_GPS_RECOVERED_NO_COORDS"],
+      reasons: ["GPS da planilha recuperado sem conflito territorial comprovado."],
+    };
+  }
+
+  if (shopeeGpsScope && (lat == null || lng == null) && automaticMemory?.exact && !memoryHit) {
+    // ArcGIS/HERE can disagree with a legacy point near a parcel edge.
+    // Keep an exact automatic match as approximate if there is no proven
+    // conflict and neither a cadastral result nor the sheet supplied a point.
+    const legacyPoint = recoverShopeeSheetGps({ ...gpsAddress, ...automaticMemory }).position;
+    if (legacyPoint) {
+      ({ lat, lng } = legacyPoint);
+      status = "PARCIAL";
+      decisionReason = "MEMORY_APPROX_EXACT_FALLBACK";
+      finalSource = "MEMORY_APPROX";
+      finalMatchType = "MEMORY_APPROX";
+      coordinatePrecision = undefined;
+      approxMemoryUsedAsFinal = true;
+      arcgisLot = null;
+      finalGeocodeConfidenceDiag = {
+        confidence: 45, level: "LOW", hardMismatch: false,
+        flags: ["SOURCE_MEMORY_APPROX", "HAS_COORDS"],
+        reasons: ["Memória antiga com chave exata e sem conflito territorial comprovado."],
+      };
+    }
+  }
+
+  if (finalSource === "SHOPEE_GPS") {
+    // Keep shadow diagnostics, but mark the previous candidates as unselected.
+    // The UI also uses the Trindade flags to recognize validated cadastral rows.
+    if (trindadeLocalFirstUsedAsFinal) {
+      trindadeLocalFirstUsedAsFinal = false;
+      trindadeLocalFirstAppliedReason = null;
+      trindadeLocalFirstInspectApplied = false;
+      if (trindadeShadowAudit) trindadeShadowAudit.localFirstAppliedAsFinal = false;
+    }
+    if (hidrolandiaLocalFirstUsedAsFinal) {
+      hidrolandiaLocalFirstUsedAsFinal = false;
+      hidrolandiaLocalFirstAppliedReason = null;
+      if (hidrolandiaShadowAudit) hidrolandiaShadowAudit.localFirstAppliedAsFinal = false;
+    }
+  }
+
   const poiShadowUseful = poiShadow.confidence === "POI_HIGH" && poiShadow.found;
   const poiShadowDistanceToFinalM =
     poiShadowUseful &&
@@ -7221,8 +7420,20 @@ if (shouldAutoSaveAddressMemory) {
           originalSafetyGate: trindadeLocalFirstInspectOriginalSafetyGate,
         }
       : {}),
-    status,
-    ...(isAparecida ? { coordinatePrecision } : {}),
+    status: finalManualStatus ?? status,
+    ...(shopeeGpsScope ? {
+      ...sheetCoordinates, locationResolved: lat != null && lng != null,
+      ...(selectedSheetPoint ? { shopeeGpsQuality: selectedSheetPoint.quality, shopeeGpsDistanceM: selectedSheetPoint.distanceM } : {}),
+      ...(replacedApproximateHere ? { shopeeGpsReplacedApproximateHere: true } : {}),
+      ...(shouldRecoverSheetGps && !hasSheetCoordinate ? { shopeeGpsRecoveryRejectedReason: "GPS_ABSENT" } : {}),
+      ...(debugMemory && (shopeeGpsAssessment?.evidence || shopeeGpsRecovery?.evidence)
+        ? { shopeeGpsEvidence: shopeeGpsRecovery?.evidence ?? shopeeGpsAssessment?.evidence } : {}),
+    } : {}),
+    ...(coordinatePrecision ? { coordinatePrecision } : {}),
+    ...(shopeeGpsAssessment?.position ? { shopeeGpsValidation: "ACCEPTED" } : {}),
+    ...(shopeeGpsAssessment?.reason ? { shopeeGpsValidationRejectedReason: shopeeGpsAssessment.reason } : {}),
+    ...(shopeeGpsPreviousDecisionReason ? { shopeeGpsPreviousDecisionReason } : {}),
+    ...(shopeeGpsRecovery?.reason ? { shopeeGpsRecoveryRejectedReason: shopeeGpsRecovery.reason } : {}),
     lat,
     lng,
     decisionReason,

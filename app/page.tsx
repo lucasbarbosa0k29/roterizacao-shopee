@@ -11,6 +11,7 @@ import {
 } from "./lib/history-db";
 import { applyManualCoordinateToState } from "./lib/manual-correction-persistence";
 import { getRowDisplayIdentifier, isImileRow } from "./lib/row-display-identifier";
+import { isShopeeGpsCity } from "./lib/shopee-gps-scope";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -1993,6 +1994,12 @@ useEffect(() => {
   }
 
   function getVisualStatusLabel(status: Status, row: any) {
+    if (isShopeeGpsCity(String(row?.city ?? ""))) {
+      if (status === "CONFIRMADO") return "Confirmado";
+      if ((status === "OK" || status === "PARCIAL" && isTrindadeVisuallyValidated(row)) &&
+          typeof row?.lat === "number" && typeof row?.lng === "number") return "Validado";
+      return "Aproximado";
+    }
     const trindadeShadow = getTrindadeShadow(row);
     return status === "OK" && isRowMemoryHitRow(row)
       ? "Memória"

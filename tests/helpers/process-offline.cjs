@@ -54,6 +54,7 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
       if (id === 'fs' || id === 'node:fs') return { ...fs,
         readFileSync: (file, ...options) => fs.readFileSync(overlayFile(file), ...options),
         existsSync: file => fs.existsSync(overlayFile(file)),
+        openSync: (file, ...options) => fs.openSync(overlayFile(file), ...options),
       };
       if (Object.hasOwn(mocks, id)) return mocks[id];
       if (id.startsWith('@/')) return readModule(id.slice(2) + (path.extname(id) ? '' : '.ts'));
@@ -105,11 +106,11 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
   };
   return {
     api, lots, readModule,
-    async run(row, nextFixture = {}) {
+    async run(row, nextFixture = {}, debugMemory = false) {
       globalThis.fetch = offlineFetch;
       fixture = nextFixture;
       calls = [];
-      const result = await api.processOne(row, 'https://audit.invalid', false);
+      const result = await api.processOne(row, 'https://audit.invalid', debugMemory);
       return { result, calls: [...calls] };
     },
   };

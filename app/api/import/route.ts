@@ -1,5 +1,6 @@
 // app/api/import/route.ts
 import { MAX_IMPORT_FILE_BYTES, MAX_ROUTE_STOPS, readImportRows, SpreadsheetImportError } from "@/app/lib/spreadsheet-import";
+import { readShopeeSheetCoordinates } from "@/app/lib/shopee-sheet-coordinates";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -44,11 +45,6 @@ function normCity(v: string) {
   if (up === "GOIANIA") return "Goiânia";
 
   return s;
-}
-
-function parseMaybeNumber(v: unknown) {
-  const n = Number(String(v ?? "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
 }
 
 function hasDeliveryListCsvHeaders(rawRows: Record<string, unknown>[]) {
@@ -360,19 +356,13 @@ export async function POST(req: Request) {
 
           const original = String(addressCell ?? "");
 
-          const lat = parseMaybeNumber(pickFirst(row, ["Latitude", "LATITUDE", "lat", "LAT"]));
-          const lng = parseMaybeNumber(
-            pickFirst(row, ["Longitude", "LONGITUDE", "lng", "LNG", "Lon", "LON"])
-          );
-
           return {
             sequence,
             bairro,
             city,
             cep,
             original,
-            latFromSheet: lat,
-            lngFromSheet: lng,
+            ...readShopeeSheetCoordinates(row),
           };
         });
 
