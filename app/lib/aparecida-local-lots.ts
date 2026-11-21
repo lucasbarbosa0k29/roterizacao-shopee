@@ -3,6 +3,7 @@ import path from "path";
 import { checkAparecidaTerritory, polygonEdgeDistance } from "@/app/lib/aparecida-territory";
 import { normalizeQLIdentity } from "@/app/lib/quadra-lote-normalization";
 
+import { JsonObjectTable } from "@/app/lib/json-object-table";
 import RBush from "rbush";
 import bbox from "@turf/bbox";
 import buffer from "@turf/buffer";
@@ -37,7 +38,7 @@ type RTreeItem = {
 };
 
 type LoadedDataset = {
-  geo?: FeatureCollection;
+  featureAt?: (offset: number) => Feature;
   tree?: RBush<RTreeItem>;
   filePath?: string;
   missing?: boolean;
@@ -57,16 +58,30 @@ type StreetCentroidRecord = CentroidRecord & {
   nearDist: number | null;
 };
 
+// Most street keys have a single record. Allocate a bucket only for duplicate keys.
+type OffsetIndex = Map<string, number | number[]>;
+function addOffset(index: OffsetIndex, key: string, offset: number) {
+  const previous = index.get(key);
+  if (previous === undefined) index.set(key, offset);
+  else if (typeof previous === "number") index.set(key, [previous, offset]);
+  else previous.push(offset);
+}
+
+function getOffsets(index: OffsetIndex, key: string) {
+  const value = index.get(key);
+  return typeof value === "number" ? [value] : value;
+}
+
 type LoadedCentroids = {
-  records?: CentroidRecord[];
-  index?: Map<string, number[]>;
+  records?: JsonObjectTable<CentroidRecord>;
+  index?: OffsetIndex;
   missing?: boolean;
   disabled?: boolean;
 };
 
 type LoadedStreetCentroids = {
-  records?: StreetCentroidRecord[];
-  index?: Map<string, number[]>;
+  records?: JsonObjectTable<StreetCentroidRecord>;
+  index?: OffsetIndex;
   missing?: boolean;
   disabled?: boolean;
 };
@@ -92,6 +107,11 @@ const dataset: LoadedDataset = {};
 const centroids: LoadedCentroids = {};
 const streetCentroids: LoadedStreetCentroids = {};
 const coordinateCache = new Map<string, any>();
+function cacheCoordinate(key: string, value: { found: boolean; bairro?: string; quadra?: string; lote?: string }) {
+  if (coordinateCache.size >= 2048) coordinateCache.delete(coordinateCache.keys().next().value!);
+  coordinateCache.set(key, value);
+}
+
 const LOCAL_ALIAS_MAX_SPREAD_METERS = 120;
 const APARECIDA_CENTROID_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -104,7 +124,7 @@ let streetCentroidsEverLoaded = false;
 
 export function getAparecidaLocalLotsCacheSnapshot() {
   return {
-    datasetLoaded: !!dataset.geo && !!dataset.tree,
+    datasetLoaded: !!dataset.featureAt && !!dataset.tree,
     centroidsLoaded: !!centroids.records && !!centroids.index,
     streetCentroidsLoaded: !!streetCentroids.records && !!streetCentroids.index,
     coordinateCacheSize: coordinateCache.size,
@@ -131,7 +151,7 @@ function cancelAparecidaCentroidCacheTtlTimer() {
 }
 
 function hasAparecidaCentroidCacheData() {
-  return !!centroids.records || !!centroids.index || !!streetCentroids.records || !!streetCentroids.index;
+  return !!dataset.tree || !!centroids.records || !!centroids.index || !!streetCentroids.records || !!streetCentroids.index;
 }
 
 function armAparecidaCentroidCacheTtl() {
@@ -192,13 +212,15 @@ function releaseAparecidaCentroidLease() {
 export function clearAparecidaCentroidCaches(reason: string) {
   cancelAparecidaCentroidCacheTtlTimer();
 
-  const hadData =
+  const hadData = !!dataset.tree ||
     !!centroids.records ||
     !!centroids.index ||
     !!streetCentroids.records ||
     !!streetCentroids.index ||
     coordinateCache.size > 0;
 
+  dataset.featureAt = undefined;
+  dataset.tree = undefined;
   centroids.records = undefined;
   centroids.index = undefined;
   streetCentroids.records = undefined;
@@ -534,7 +556,10 @@ function flipGeometry(geom: any) {
 
 function loadAparecidaDataset() {
   if (dataset.missing || dataset.disabled) return dataset;
-  if (dataset.geo && dataset.tree) return dataset;
+  if (dataset.featureAt && dataset.tree) {
+    touchAparecidaCentroidCache();
+    return dataset;
+  }
 
   const filePath = path.join(process.cwd(), "public", "data", "aparecida_lotes.min.geojson");
   if (!fs.existsSync(filePath)) {
@@ -550,54 +575,21 @@ function loadAparecidaDataset() {
         ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
-    const parsed = (() => {
-      const raw = fs.readFileSync(filePath, "utf8");
-      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
-        return { reason: "GIT_LFS_POINTER" } as const;
-      }
-
-      try {
-        return { geo: JSON.parse(raw) as FeatureCollection } as const;
-      } catch (error) {
-        return { reason: "INVALID_JSON", error } as const;
-      }
-    })();
-
-    if ("reason" in parsed) {
-      return disableDataset(parsed.reason || "LOAD_FAILED", "error" in parsed ? parsed.error : undefined);
-    }
-
-    let geo = parsed.geo;
-
-    if (geo?.type !== "FeatureCollection" || !Array.isArray(geo.features)) {
-      return disableDataset("INVALID_FEATURE_COLLECTION");
-    }
-
-    if (looksSwapped(geo)) {
-      geo = {
-        type: "FeatureCollection",
-        features: geo.features.map((f) => ({
-          ...f,
-          geometry: flipGeometry(f.geometry),
-        })),
-      };
-    }
-
-    const tree = new RBush<RTreeItem>();
+    const records = new JsonObjectTable<Feature>(fs.readFileSync(filePath));
     const items: RTreeItem[] = [];
-
-    for (let i = 0; i < geo.features.length; i++) {
-      const feature = geo.features[i];
-      try {
-        const [minX, minY, maxX, maxY] = bbox(feature as any);
-        items.push({ minX, minY, maxX, maxY, i });
-      } catch {}
-    }
-
-    tree.load(items);
-
-    dataset.geo = geo;
-    dataset.tree = tree;
+    let swapped: boolean | undefined;
+    const orient = (feature: Feature) => swapped
+      ? { ...feature, geometry: flipGeometry(feature.geometry) } : feature;
+    const count = records.index("features", (feature, offset) => {
+      if (swapped === undefined && feature.geometry?.coordinates) {
+        swapped = looksSwapped({ type: "FeatureCollection", features: [feature] });
+      }
+      const [minX, minY, maxX, maxY] = bbox(orient(feature) as any);
+      items.push({ minX, minY, maxX, maxY, i: offset });
+    });
+    dataset.tree = new RBush<RTreeItem>().load(items);
+    dataset.featureAt = offset => orient(records.read(offset));
+    touchAparecidaCentroidCache();
     dataset.filePath = filePath;
     dataset.missing = false;
 
@@ -606,7 +598,7 @@ function loadAparecidaDataset() {
       filePath,
       cacheSizes: {
         ...getAparecidaLocalLotsCacheSnapshot(),
-        features: geo.features.length,
+        features: count,
       },
     });
 
@@ -637,36 +629,14 @@ function loadAparecidaCentroids() {
         ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
-    const records = (() => {
-      const raw = fs.readFileSync(filePath, "utf8");
-      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
-        return null;
-      }
-      return JSON.parse(raw) as CentroidRecord[];
-    })();
-    if (!records) return disableCentroids("GIT_LFS_POINTER");
-    if (!Array.isArray(records)) return disableCentroids("INVALID_JSON_STRUCTURE");
-
-    const index = new Map<string, number[]>();
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      if (
-        !record ||
-        !Number.isFinite(record.lat) ||
-        !Number.isFinite(record.lng)
-      ) {
-        return disableCentroids("INVALID_RECORD");
-      }
-
+    const records = new JsonObjectTable<CentroidRecord>(fs.readFileSync(filePath));
+    const index: OffsetIndex = new Map();
+    const count = records.index("array", (record, offset) => {
+      if (!Number.isFinite(record.lat) || !Number.isFinite(record.lng)) throw new Error("Invalid centroid");
       const q = normalizeQuadraLoteValue(record.quadra);
       const l = canonicalLot(record.lote);
-      if (!q || !l) continue;
-
-      const key = `${q}__${l}`;
-      const bucket = index.get(key) || [];
-      bucket.push(i);
-      index.set(key, bucket);
-    }
+      if (q && l) addOffset(index, `${q}__${l}`, offset);
+    });
 
     centroids.records = records;
     centroids.index = index;
@@ -677,7 +647,7 @@ function loadAparecidaCentroids() {
       cacheName: "centroids",
       route: "aparecida-local-lots",
       filePath,
-      records: records.length,
+      records: count,
       indexKeys: index.size,
     });
     return centroids;
@@ -715,28 +685,12 @@ function loadAparecidaStreetCentroids() {
         ...getAparecidaLocalLotsCacheSnapshot(),
       },
     });
-    const records = (() => {
-      const raw = fs.readFileSync(filePath, "utf8");
-      if (raw.trimStart().startsWith("version https://git-lfs.github.com/spec")) {
-        return null;
-      }
-      return JSON.parse(raw) as StreetCentroidRecord[];
-    })();
-    if (!records) return disableStreetCentroids("GIT_LFS_POINTER");
-    if (!Array.isArray(records)) return disableStreetCentroids("INVALID_JSON_STRUCTURE");
-
-    const index = new Map<string, number[]>();
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      if (!record) continue;
-
+    const records = new JsonObjectTable<StreetCentroidRecord>(fs.readFileSync(filePath));
+    const index: OffsetIndex = new Map();
+    const count = records.index("array", (record, offset) => {
       const key = streetCentroidKey(record.bairro, record.quadra, record.lote);
-      if (!key) continue;
-
-      const bucket = index.get(key) || [];
-      bucket.push(i);
-      index.set(key, bucket);
-    }
+      if (key) addOffset(index, key, offset);
+    });
 
     streetCentroids.records = records;
     streetCentroids.index = index;
@@ -747,7 +701,7 @@ function loadAparecidaStreetCentroids() {
       cacheName: "streetCentroids",
       route: "aparecida-local-lots",
       filePath,
-      records: records.length,
+      records: count,
       indexKeys: index.size,
     });
     return streetCentroids;
@@ -788,11 +742,11 @@ export function findAparecidaLocalStreetCandidate(args: {
   const key = streetCentroidKey(args.bairro, args.quadra, args.lote);
   if (!key) return null;
 
-  const bucket = index.get(key);
+  const bucket = getOffsets(index, key);
   if (!bucket || !bucket.length) return null;
 
   const candidates = bucket
-    .map((recordIndex) => records[recordIndex])
+    .map((recordIndex) => records.read(recordIndex))
     .filter((record) => !!record && (!args.position || centroidDistanceMeters(record, args.position) < 1)) as StreetCentroidRecord[];
   if (!candidates.length) return null;
 
@@ -894,10 +848,10 @@ function geometryCentroid(geometry: any): { lat: number; lng: number } | null {
 // A recovery veto requires one unambiguous containing parcel. The legacy
 // lookup also uses a small buffer for its interactive map behavior.
 export function lookupStrictAparecidaParcel(lat: number, lng: number) {
-  const { geo, tree } = loadAparecidaDataset();
-  if (!geo || !tree) return null;
+  const { featureAt, tree } = loadAparecidaDataset();
+  if (!featureAt || !tree) return null;
   const hits = tree.search({ minX: lng, minY: lat, maxX: lng, maxY: lat })
-    .map(({ i }) => geo.features[i])
+    .map(({ i }) => featureAt(i))
     .filter((f) => (f.geometry?.type === "Polygon" || f.geometry?.type === "MultiPolygon") &&
       booleanPointInPolygon([lng, lat], f.geometry, { ignoreBoundary: true }));
   if (hits.length !== 1) return null;
@@ -920,8 +874,8 @@ export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {
       return { ...coordinateCache.get(cacheKey), cached: true };
     }
 
-    const { geo, tree, missing } = loadAparecidaDataset();
-    if (missing || !geo || !tree) {
+    const { featureAt, tree, missing } = loadAparecidaDataset();
+    if (missing || !featureAt || !tree) {
       return { found: false as const };
     }
 
@@ -933,7 +887,7 @@ export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {
     });
 
     if (!candidates.length) {
-      coordinateCache.set(cacheKey, { found: false });
+      cacheCoordinate(cacheKey, { found: false });
       return { found: false as const };
     }
 
@@ -941,7 +895,7 @@ export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {
     const ptBuffer = buffer(pt, 2, { units: "meters" });
 
     for (const c of candidates) {
-      const f = geo.features[c.i];
+      const f = featureAt(c.i);
       if (!f) continue;
 
       if (booleanIntersects(ptBuffer as any, f as any)) {
@@ -953,12 +907,12 @@ export function lookupAparecidaLotByCoordinates(lat: number, lng: number) {
           bairro: pickFirstString(p, ["bairro", "nm_bai", "NM_BAI", "SETOR"]),
         };
 
-        coordinateCache.set(cacheKey, result);
+        cacheCoordinate(cacheKey, result);
         return { ...result, cached: false };
       }
     }
 
-    coordinateCache.set(cacheKey, { found: false });
+    cacheCoordinate(cacheKey, { found: false });
     return { found: false as const };
   } finally {
     releaseAparecidaCentroidLease();
@@ -988,11 +942,11 @@ export function findAparecidaLocalLotCandidate(args: {
   const { records, index, missing } = loadAparecidaCentroids();
   if (missing || !records || !index) return null;
 
-  const bucket = index.get(`${q}__${l}`);
+  const bucket = getOffsets(index, `${q}__${l}`);
   if (!bucket || !bucket.length) return null;
 
   const bucketRecords = bucket
-    .map((recordIndex) => records[recordIndex])
+    .map((recordIndex) => records.read(recordIndex))
     .filter(Boolean) as CentroidRecord[];
 
   // Do not turn compound parcel text into an atomic cadastral key.

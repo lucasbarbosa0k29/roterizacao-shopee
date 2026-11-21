@@ -8,6 +8,8 @@ export function checkShopeeGpsAssets(root = process.cwd()) {
     "data/localfirst/aparecida/bairros.json",
     "data/localfirst/aparecida/logradouros.json",
     "public/data/aparecida_lotes.min.geojson",
+    "public/data/aparecida_lot_centroids.json",
+    "public/data/aparecida_lot_centroids_with_street.json",
     "public/data/hidrolandia/hidrolandia_setores_mapa.web4326.geojson",
     "public/data/hidrolandia/hidrolandia_ruas_mapa.web4326.geojson",
     "public/data/hidrolandia/hidrolandia_lotes_mapa.web4326.geojson",
@@ -17,7 +19,8 @@ export function checkShopeeGpsAssets(root = process.cwd()) {
       try {
         const header = Buffer.alloc(128);
         const size = fs.readSync(file, header);
-        if (!header.toString("utf8", 0, size).trimStart().startsWith("{")) {
+        const opening = relative.includes("aparecida_lot_centroids") ? "[" : "{";
+        if (!header.toString("utf8", 0, size).trimStart().startsWith(opening)) {
           throw new Error("conteúdo JSON ausente ou ponteiro Git LFS");
         }
       } finally {

@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
       "./data/localfirst/aparecida/*.json",
       "./public/data/hidrolandia/hidrolandia_{setores,ruas,lotes}_mapa.web4326.geojson",
       "./public/data/aparecida_lotes.min.geojson",
+      "./public/data/aparecida_lot_centroids*.json",
       "./data/localfirst/shopee-gps-territory/*",
     ],
   },

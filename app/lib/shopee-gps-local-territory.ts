@@ -17,7 +17,11 @@ type Manifest = Record<Layer, { names: string[]; blocks: Record<string, [number,
 
 const root = () => path.join(process.cwd(), "data", "localfirst", "shopee-gps-territory");
 const manifests = new Map<City, Manifest | null>();
-const tiles = new Map<string, unknown[] | null>();
+// Serialized size is a proxy for parsed heap cost. Bound both the bytes and
+// the number of entries across the two cities; the pack remains on disk.
+const tiles = new Map<string, { rows: unknown[] | null; bytes: number }>();
+const MAX_TILE_BYTES = 8 * 1024 * 1024;
+let tileBytes = 0;
 const reported = new Set<string>();
 
 function reportUnavailable(key: string) {
@@ -53,6 +57,7 @@ function readTile<T>(city: City, layer: Layer, x: number, y: number): T[] | null
   const key = `${city}/${layer}/${cell}`;
   if (!tiles.has(key)) {
     let parsed: unknown[] | null = null;
+    let bytes = 0;
     try {
       const [offset, length] = data[layer].blocks[cell];
       if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length <= 0 || length > 4_000_000) {
@@ -65,16 +70,23 @@ function readTile<T>(city: City, layer: Layer, x: number, y: number): T[] | null
       } finally {
         fs.closeSync(fd);
       }
-      const value = JSON.parse(gunzipSync(buffer, { maxOutputLength: 4_000_000 }).toString("utf8"));
+      const raw = gunzipSync(buffer, { maxOutputLength: 4_000_000 });
+      const value = JSON.parse(raw.toString("utf8"));
       if (!Array.isArray(value)) throw new Error("invalid JSON tile");
       parsed = value;
+      bytes = raw.length;
     } catch {
       reportUnavailable(city + "/" + layer);
     }
-    if (tiles.size >= 48) tiles.delete(tiles.keys().next().value!);
-    tiles.set(key, parsed);
+    while (tiles.size >= 48 || tileBytes + bytes > MAX_TILE_BYTES) {
+      const [oldest, entry] = tiles.entries().next().value!;
+      tiles.delete(oldest);
+      tileBytes -= entry.bytes;
+    }
+    tiles.set(key, { rows: parsed, bytes });
+    tileBytes += bytes;
   }
-  return tiles.get(key) as T[] | null;
+  return tiles.get(key)!.rows as T[] | null;
 }
 
 const cellAt = (coordinate: number, cell: number) => Math.floor(coordinate / cell);

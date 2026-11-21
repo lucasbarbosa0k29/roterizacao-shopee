@@ -64,49 +64,37 @@ function lookupStrictHidrolandiaParcel({ lat, lng }: Position) {
   return { quadra, lote, edgeDistanceM: polygonEdgeDistance({ lat, lng }, hits[0].feature.geometry) };
 }
 
-let hidrolandia: { boundaries: Boundary[]; streets: Street[] } | null | undefined;
+let hidroBoundaries: Boundary[] | null | undefined;
+let hidroStreets: Street[] | null | undefined;
 
-function loadHidrolandia() {
-  if (hidrolandia !== undefined) return hidrolandia;
-  try {
-    const load = (layer: "setores" | "ruas") => JSON.parse(fs.readFileSync(path.join(
-      process.cwd(), "public", "data", "hidrolandia", `hidrolandia_${layer}_mapa.web4326.geojson`,
-    ), "utf8")).features;
-    const withBounds = (geometry: { coordinates: unknown }) => {
-      const bbox: Boundary["bbox"] = [Infinity, Infinity, -Infinity, -Infinity];
-      const visit = (coords: unknown) => {
-        if (!Array.isArray(coords)) return;
-        if (typeof coords[0] === "number" && typeof coords[1] === "number") {
-          bbox[0] = Math.min(bbox[0], coords[0]);
-          bbox[1] = Math.min(bbox[1], coords[1]);
-          bbox[2] = Math.max(bbox[2], coords[0]);
-          bbox[3] = Math.max(bbox[3], coords[1]);
-        } else {
-          coords.forEach(visit);
-        }
-      };
-      visit(geometry.coordinates);
-      return bbox;
-    };
-    const boundaries = load("setores").flatMap((feature: {
-      geometry: Boundary["geometry"] | null; properties: { setor?: string };
-    }, id: number) => {
-      const { geometry, properties } = feature;
-      return geometry && properties.setor && ["Polygon", "MultiPolygon"].includes(geometry.type)
-        ? [{ id, name: properties.setor, geometry, bbox: withBounds(geometry) }] : [];
-    });
-    const streets = load("ruas").flatMap((feature: {
-      geometry: Street["geometry"] | null; properties: { nome_rua?: string };
-    }) => {
-      const { geometry, properties } = feature;
-      return geometry && properties.nome_rua && ["LineString", "MultiLineString"].includes(geometry.type)
-        ? [{ name: properties.nome_rua, geometry, bbox: withBounds(geometry) }] : [];
-    });
-    hidrolandia = { boundaries, streets };
-  } catch {
-    hidrolandia = null;
+function readHidroLayer(layer: "setores" | "ruas") {
+  const file = path.join(process.cwd(), "public", "data", "hidrolandia", `hidrolandia_${layer}_mapa.web4326.geojson`);
+  return JSON.parse(fs.readFileSync(file, "utf8")).features as Feature[];
+}
+
+function loadHidroBoundaries() {
+  if (hidroBoundaries === undefined) {
+    try {
+      hidroBoundaries = readHidroLayer("setores").flatMap((feature, id) => {
+        const { geometry, properties } = feature;
+        if (!properties?.setor || (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon")) return [];
+        return [{ id, name: properties.setor, geometry, bbox: bbox(geometry) as Boundary["bbox"] }];
+      });
+    } catch { hidroBoundaries = null; }
   }
-  return hidrolandia;
+  return hidroBoundaries;
+}
+
+function loadHidroStreets() {
+  if (hidroStreets === undefined) {
+    try {
+      hidroStreets = readHidroLayer("ruas").flatMap(({ geometry, properties }) => {
+        if (!properties?.nome_rua || (geometry?.type !== "LineString" && geometry?.type !== "MultiLineString")) return [];
+        return [{ name: properties.nome_rua, geometry, bbox: bbox(geometry) as Street["bbox"] }];
+      });
+    } catch { hidroStreets = null; }
+  }
+  return hidroStreets;
 }
 
 export const SHOPEE_STREET_RADIUS_M = 300;
@@ -118,8 +106,9 @@ const BAIRRO_INTERIOR_M = 25;
 type SheetPoint = { lat: unknown; lng: unknown; city: string; bairro: string };
 type RecoveryInput = SheetPoint & { normalizedCity: string; state: string; quadra: string; lote: string };
 type Rejection = "INVALID_COORDINATES" | "CITY_UNVERIFIED" | "CITY_CONFLICT" | "BAIRRO_CONFLICT" | "PARCEL_CONFLICT";
-type MainRejection = Rejection | "BAIRRO_UNVERIFIED" | "STREET_OVER_300M";
+type MainRejection = Rejection | "STREET_OVER_300M";
 type Evidence = {
+  bairroMatched?: boolean;
   coveredBairros?: string[];
   bairroEdgeM?: number | null;
   expectedParcel?: { quadra: string; lote: string };
@@ -129,7 +118,7 @@ type Evidence = {
 type GpsDecision<R extends string, T = Position> =
   ({ position: T; reason?: never } | { position?: never; reason: R }) & { evidence?: Evidence };
 export type ShopeeMainPosition = Position & {
-  quality: "STREET_STRONG" | "STREET_NEAR" | "BAIRRO_ONLY";
+  quality: "STREET_STRONG" | "STREET_NEAR" | "BAIRRO_ONLY" | "CITY_ONLY";
   distanceM: number | null;
 };
 
@@ -171,18 +160,14 @@ export function assessShopeeSheetGps(input: SheetPoint & {
   const position = compatible.position;
   const city = cityKey(input.city);
   const tiled = tiledCity(city);
-  const hidro = city === "HIDROLANDIA" ? loadHidrolandia() : null;
   const aparecida = city === "APARECIDA DE GOIANIA";
-  const territory = tiled ? findLocalShopeeBairro(tiled, input.bairro, position)
-    : aparecida ? checkAparecidaTerritory(input.bairro, position, normalizeAparecidaTerritoryName)
-    : hidro ? checkAparecidaTerritory(input.bairro, position, normalizeStreetText, hidro.boundaries) : null;
-  if (!territory?.matched) return { reason: "BAIRRO_UNVERIFIED", evidence };
   const { street } = input;
-  const bairroOnly = { position: { ...position, quality: "BAIRRO_ONLY" as const, distanceM: null }, evidence };
+  const areaQuality = evidence?.bairroMatched ? "BAIRRO_ONLY" as const : "CITY_ONLY" as const;
+  const bairroOnly = { position: { ...position, quality: areaQuality, distanceM: null }, evidence };
   if (!street.trim()) return bairroOnly;
   const sameStreet = (expected: string, actual: string) =>
     compareAparecidaStreetForValidation(expected, actual) === "STREET_MATCH";
-  const streets = aparecida ? loadStreets() : hidro?.streets;
+  const streets = aparecida ? loadStreets() : city === "HIDROLANDIA" ? loadHidroStreets() : null;
   // Look farther only to distinguish a nearby named road beyond the allowed
   // radius from an unrelated homonym elsewhere or a missing road layer.
   const diagnosticRadius = 600;
@@ -193,9 +178,9 @@ export function assessShopeeSheetGps(input: SheetPoint & {
   if (distanceM == null || distanceM > diagnosticRadius) return bairroOnly;
   if (distanceM > SHOPEE_STREET_RADIUS_M + 1e-8) return { reason: "STREET_OVER_300M", evidence };
   const expected = evidence?.expectedParcel;
-  const strong = distanceM <= STRONG_STREET_M + 1e-8 && (evidence?.bairroEdgeM ?? 0) >= BAIRRO_INTERIOR_M &&
+  const strong = (evidence?.bairroMatched || evidence?.parcelMatches === true) && distanceM <= STRONG_STREET_M + 1e-8 && (evidence?.bairroEdgeM ?? 0) >= BAIRRO_INTERIOR_M &&
     (!expected?.quadra && !expected?.lote || evidence?.parcelMatches === true);
-  return { position: { ...position, quality: strong ? "STREET_STRONG" : "STREET_NEAR", distanceM }, evidence };
+  return { position: { ...position, quality: strong ? "STREET_STRONG" : evidence?.bairroMatched ? "STREET_NEAR" : "CITY_ONLY", distanceM }, evidence };
 }
 
 export function validateShopeeSheetGps(input: Parameters<typeof assessShopeeSheetGps>[0]): Position | null {
@@ -225,15 +210,16 @@ export function recoverShopeeSheetGps(input: RecoveryInput): GpsDecision<Rejecti
   const hidro = city === "HIDROLANDIA";
   const tiled = tiledCity(city);
   const local = tiled ? findLocalShopeeBairro(tiled, input.bairro, position) : null;
-  const hidroBoundaries = loadHidrolandia()?.boundaries ?? null;
-  const apHits = findContainingBoundaries(position);
-  const hidroHits = findContainingBoundaries(position, hidroBoundaries);
-  const ownHits = aparecida ? apHits : hidro ? hidroHits : [];
+  const ownHits = aparecida ? findContainingBoundaries(position)
+    : hidro ? findContainingBoundaries(position, loadHidroBoundaries()) : [];
   const coveredHere = !!ownHits.length || !!local?.actualNames.length;
-  const deep = (hits: typeof apHits) => hits.length === 1 &&
+  const deep = (hits: typeof ownHits) => hits.length === 1 &&
     (polygonEdgeDistance(position, hits[0].geometry) ?? 0) >= BAIRRO_INTERIOR_M;
   if (!coveredHere) {
-    const positiveForeign = [!aparecida && deep(apHits), !hidro && deep(hidroHits)];
+    const positiveForeign = [
+      !aparecida && deep(findContainingBoundaries(position)),
+      !hidro && deep(findContainingBoundaries(position, loadHidroBoundaries())),
+    ];
     for (const other of ["GOIANIA", "TRINDADE"] as const) {
       const otherTileCity = tiledCity(other);
       if (other !== city && otherTileCity && insideCityEnvelope(other, position)) {
@@ -244,11 +230,11 @@ export function recoverShopeeSheetGps(input: RecoveryInput): GpsDecision<Rejecti
     if (positiveForeign.filter(Boolean).length === 1) return { reason: "CITY_CONFLICT" };
   }
   const normalizeBairro = aparecida ? normalizeAparecidaTerritoryName : normalizeStreetText;
-  const territory = aparecida ? checkAparecidaTerritory(input.bairro, position, normalizeBairro)
-    : hidro ? checkAparecidaTerritory(input.bairro, position, normalizeBairro, hidroBoundaries) : local;
+  const territory = aparecida ? checkAparecidaTerritory(input.bairro, position, normalizeBairro, undefined, ownHits)
+    : hidro ? checkAparecidaTerritory(input.bairro, position, normalizeBairro, loadHidroBoundaries(), ownHits) : local;
   const bairroEdgeM = local?.edgeDistanceM ?? (ownHits.length === 1
     ? polygonEdgeDistance(position, ownHits[0].geometry) : null);
-  const evidence: Evidence = { coveredBairros: local?.actualNames ?? ownHits.map(x => x.name), bairroEdgeM };
+  const evidence: Evidence = { bairroMatched: territory?.matched === true, coveredBairros: local?.actualNames ?? ownHits.map(x => x.name), bairroEdgeM };
   if (territory?.known && !territory.matched && (bairroEdgeM ?? 0) >= BAIRRO_INTERIOR_M &&
       new Set(territory.actualNames.map(normalizeBairro)).size === 1) {
     return { reason: "BAIRRO_CONFLICT", evidence };

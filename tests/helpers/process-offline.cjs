@@ -11,7 +11,10 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
   let fixture = {};
   let calls = [];
   const noop = async () => {};
-  const prisma = { addressMemory: {
+  const prisma = {
+    user: { findUnique: async () => ({ id: 'offline', role: 'ADMIN' }) },
+    importJob: { create: async () => ({ id: 'offline' }) },
+    addressMemory: {
     findUnique: async () => fixture.memory || null,
     findMany: async () => [],
     update: async () => ({}),
@@ -22,10 +25,11 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
     '@/app/lib/admin-observability': { incrementDailyMetric: noop, incrementHereMetric: noop },
     '@/app/lib/job-storage': {},
     '@/app/lib/auth': {},
-    '@/app/lib/access-control': {},
+    '@/app/lib/access-control': { getUserAccessSnapshot: async () => ({ canStartRoute: true }) },
+    '@/app/lib/import-job-cleanup': { cleanupOldImportJobsIfNeeded: noop },
     '@prisma/client': {},
-    'next-auth': {},
-    'next/server': {},
+    'next-auth': { getServerSession: async () => ({ user: { id: 'offline' } }) },
+    'next/server': { NextResponse: Response },
   };
   function sourceFile(relative) {
     const candidate = overlay && path.join(overlay, relative);
@@ -43,7 +47,7 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
     const file = path.join(root, relative);
     let src = fs.readFileSync(sourceFile(relative), 'utf8');
     if (relative === 'app/api/process/route.ts') {
-      src += '\nmodule.exports.audit = { processOne, normalizeQLValue, mergeAparecidaLotValue, pickAparecidaPartialStreetCandidate, scoreAparecidaRerankCandidate, buildMemoryKeyCandidates };';
+      src += '\nmodule.exports.audit = { processOne, createHereJobMetrics, normalizeQLValue, mergeAparecidaLotValue, pickAparecidaPartialStreetCandidate, scoreAparecidaRerankCandidate, buildMemoryKeyCandidates };';
     }
     const mod = new Module(file, module);
     cache.set(relative, mod);
@@ -106,6 +110,27 @@ function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
   };
   return {
     api, lots, readModule,
+    async runBatch(rows, concurrency, onRow) {
+      globalThis.fetch = offlineFetch;
+      fixture = {};
+      calls = [];
+      let next = 0;
+      const results = new Array(rows.length);
+      const runState = {
+        jobId: 'offline', userId: 'offline', userEmail: null, spreadsheetName: null,
+        geminiNormalizeCache: new Map(), hereJobCache: new Map(),
+        hereJobMetrics: api.createHereJobMetrics(), goianiaPoiShadowAudits: [],
+      };
+      async function worker() {
+        while (next < rows.length) {
+          const index = next++;
+          results[index] = await api.processOne(rows[index], 'https://audit.invalid', false, runState);
+          onRow();
+        }
+      }
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      return results;
+    },
     async run(row, nextFixture = {}, debugMemory = false) {
       globalThis.fetch = offlineFetch;
       fixture = nextFixture;

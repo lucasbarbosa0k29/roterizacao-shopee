@@ -53,6 +53,7 @@ export function checkAparecidaTerritory(
   position: { lat: number; lng: number },
   normalizeName: (name: string) => string,
   boundaries: AparecidaBoundary[] | null = loadBoundaries()?.boundaries ?? null,
+  containing?: AparecidaBoundary[],
 ) {
   const key = normalizeName(expected);
   // A generic bairro may include its explicitly named subdivisions. The
@@ -63,7 +64,7 @@ export function checkAparecidaTerritory(
   if (!boundaries || !known || !Number.isFinite(position.lat) || !Number.isFinite(position.lng)) {
     return { available: !!boundaries, known, matched: false, actualNames: [] as string[] };
   }
-  const actualNames = findTerritoryNames(position, boundaries);
+  const actualNames = containing ? containing.map(x => x.name) : findTerritoryNames(position, boundaries);
   const keys = new Set(actualNames.map(normalizeName));
   return { available: true, known: true, matched: keys.size === 1 && [...keys].every(belongsToExpected), actualNames };
 }

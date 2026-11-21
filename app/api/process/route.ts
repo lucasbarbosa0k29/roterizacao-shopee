@@ -69,7 +69,7 @@ import {
   type AddressContextType,
 } from "@/app/lib/address-context-resolver";
 import { logMemoryDiagnostics } from "@/app/lib/memory-diagnostics";
-import { getAparecidaLocalLotsCacheSnapshot } from "@/app/lib/aparecida-local-lots";
+import { getAparecidaLocalLotsCacheSnapshot, lookupAparecidaLotByCoordinates } from "@/app/lib/aparecida-local-lots";
 import { getGynLotCacheSnapshot } from "@/app/lib/gyn-lot-cache";
 import { getGoianiaLocalFirstCacheSnapshot } from "@/app/lib/goiania-local-first";
 import { getTrindadeLocalFirstCacheSnapshot } from "@/app/lib/trindade-localfirst-shadow";
@@ -3471,17 +3471,10 @@ function buildAparecidaRecoveryQueries(args: {
   return Array.from(new Set(variants)).slice(0, 3);
 }
 
-// ===== chama seu /api/aparecida/lot (mapa real) =====
-async function getAparecidaLotFromArcgis(baseOrigin: string, lat: number, lng: number) {
+// Use the same cadastral query as the map, in this request's module instance.
+function getAparecidaLotFromArcgis(lat: number, lng: number) {
   try {
-    const u = new URL("/api/aparecida/lot", baseOrigin);
-    u.searchParams.set("lat", String(lat));
-    u.searchParams.set("lng", String(lng));
-    const r = await fetch(u.toString(), { method: "GET" });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j) return null;
-    if (!j.found) return { found: false };
-    return j as { found: true; quadra?: string; lote?: string; bairro?: string };
+    return lookupAparecidaLotByCoordinates(lat, lng);
   } catch {
     return null;
   }
@@ -3490,7 +3483,7 @@ async function getAparecidaLotFromArcgis(baseOrigin: string, lat: number, lng: n
 // ===== processa 1 linha =====
 async function processOne(
   row: InputRow,
-  baseOrigin: string,
+  _baseOrigin: string,
   debugMemory = false,
   runState?: ProcessRunState,
 ) {
@@ -5594,14 +5587,13 @@ async function processOne(
         bairro: normalized.bairro || bairroIn,
       };
 
-      enriched = await Promise.all(
-        top.map(async (x) => {
+      enriched = top.map((x) => {
           const pos = x.it?.position;
           if (!pos?.lat || !pos?.lng) {
             return { ...x, arc: null, arcScore: -999, total: x.score - 999 };
           }
 
-          const arc = await getAparecidaLotFromArcgis(baseOrigin, pos.lat, pos.lng);
+          const arc = getAparecidaLotFromArcgis(pos.lat, pos.lng);
           const rerank = scoreAparecidaRerankCandidate({
             baseScore: x.score,
             item: x.it,
@@ -5619,8 +5611,7 @@ async function processOne(
           });
 
           return { ...x, arc, total: rerank.total };
-        }),
-      );
+        });
 
       enriched.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
 
@@ -5885,7 +5876,7 @@ if (
 
   // fallback: se o PASSO 3 não trouxe ArcGIS, busca 1x no ponto final
   if (!arcgisLot) {
-    arcgisLot = await getAparecidaLotFromArcgis(baseOrigin, lat, lng);
+    arcgisLot = getAparecidaLotFromArcgis(lat, lng);
   }
 
   if (arcgisLot?.found) {
@@ -7229,11 +7220,12 @@ if (shouldAutoSaveAddressMemory) {
     ({ lat, lng } = selectedSheetPoint);
     const strong = selectedSheetPoint.quality === "STREET_STRONG";
     decisionReason = strong ? "SHOPEE_GPS_STREET_VALIDATED" :
-      selectedSheetPoint.quality === "STREET_NEAR" ? "SHOPEE_GPS_STREET_TERRITORY_VERIFIED" : "SHOPEE_GPS_BAIRRO_VERIFIED";
+      selectedSheetPoint.quality === "STREET_NEAR" ? "SHOPEE_GPS_STREET_TERRITORY_VERIFIED" :
+      selectedSheetPoint.quality === "CITY_ONLY" ? "SHOPEE_GPS_BAIRRO_UNVERIFIED_APPROXIMATE" : "SHOPEE_GPS_BAIRRO_VERIFIED";
     status = strong ? "OK" : "PARCIAL";
     finalSource = "SHOPEE_GPS";
     finalMatchType = decisionReason;
-    coordinatePrecision = selectedSheetPoint.quality === "BAIRRO_ONLY" ? undefined : "STREET";
+    coordinatePrecision = selectedSheetPoint.distanceM == null || selectedSheetPoint.quality === "CITY_ONLY" ? undefined : "STREET";
     arcgisLot = null;
     approxMemoryUsedAsFinal = false;
     quadraAuto = normalized.quadra || "";

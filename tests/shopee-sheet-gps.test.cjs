@@ -16,6 +16,37 @@ const fixtureFor = (input) => ({
   gemini: { rua: input.original, bairro: input.bairro, cidade: input.city, estado: 'GO' },
 });
 const run = (input = row, fixture = fixtureFor(input)) => offline.run(input, fixture);
+test('byte offsets preserve UTF-8, nested coordinates, duplicate keys and escaped delimiters', () => {
+  const { JsonObjectTable } = offline.readModule('app/lib/json-object-table.ts');
+  const features = [
+    { name: 'São "{Luz}"', coordinates: [[[1, 2], [3, 4]]] },
+    { name: 'São "{Luz}"', note: 'barra\\ e },{', coordinates: [] },
+  ];
+  for (const kind of ['features', 'array']) {
+    const source = kind === 'features' ? { type: 'FeatureCollection', features } : features;
+    const table = new JsonObjectTable(Buffer.from(JSON.stringify(source, null, 2)));
+    const offsets = [];
+    assert.equal(table.index(kind, (_, offset) => offsets.push(offset)), features.length);
+    assert.deepEqual(offsets.map(i => table.read(i)), features);
+  }
+  for (const bad of ['[{"a":1}', '[{},]', '[{}{}]', '[{}]invalid']) {
+    assert.throws(() => new JsonObjectTable(Buffer.from(bad)).index('array', () => {}));
+  }
+});
+
+test('Aparecida clears all spatial caches and reproduces the same parcel on cold reload', () => {
+  const { lots } = offline;
+  const point = [-16.834696, -49.224049];
+  const first = lots.lookupStrictAparecidaParcel(...point);
+  assert.equal(first.lote, '26');
+  assert.equal(lots.getAparecidaLocalLotsCacheSnapshot().datasetLoaded, true);
+  lots.clearAparecidaCentroidCaches('test');
+  const cold = lots.getAparecidaLocalLotsCacheSnapshot();
+  for (const field of ['datasetLoaded', 'centroidsLoaded', 'streetCentroidsLoaded', 'centroidCacheTtlArmed']) {
+    assert.equal(cold[field], false);
+  }
+  assert.deepEqual(lots.lookupStrictAparecidaParcel(...point), first);
+});
 const assertShopee = ({ result, calls }, input, expectedStatus = "OK") => {
   assert.equal(result.source, 'SHOPEE_GPS');
   assert.equal(result.status, expectedStatus);
@@ -139,7 +170,7 @@ test('rejects a point with evidence that belongs to another city', async () => {
   }
 });
 
-test('recovers an approximate row after LOW_SCORE without a street or bairro geometry match', async () => {
+test('uses city-compatible GPS before HERE when the sheet bairro and street are unverified', async () => {
   const input = { ...row, original: 'Rua Inexistente', bairro: 'Bairro fora do cadastro' };
   const baseline = await run({ ...input, latFromSheet: null, lngFromSheet: null });
   assert.equal(baseline.result.status, 'PARCIAL');
@@ -150,21 +181,20 @@ test('recovers an approximate row after LOW_SCORE without a street or bairro geo
   assert.equal(candidate.result.lat, input.latFromSheet);
   assert.equal(candidate.result.lng, input.lngFromSheet);
   assert.equal(candidate.result.coordinatePrecision, undefined);
-  assert.equal(candidate.result.decisionReason, 'SHOPEE_GPS_RECOVERED_NO_COORDS');
-  assert.equal(candidate.result.shopeeGpsPreviousDecisionReason, 'LOW_SCORE');
-  assert.deepEqual(candidate.calls, baseline.calls);
+  assert.equal(candidate.result.decisionReason, 'SHOPEE_GPS_BAIRRO_UNVERIFIED_APPROXIMATE');
+  assert.ok(candidate.calls.every(x => x.endpoint === 'gemini'));
 });
 
-test('does not recover a row that already has approximate coordinates or has no address', async () => {
+test('eligible primary GPS takes priority over approximate memory while empty addresses remain unresolved', async () => {
   const input = { ...row, original: 'Rua Inexistente', bairro: 'Bairro fora do cadastro' };
   const fixture = { ...fixtureFor(input), approx: { matched: true, lat: -16.831, lng: -49.22 } };
   const candidate = await run(input, fixture);
   const baseline = await run({ ...input, latFromSheet: null, lngFromSheet: null }, fixture);
-  for (const field of ['status', 'decisionReason', 'source', 'lat', 'lng']) {
-    assert.equal(candidate.result[field], baseline.result[field], field);
-  }
+  assert.equal(baseline.result.lat, fixture.approx.lat);
+  assert.equal(candidate.result.source, 'SHOPEE_GPS');
+  assert.equal(candidate.result.status, 'PARCIAL');
+  assert.equal(candidate.result.lat, input.latFromSheet);
   assert.equal(candidate.result.shopeeGpsPreviousDecisionReason, undefined);
-  assert.equal(candidate.result.lat, fixture.approx.lat);
   const empty = await run({ ...row, original: '' });
   assert.equal(empty.result.status, 'PARCIAL');
   assert.equal(empty.result.decisionReason, 'SHOPEE_GPS_ADDRESS_EMPTY');
@@ -223,7 +253,7 @@ test('street tolerance uses a closed 300 m limit while the legacy HERE check kee
   }
 });
 
-test('Goiânia and Trindade require positive street and bairro evidence for main GPS', async t => {
+test('Goiânia and Trindade use strong territorial evidence for vetos and allow unverified bairros as approximate', async t => {
   const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
   const overlay = fs.mkdtempSync(path.join(os.tmpdir(), 'shopee-test-tiles-'));
   const dir = path.join(overlay, 'data/localfirst/shopee-gps-territory');
@@ -261,6 +291,7 @@ test('Goiânia and Trindade require positive street and bairro evidence for main
     const input = { city, lat, lng, bairro: 'Setor Teste', street: 'Rua A' };
     assert.equal(assessShopeeSheetGps(input).position.quality, 'STREET_NEAR', city);
     assert.equal(assessShopeeSheetGps({ ...input, street: 'Rua B' }).position.quality, 'BAIRRO_ONLY');
+    assert.equal(assessShopeeSheetGps({ ...input, bairro: 'Bairro desconhecido' }).position.quality, 'CITY_ONLY');
     assert.equal(assessShopeeSheetGps({ ...input, bairro: 'Setor Vizinho' }).reason, 'BAIRRO_CONFLICT');
     assert.equal(assessShopeeSheetGps({ ...input, quadra: '2', lote: '9' }).reason, 'PARCEL_CONFLICT');
     assert.deepEqual(recoverShopeeSheetGps({ ...input, bairro: '', normalizedCity: city, state: 'GO',
@@ -271,6 +302,15 @@ test('Goiânia and Trindade require positive street and bairro evidence for main
       quadra: '', lote: '' }).position, { lat: farther.lat, lng });
     const uploaded = { original: 'Rua A', city, bairro: input.bairro, latFromSheet: lat, lngFromSheet: lng };
     assertShopee(await process.run(uploaded, fixtureFor(uploaded)), uploaded, 'PARCIAL');
+    const distant = { ...uploaded, latFromSheet: farther.lat };
+    const recovered = await process.run(distant, fixtureFor(distant));
+    assert.equal(recovered.result.decisionReason, 'SHOPEE_GPS_RECOVERED_NO_COORDS');
+    assert.equal(recovered.result.status, 'PARCIAL');
+    assert.equal(recovered.result.lat, farther.lat);
+    const approximate = { matched: true, lat: lat + .0001, lng };
+    const kept = await process.run(distant, { ...fixtureFor(distant), approx: approximate });
+    assert.equal(kept.result.lat, approximate.lat);
+    assert.equal(kept.result.shopeeGpsPreviousDecisionReason, undefined);
   }
 });
 
