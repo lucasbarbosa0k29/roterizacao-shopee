@@ -133,7 +133,7 @@ test('a known parcel near its edge is evidence of uncertainty, not a veto', asyn
   };
   const {result} = await offline.run(input, fixtureFor(input), true);
   assert.equal(result.source, 'SHOPEE_GPS');
-  assert.equal(result.status, 'PARCIAL');
+  assert.equal(result.status, 'OK');
   assert.equal(result.shopeeGpsEvidence.containingParcel.lote, '26');
   assert.ok(result.shopeeGpsEvidence.containingParcel.edgeDistanceM < 12);
 });
@@ -177,7 +177,7 @@ test('uses city-compatible GPS before HERE when the sheet bairro and street are 
   assert.equal(baseline.result.lat, null);
   assert.equal(baseline.result.decisionReason, 'LOW_SCORE');
   const candidate = await run(input);
-  assert.equal(candidate.result.status, 'PARCIAL');
+  assert.equal(candidate.result.status, 'OK');
   assert.equal(candidate.result.lat, input.latFromSheet);
   assert.equal(candidate.result.lng, input.lngFromSheet);
   assert.equal(candidate.result.coordinatePrecision, undefined);
@@ -192,7 +192,7 @@ test('eligible primary GPS takes priority over approximate memory while empty ad
   const baseline = await run({ ...input, latFromSheet: null, lngFromSheet: null }, fixture);
   assert.equal(baseline.result.lat, fixture.approx.lat);
   assert.equal(candidate.result.source, 'SHOPEE_GPS');
-  assert.equal(candidate.result.status, 'PARCIAL');
+  assert.equal(candidate.result.status, 'OK');
   assert.equal(candidate.result.lat, input.latFromSheet);
   assert.equal(candidate.result.shopeeGpsPreviousDecisionReason, undefined);
   const empty = await run({ ...row, original: '' });
@@ -208,7 +208,7 @@ test('keeps both Hidrolandia B-to-C regression rows near their parcel edges', as
   ]) {
     input.city = 'Hidrolândia';
     const {result} = await offline.run(input, fixtureFor(input), true);
-    assert.equal(result.status, 'PARCIAL');
+    assert.equal(result.status, 'OK');
     assert.equal(result.source, 'SHOPEE_GPS');
     assert.equal(result.shopeeGpsEvidence.parcelMatches, false);
     assert.ok(result.shopeeGpsEvidence.containingParcel.edgeDistanceM < 12);
@@ -253,7 +253,7 @@ test('street tolerance uses a closed 300 m limit while the legacy HERE check kee
   }
 });
 
-test('Goiânia and Trindade use strong territorial evidence for vetos and allow unverified bairros as approximate', async t => {
+test('Goiânia and Trindade use strong territorial evidence for vetos and validate eligible GPS with unverified bairros', async t => {
   const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
   const overlay = fs.mkdtempSync(path.join(os.tmpdir(), 'shopee-test-tiles-'));
   const dir = path.join(overlay, 'data/localfirst/shopee-gps-territory');
@@ -301,11 +301,11 @@ test('Goiânia and Trindade use strong territorial evidence for vetos and allow 
     assert.deepEqual(recoverShopeeSheetGps({ ...farther, normalizedCity: city, state: 'GO',
       quadra: '', lote: '' }).position, { lat: farther.lat, lng });
     const uploaded = { original: 'Rua A', city, bairro: input.bairro, latFromSheet: lat, lngFromSheet: lng };
-    assertShopee(await process.run(uploaded, fixtureFor(uploaded)), uploaded, 'PARCIAL');
+    assertShopee(await process.run(uploaded, fixtureFor(uploaded)), uploaded, 'OK');
     const distant = { ...uploaded, latFromSheet: farther.lat };
     const recovered = await process.run(distant, fixtureFor(distant));
     assert.equal(recovered.result.decisionReason, 'SHOPEE_GPS_RECOVERED_NO_COORDS');
-    assert.equal(recovered.result.status, 'PARCIAL');
+    assert.equal(recovered.result.status, 'OK');
     assert.equal(recovered.result.lat, farther.lat);
     const approximate = { matched: true, lat: lat + .0001, lng };
     const kept = await process.run(distant, { ...fixtureFor(distant), approx: approximate });
@@ -314,11 +314,11 @@ test('Goiânia and Trindade use strong territorial evidence for vetos and allow 
   }
 });
 
-test('a positive bairro with an unverified street uses Shopee as Approximate ahead of HERE', async () => {
+test('a positive bairro with an unverified street validates Shopee GPS ahead of HERE', async () => {
   const input = { ...row, original: 'Rua Inexistente' };
   const fixture = { gemini: { ...fixtureFor(input).gemini, rua: 'Rua Inferida Pelo Gemini' } };
   const {result,calls} = await run(input, fixture);
-  assert.equal(result.status, 'PARCIAL');
+  assert.equal(result.status, 'OK');
   assert.equal(result.decisionReason, 'SHOPEE_GPS_BAIRRO_VERIFIED');
   assert.ok(calls.every(call => call.endpoint === 'gemini'));
 });
@@ -377,7 +377,7 @@ test('Goiânia regression does not treat AREA as a quadra code in a condominium'
   assert.equal(result.shopeeGpsEvidence.containingParcel.quadra, 'AREA');
   assert.equal(result.shopeeGpsEvidence.expectedParcel.lote, '');
   assert.equal(result.source, 'SHOPEE_GPS');
-  assert.equal(result.status, 'PARCIAL');
+  assert.equal(result.status, 'OK');
 });
 
 test('does not activate any Shopee geocoding in other cities', async () => {
@@ -387,4 +387,15 @@ test('does not activate any Shopee geocoding in other cities', async () => {
     const before = await run({...input,latFromSheet:null,lngFromSheet:null});
     assert.deepEqual({result,calls}, before);
   }
+});
+
+test('mixed batch validates only the selected sheet point', async () => {
+  const unknown = { ...row, original: 'Rua Inexistente', bairro: 'Bairro fora do cadastro' };
+  const [accepted, invalid] = await offline.runBatch([unknown, { ...unknown, lngFromSheet: 0 }], 2, () => {});
+  assert.equal(accepted.source, 'SHOPEE_GPS');
+  assert.equal(accepted.status, 'OK');
+  assert.deepEqual([accepted.lat, accepted.lng], [unknown.latFromSheet, unknown.lngFromSheet]);
+  assert.notEqual(invalid.source, 'SHOPEE_GPS');
+  assert.equal(invalid.status, 'PARCIAL');
+  assert.equal(invalid.locationResolved, false);
 });

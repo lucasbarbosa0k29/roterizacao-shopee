@@ -7222,7 +7222,7 @@ if (shouldAutoSaveAddressMemory) {
     decisionReason = strong ? "SHOPEE_GPS_STREET_VALIDATED" :
       selectedSheetPoint.quality === "STREET_NEAR" ? "SHOPEE_GPS_STREET_TERRITORY_VERIFIED" :
       selectedSheetPoint.quality === "CITY_ONLY" ? "SHOPEE_GPS_BAIRRO_UNVERIFIED_APPROXIMATE" : "SHOPEE_GPS_BAIRRO_VERIFIED";
-    status = strong ? "OK" : "PARCIAL";
+    status = "OK";
     finalSource = "SHOPEE_GPS";
     finalMatchType = decisionReason;
     coordinatePrecision = selectedSheetPoint.distanceM == null || selectedSheetPoint.quality === "CITY_ONLY" ? undefined : "STREET";
@@ -7278,6 +7278,7 @@ if (shouldAutoSaveAddressMemory) {
   const shopeeGpsPreviousDecisionReason = shopeeGpsRecovery?.position ? decisionReason : null;
   if (shopeeGpsRecovery?.position) {
     ({ lat, lng } = shopeeGpsRecovery.position);
+    status = "OK";
     finalSource = "SHOPEE_GPS";
     finalMatchType = "SHOPEE_GPS_RECOVERED_NO_COORDS";
     decisionReason = "SHOPEE_GPS_RECOVERED_NO_COORDS";
