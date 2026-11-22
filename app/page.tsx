@@ -1993,7 +1993,12 @@ useEffect(() => {
     );
   }
 
-  function getVisualStatusLabel(status: Status, row: any) {
+  function getVisualStatusLabel(status: Status, row: any, hasManualConfirmation = false) {
+    if (status === "OK" && isRowMemoryHitRow(row)) return "Memória";
+    if (status === "CONFIRMADO" && !hasManualConfirmation && row?.status === "CONFIRMADO" &&
+        (row.source === "MEMORY" || row.source === "MEMORY_AUTOMATIC" || row.source === "MEMORY_APPROX")) {
+      return "Memória";
+    }
     if (isShopeeGpsCity(String(row?.city ?? ""))) {
       if (status === "CONFIRMADO") return "Confirmado";
       if ((status === "OK" || status === "PARCIAL" && isTrindadeVisuallyValidated(row)) &&
@@ -2001,19 +2006,17 @@ useEffect(() => {
       return "Aproximado";
     }
     const trindadeShadow = getTrindadeShadow(row);
-    return status === "OK" && isRowMemoryHitRow(row)
-      ? "Memória"
-      : status === "OK"
+    return status === "OK"
+      ? "Validado"
+      : status === "PARCIAL" && isTrindadeVisuallyValidated(row)
         ? "Validado"
-        : status === "PARCIAL" && isTrindadeVisuallyValidated(row)
-          ? "Validado"
-          : status === "PARCIAL"
-            ? "Aproximado"
-            : status === "NAO_ENCONTRADO"
-              ? "Pendente"
-              : status === "CONFIRMADO"
-                ? "Confirmado"
-                : status;
+        : status === "PARCIAL"
+          ? "Aproximado"
+          : status === "NAO_ENCONTRADO"
+            ? "Pendente"
+            : status === "CONFIRMADO"
+              ? "Confirmado"
+              : status;
   }
 
   function getGroupBaseIdx(idxs: number[]) {
@@ -2516,7 +2519,7 @@ useEffect(() => {
               ? "PARCIAL"
               : "NAO_ENCONTRADO";
 
-      const statusLabel = getVisualStatusLabel(status, rows[baseIdx]);
+      const statusLabel = getVisualStatusLabel(status, rows[baseIdx], idxs.some((idx) => manualEdits[idx]?.confirmed === true));
 
       return {
         id: g.id,
@@ -2581,7 +2584,7 @@ useEffect(() => {
         displayIdentifier,
         sourceType: String(rows[idx]?.sourceType || "").trim() || undefined,
         status,
-        statusLabel: getVisualStatusLabel(status, rows[idx]),
+        statusLabel: getVisualStatusLabel(status, rows[idx], manualEdits[idx]?.confirmed === true),
         addressDisplay: <div className="font-medium">{address}</div>,
         addressForExport: getExportAddress(idx),
         bairro,
@@ -2663,7 +2666,7 @@ useEffect(() => {
         displayIdentifier,
         sourceType: String(rows[baseIdx]?.sourceType || "").trim() || undefined,
         status,
-        statusLabel: getVisualStatusLabel(status, rows[baseIdx]),
+        statusLabel: getVisualStatusLabel(status, rows[baseIdx], idxs.some((idx) => manualEdits[idx]?.confirmed === true)),
         addressDisplay,
         addressForExport,
         bairro,
@@ -5637,6 +5640,7 @@ onContextMenu={(e) => {
                           const addressOriginal = String(rows[idx]?.original || "");
                           const status = getRowStatus(idx);
                           const notes = getManualObservation(idx);
+                          const statusLabel = getVisualStatusLabel(status, rows[idx], manualEdits[idx]?.confirmed === true);
 
                           return (
                             <div
@@ -5651,18 +5655,18 @@ onContextMenu={(e) => {
                                     </span>
                                     <span
                                       className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
-                                        getVisualStatusLabel(status, rows[idx]) === "Validado" ||
-                                        getVisualStatusLabel(status, rows[idx]) === "Memória" ||
+                                        statusLabel === "Validado" ||
+                                        statusLabel === "Memória" ||
                                         status === "CONFIRMADO"
                                           ? "OK"
-                                          : getVisualStatusLabel(status, rows[idx]) === "Aproximado"
+                                          : statusLabel === "Aproximado"
                                             ? "PARCIAL"
-                                            : getVisualStatusLabel(status, rows[idx]) === "Pendente"
+                                            : statusLabel === "Pendente"
                                               ? "NAO_ENCONTRADO"
                                               : status,
                                       )}`}
                                     >
-                                      {getVisualStatusLabel(status, rows[idx])}
+                                      {statusLabel}
                                     </span>
                                   </div>
 
