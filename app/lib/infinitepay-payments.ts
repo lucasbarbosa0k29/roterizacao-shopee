@@ -166,12 +166,19 @@ export async function retryInfinitePayEvent(id: string) {
 export async function getInfinitePayOrderStatus(userId: string, orderNsu: string) {
   const order = await prisma.paymentTransaction.findFirst({
     where: { userId, externalReference: orderNsu, provider: "INFINITEPAY" },
-    select: { status: true, fulfilledAt: true, fulfillmentReviewReason: true, checkoutExpiresAt: true },
+    select: {
+      status: true, fulfilledAt: true, fulfillmentReviewReason: true, checkoutExpiresAt: true,
+      checkoutAttempts: true, checkoutRetryAt: true, infinitePayCheckoutUrl: true,
+    },
   });
   if (!order) return null;
   if (order.fulfilledAt) return "COMPLETED";
   if (order.status === "APPROVED" && order.fulfillmentReviewReason) return "REVIEW";
   if (order.status !== "PENDING") return order.status;
-  if (order.checkoutExpiresAt && order.checkoutExpiresAt <= new Date()) return "EXPIRED";
+  const now = new Date();
+  if (order.checkoutExpiresAt && order.checkoutExpiresAt <= now) return "EXPIRED";
+  if (!order.infinitePayCheckoutUrl && order.checkoutAttempts > 0) {
+    return order.checkoutRetryAt && order.checkoutRetryAt > now ? "CHECKOUT_PENDING" : "CHECKOUT_REVIEW";
+  }
   return "PENDING";
 }

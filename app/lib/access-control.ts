@@ -178,6 +178,14 @@ async function getSubscriptionCycleAllowanceFromDb(
   now: Date
 ) {
   const cycleUsed = await getSubscriptionCycleUsageFromDb(db, subscription.id);
+  return getSubscriptionCycleAllowance(subscription, now, cycleUsed);
+}
+
+function getSubscriptionCycleAllowance(
+  subscription: { startsAt: Date; expiresAt: Date | null; plan: { dailyRouteLimit: number } },
+  now: Date,
+  cycleUsed: number,
+) {
   const rawCycleAccrued =
     getAccruedCycleDays(subscription.startsAt, subscription.expiresAt, now) *
     subscription.plan.dailyRouteLimit;
@@ -195,16 +203,16 @@ async function getSubscriptionCycleAllowanceFromDb(
   };
 }
 
+const newestSubscription = [{ startsAt: "desc" }, { createdAt: "desc" }, { id: "desc" }] satisfies Prisma.UserSubscriptionOrderByWithRelationInput[];
+
+function activeSubscriptionWhere(now: Date): Prisma.UserSubscriptionWhereInput {
+  return { ...startedSubscription(now), plan: { isActive: true } };
+}
+
 async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string, now: Date) {
   const subscription = await db.userSubscription.findFirst({
-    where: {
-      userId,
-      ...startedSubscription(now),
-      plan: {
-        isActive: true,
-      },
-    },
-    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+    where: { userId, ...activeSubscriptionWhere(now) },
+    orderBy: newestSubscription,
     include: {
       plan: true,
     },
@@ -216,13 +224,19 @@ async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string, 
 async function getScheduledSubscriptions(userId: string, now: Date) {
   const cycles = await prisma.userSubscription.findMany({
     where: { userId, status: "SCHEDULED", startsAt: { gt: now } },
-    orderBy: { startsAt: "asc" },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }],
     include: { plan: { select: { code: true, name: true } } },
   });
-  return cycles.map((cycle) => ({
+  return cycles.map(serializeScheduledSubscription);
+}
+
+function serializeScheduledSubscription(cycle: {
+  id: string; startsAt: Date; expiresAt: Date | null; plan: { code: AccessPlanCode; name: string };
+}) {
+  return {
     id: cycle.id, code: cycle.plan.code, name: cycle.plan.name,
     startsAt: cycle.startsAt.toISOString(), expiresAt: cycle.expiresAt?.toISOString() ?? null,
-  }));
+  };
 }
 
 async function getActiveWorkspaceAccessFromDb(db: AccessControlDb, userId: string) {
@@ -242,7 +256,7 @@ async function getActiveWorkspaceAccessFromDb(db: AccessControlDb, userId: strin
         },
       ],
     },
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
       status: true,
@@ -287,6 +301,103 @@ export async function getAdminUserAccessSnapshot(userId: string): Promise<UserAc
   return buildUserAccessSnapshot(userId, "admin", new Date());
 }
 
+export const accessAccountSelect = {
+  id: true, role: true, active: true, emailVerificationRequired: true,
+  emailVerifiedAt: true, accessBlockedAt: true, accessBlockReason: true,
+} satisfies Prisma.UserSelect;
+
+type AccessAccount = Prisma.UserGetPayload<{ select: typeof accessAccountSelect }>;
+type WorkspaceAccess = NonNullable<Awaited<ReturnType<typeof getActiveWorkspaceAccessFromDb>>>;
+type AccessFacts = {
+  activeSubscription: Awaited<ReturnType<typeof getActiveSubscriptionFromDb>>;
+  todayRouteUsage: number;
+  dailySubscriptionUsage: number;
+  activeWorkspaceAccess: WorkspaceAccess | null;
+  scheduledSubscriptions: UserAccessSnapshot["scheduledSubscriptions"];
+  cycleUsed: number;
+};
+
+function hasAdminAllowance(user: AccessAccount) {
+  return user.role === "ADMIN" && canUseAccount(user);
+}
+
+// One batch per relationship for an authorized page of administrative results.
+export async function getAdminAccessSnapshots(users: AccessAccount[], now: Date) {
+  const ids = users.map((user) => user.id);
+  if (!ids.length) return new Map<string, UserAccessSnapshot>();
+
+  const balances = new Map((await prisma.routeCredit.groupBy({
+    by: ["userId"], where: { userId: { in: ids } }, _sum: { delta: true },
+  })).map((row) => [row.userId, row._sum.delta ?? 0]));
+  const limitedIds = users.filter((user) => !hasAdminAllowance(user)).map((user) => user.id);
+  const factsByUser = new Map<string, AccessFacts>();
+
+  if (limitedIds.length) {
+    const active = await prisma.userSubscription.findMany({
+      where: { userId: { in: limitedIds }, ...activeSubscriptionWhere(now) },
+      orderBy: newestSubscription, include: { plan: true },
+    });
+    const currentCycles = new Map<string, typeof active[number]>();
+    for (const cycle of active) {
+      if (!currentCycles.has(cycle.userId)) currentCycles.set(cycle.userId, cycle);
+    }
+    const scheduled = await prisma.userSubscription.findMany({
+      where: { userId: { in: limitedIds }, status: "SCHEDULED", startsAt: { gt: now } },
+      orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+      include: { plan: { select: { code: true, name: true } } },
+    });
+    const scheduledByUser = new Map<string, AccessFacts["scheduledSubscriptions"]>();
+    for (const cycle of scheduled) {
+      const entries = scheduledByUser.get(cycle.userId) ?? [];
+      entries.push(serializeScheduledSubscription(cycle));
+      scheduledByUser.set(cycle.userId, entries);
+    }
+    const todayCounts = await prisma.routeUsage.groupBy({
+      by: ["userId", "source"], _count: { _all: true },
+      where: { userId: { in: limitedIds }, usageDayKey: getSaoPauloDayKey(now) },
+    });
+    const today = new Map<string, number>();
+    const todayPlan = new Map<string, number>();
+    for (const row of todayCounts) {
+      today.set(row.userId, (today.get(row.userId) ?? 0) + row._count._all);
+      if (row.source === "SUBSCRIPTION_DAILY") todayPlan.set(row.userId, row._count._all);
+    }
+    const cycleIds = [...currentCycles.values()].map((cycle) => cycle.id);
+    const cycleCounts = cycleIds.length ? await prisma.routeUsage.groupBy({
+      by: ["subscriptionId"], _count: { _all: true },
+      where: { subscriptionId: { in: cycleIds }, source: "SUBSCRIPTION_DAILY" },
+    }) : [];
+    const cycleUsage = new Map(cycleCounts.map((row) => [row.subscriptionId, row._count._all]));
+    const cutoff = new Date(Date.now() - WORKSPACE_ACCESS_HOURS * 60 * 60 * 1000).toISOString();
+    const dbCutoff = Prisma.sql`(${cutoff}::timestamptz AT TIME ZONE 'UTC')`;
+    const workspaces = await prisma.$queryRaw<(WorkspaceAccess & { userId: string })[]>`
+      SELECT DISTINCT ON ("userId") id, "userId", status, "resultSavedAt", "updatedAt"
+      FROM "ImportJob"
+      WHERE "userId" IN (${Prisma.join(limitedIds)}) AND (
+        (status IN ('PENDING', 'PROCESSING') AND "updatedAt" >= ${dbCutoff})
+        OR (status = 'DONE' AND "resultSavedAt" >= ${dbCutoff})
+      )
+      ORDER BY "userId", "updatedAt" DESC, "createdAt" DESC, id DESC
+    `;
+    const workspaceByUser = new Map(workspaces.map((job) => [job.userId, job]));
+    for (const id of limitedIds) {
+      const activeSubscription = currentCycles.get(id) ?? null;
+      factsByUser.set(id, {
+        activeSubscription, todayRouteUsage: today.get(id) ?? 0,
+        dailySubscriptionUsage: todayPlan.get(id) ?? 0,
+        activeWorkspaceAccess: workspaceByUser.get(id) ?? null,
+        scheduledSubscriptions: scheduledByUser.get(id) ?? [],
+        cycleUsed: activeSubscription ? cycleUsage.get(activeSubscription.id) ?? 0 : 0,
+      });
+    }
+  }
+
+  return new Map(users.map((user) => [
+    user.id,
+    summarizeUserAccess(user, now, balances.get(user.id) ?? 0, factsByUser.get(user.id)),
+  ]));
+}
+
 async function buildUserAccessSnapshot(
   userId: string,
   context: "protected" | "admin",
@@ -294,27 +405,37 @@ async function buildUserAccessSnapshot(
 ): Promise<UserAccessSnapshot> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      role: true,
-      active: true,
-      emailVerificationRequired: true,
-      emailVerifiedAt: true,
-      accessBlockedAt: true,
-      accessBlockReason: true,
-    },
+    select: accessAccountSelect,
   });
 
   if (!user) {
     throw new Error("User not found");
   }
 
-  const isAdmin = user.role === "ADMIN";
-  const accountEligible = canUseAccount(user);
-  const isBlocked = !!user.accessBlockedAt || !accountEligible;
-  if (context === "protected" && !accountEligible) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail e verifique se sua conta está ativa.");
+  if (context === "protected" && !canUseAccount(user)) throw new AccessControlError("ACCESS_BLOCKED", "Confirme seu e-mail e verifique se sua conta está ativa.");
+  if (hasAdminAllowance(user)) return summarizeUserAccess(user, now, await getRouteCreditBalance(userId));
 
-  if (isAdmin && accountEligible) {
+  const [activeSubscription, todayRouteUsage, routeCreditsBalance, dailySubscriptionUsage, activeWorkspaceAccess, scheduledSubscriptions] =
+    await Promise.all([
+      getActiveSubscriptionFromDb(prisma, userId, now),
+      getTodayRouteUsage(userId, now),
+      getRouteCreditBalance(userId),
+      getDailySubscriptionUsageFromDb(prisma, userId, getSaoPauloDayKey(now)),
+      getActiveWorkspaceAccessFromDb(prisma, userId),
+      getScheduledSubscriptions(userId, now),
+    ]);
+  const cycleUsed = activeSubscription ? await getSubscriptionCycleUsageFromDb(prisma, activeSubscription.id) : 0;
+  return summarizeUserAccess(user, now, routeCreditsBalance, {
+    activeSubscription, todayRouteUsage, dailySubscriptionUsage,
+    activeWorkspaceAccess, scheduledSubscriptions, cycleUsed,
+  });
+}
+
+function summarizeUserAccess(user: AccessAccount, now: Date, routeCreditsBalance: number, facts?: AccessFacts): UserAccessSnapshot {
+  const isAdmin = user.role === "ADMIN";
+  const isBlocked = !!user.accessBlockedAt || !canUseAccount(user);
+
+  if (hasAdminAllowance(user)) {
     return {
       userId: user.id,
       role: user.role,
@@ -329,7 +450,7 @@ async function buildUserAccessSnapshot(
       subscriptionCycleUsed: 0,
       subscriptionCycleRemaining: 0,
       subscriptionCycleAccrued: 0,
-      routeCreditsBalance: await getRouteCreditBalance(user.id),
+      routeCreditsBalance,
       canUseApp: true,
       activeWorkspaceAccess: null,
       canStartRoute: true,
@@ -341,23 +462,10 @@ async function buildUserAccessSnapshot(
     };
   }
 
-  const usageDayKey = getSaoPauloDayKey(now);
-  const [
-    activeSubscription,
-    todayRouteUsage,
-    routeCreditsBalance,
-    dailySubscriptionUsage,
-    activeWorkspaceAccess,
-    scheduledSubscriptions,
-  ] =
-    await Promise.all([
-      getActiveSubscriptionFromDb(prisma, user.id, now),
-      getTodayRouteUsage(user.id, now),
-      getRouteCreditBalance(user.id),
-      getDailySubscriptionUsageFromDb(prisma, user.id, usageDayKey),
-      getActiveWorkspaceAccessFromDb(prisma, user.id),
-      getScheduledSubscriptions(user.id, now),
-    ]);
+  if (!facts) throw new Error("Account access facts required");
+  const {
+    activeSubscription, todayRouteUsage, dailySubscriptionUsage, activeWorkspaceAccess, scheduledSubscriptions,
+  } = facts;
   const serializedWorkspaceAccess = activeWorkspaceAccess
     ? serializeActiveWorkspaceAccess(activeWorkspaceAccess)
     : null;
@@ -367,7 +475,7 @@ async function buildUserAccessSnapshot(
     !isBlocked &&
     (hasActiveSubscription || hasRouteCredit || !!serializedWorkspaceAccess);
   const subscriptionCycle = activeSubscription
-    ? await getSubscriptionCycleAllowanceFromDb(prisma, activeSubscription, now)
+    ? getSubscriptionCycleAllowance(activeSubscription, now, facts.cycleUsed)
     : {
         cycleAllowance: 0,
         cycleUsed: 0,

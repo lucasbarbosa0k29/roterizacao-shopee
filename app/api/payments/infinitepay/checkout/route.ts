@@ -1,4 +1,4 @@
-import { readCheckoutRequest, startInfinitePayCheckout } from "@/app/lib/infinitepay-checkout";
+import { logInfinitePayCheckoutFailure, readCheckoutRequest, startInfinitePayCheckout } from "@/app/lib/infinitepay-checkout";
 import { infinitePayAppOrigin, infinitePayCheckoutEnabled } from "@/app/lib/infinitepay";
 import { paymentSessionUserId, readPaymentJson } from "@/app/lib/payment-http";
 
@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!infinitePayCheckoutEnabled()) return Response.json({ state: "DISABLED" }, { status: 503 });
+  const startedAt = performance.now();
   try {
     if (request.headers.get("origin") !== infinitePayAppOrigin()) {
       return Response.json({ state: "FORBIDDEN" }, { status: 403 });
@@ -18,8 +19,8 @@ export async function POST(request: Request) {
     const status = result.state === "READY" ? 200 : result.state === "CHECKOUT_PENDING" ? 202 :
       result.state === "UNAUTHORIZED" ? 401 : 409;
     return Response.json(result, { status });
-  } catch {
-    console.error("InfinitePay checkout: unable to initialise order");
+  } catch (error) {
+    logInfinitePayCheckoutFailure("order", error, startedAt);
     return Response.json({ state: "UNAVAILABLE" }, { status: 503 });
   }
 }

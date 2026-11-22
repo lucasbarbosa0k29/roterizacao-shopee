@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
 import { authOptions } from "@/app/lib/auth";
-import { getUserAccessSnapshot } from "@/app/lib/access-control";
+import { accessAccountSelect, getAdminAccessSnapshots } from "@/app/lib/access-control";
+import { adminPage, readAdminPagination } from "@/app/lib/admin-pagination";
+import { getAdminFinancialSummary, listAdminSubscriptionIds } from "@/app/lib/admin-subscription-list";
 import { requireSuperAdmin } from "@/app/lib/admin-roles";
-import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError, startedSubscription } from "@/app/lib/subscription-cycles";
+import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
 
 export const runtime = "nodejs";
 
@@ -59,48 +61,6 @@ type AdminActionSnapshot = {
     name: string | null;
     email: string;
   };
-};
-
-type SubscriptionHistoryRow = {
-  id: string;
-  userId: string;
-  name: string | null;
-  email: string;
-  role: "ADMIN" | "USER";
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-  access: Awaited<ReturnType<typeof getUserAccessSnapshot>>;
-  currentSubscription: ActiveSubscriptionSnapshot | null;
-  latestSubscription: ActiveSubscriptionSnapshot | null;
-  latestPayment: PaymentTransactionSnapshot | null;
-  recentPayments: PaymentTransactionSnapshot[];
-  recentRouteCredits: RouteCreditSnapshot[];
-  recentAdminActions: AdminActionSnapshot[];
-  planOrigin: "manual" | "Mercado Pago" | "Asaas" | "InfinitePay" | "avulso" | "sem plano";
-  subscriptionStatusLabel: string;
-  creditsAvailable: number;
-  creditsUsedInCycle: number;
-  cycleStartAt: string | null;
-  cycleExpiresAt: string | null;
-};
-
-type FinancialSummary = {
-  revenueCommercialTotalCents: number;
-  revenueCommercialMonthCents: number;
-  revenueCommercial30dCents: number;
-  revenueInternalTestTotalCents: number;
-  revenueInternalTestMonthCents: number;
-  mrrBasicCents: number;
-  mrrProCents: number;
-  mrrTotalCents: number;
-  basicPlansSold: number;
-  proPlansSold: number;
-  plansSold: number;
-  extraRouteTransactions: number;
-  extraRouteUnits: number;
-  extraRouteRevenueCents: number;
-  ticketAverageCents: number;
 };
 
 function addDays(base: Date, days: number) {
@@ -240,336 +200,95 @@ function serializeAdminAction(log: any): AdminActionSnapshot {
   };
 }
 
-function normalizeDateString(value: string | Date | null | undefined) {
-  if (!value) return null;
-  return value instanceof Date ? value.toISOString() : value;
-}
-
-function getPlanOrigin(
-  user: SubscriptionHistoryRow
-): "manual" | "Mercado Pago" | "Asaas" | "InfinitePay" | "avulso" | "sem plano" {
-  const active = user.currentSubscription;
-  const latestPayment = user.latestPayment;
-
-  if (active) {
-    if (active.source === "INFINITEPAY_LINK") return "InfinitePay";
-    if (active.source === "ADMIN_GRANT" || active.source === "TRIAL") {
-      return "manual";
-    }
-
-    if (
-      latestPayment?.provider === "ASAAS" &&
-      ["APPROVED", "FULFILLED"].includes(latestPayment.status)
-    ) {
-      return "Asaas";
-    }
-
-    if (active.source === "MANUAL_PAYMENT") {
-      return "Mercado Pago";
-    }
-  }
-
-  if (
-    latestPayment &&
-    (latestPayment.productType === "BASIC_PLAN" || latestPayment.productType === "PRO_PLAN") &&
-    ["APPROVED", "FULFILLED"].includes(latestPayment.status)
-  ) {
-    if (latestPayment.provider === "INFINITEPAY") return "InfinitePay";
-    return latestPayment.provider === "ASAAS" ? "Asaas" : "Mercado Pago";
-  }
-
-  if (user.creditsAvailable > 0) {
-    return "avulso";
-  }
-
-  return "sem plano";
-}
-
-function getSubscriptionStatusLabel(user: SubscriptionHistoryRow) {
-  if (user.access.isBlocked) return "BLOQUEADO";
-  if (user.currentSubscription) return "ATIVO";
-  if (user.latestPayment && ["PENDING", "REQUIRES_ACTION"].includes(user.latestPayment.status)) {
-    return "PAGAMENTO PENDENTE";
-  }
-
-  if (
-    user.latestSubscription &&
-    user.latestSubscription.expiresAt &&
-    new Date(user.latestSubscription.expiresAt).getTime() < Date.now()
-  ) {
-    return "VENCIDO";
-  }
-
-  if (user.latestSubscription?.status === "REVOKED") {
-    return "PAUSADO";
-  }
-
-  if (user.latestSubscription?.status === "EXPIRED") {
-    return "VENCIDO";
-  }
-
-  return user.creditsAvailable > 0 ? "COM CRÉDITOS" : "SEM PLANO";
-}
-
-const FINANCIAL_INTERNAL_EMAILS = new Set(["teste123@gmail.com", "123@gmail.com"]);
-
-function isCommercialUser(user: { role: "ADMIN" | "USER"; email: string }) {
-  return user.role === "USER" && !FINANCIAL_INTERNAL_EMAILS.has(user.email.toLowerCase());
-}
-
-function isInternalOrTestUser(user: { role: "ADMIN" | "USER"; email: string }) {
-  return user.role === "ADMIN" || FINANCIAL_INTERNAL_EMAILS.has(user.email.toLowerCase());
-}
-
-async function buildUserRow(user: {
-  id: string;
-  name: string | null;
-  email: string;
-  role: "ADMIN" | "USER";
-  active: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  const [access, subscriptions, paymentTransactions, routeCredits, adminActions] =
-    await Promise.all([
-      getUserAccessSnapshot(user.id),
-      prisma.userSubscription.findMany({
-        where: { userId: user.id },
-        orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
-        take: 8,
-        include: {
-          plan: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-              durationDays: true,
-              dailyRouteLimit: true,
-              isUnlimited: true,
-              isActive: true,
-            },
-          },
-        },
-      }),
-      prisma.paymentTransaction.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 8,
-      }),
-      prisma.routeCredit.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-      prisma.adminAccessLog.findMany({
-        where: { targetUserId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        include: {
-          admin: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      }),
-    ]);
-
-  const currentSubscription = access.activeSubscription;
-  const latestSubscription = subscriptions.find((item) => item.startsAt <= new Date()) ?? null;
-  const latestPayment = paymentTransactions[0] ?? null;
-  const routeCreditsBalance = access.routeCreditsBalance;
-  const creditsAvailable = routeCreditsBalance + access.subscriptionCycleRemaining;
-
-  const row: SubscriptionHistoryRow = {
-    id: user.id,
-    userId: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    active: user.active,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
-    access,
-    currentSubscription,
-    latestSubscription: latestSubscription ? serializeSubscriptionRow(latestSubscription) : null,
-    latestPayment: latestPayment ? serializePaymentTransaction(latestPayment) : null,
-    recentPayments: paymentTransactions.map(serializePaymentTransaction),
-    recentRouteCredits: routeCredits.map(serializeRouteCredit),
-    recentAdminActions: adminActions.map(serializeAdminAction),
-    planOrigin: "sem plano",
-    subscriptionStatusLabel: "SEM PLANO",
-    creditsAvailable,
-    creditsUsedInCycle: access.subscriptionCycleUsed,
-    cycleStartAt:
-      normalizeDateString(access.activeSubscription?.startsAt) ??
-      normalizeDateString(latestSubscription?.startsAt) ??
-      null,
-    cycleExpiresAt:
-      normalizeDateString(access.activeSubscription?.expiresAt) ??
-      normalizeDateString(latestSubscription?.expiresAt) ??
-      null,
-  };
-
-  row.planOrigin = getPlanOrigin(row);
-  row.subscriptionStatusLabel = getSubscriptionStatusLabel(row);
-
-  return row;
-}
-
-async function buildFinancialSummary(): Promise<FinancialSummary> {
-  const approvedPayments = await prisma.paymentTransaction.findMany({
-    where: {
-      status: {
-        in: ["APPROVED", "FULFILLED"],
-      },
-    },
-    select: {
-      productType: true,
-      quantity: true,
-      amountCents: true,
-      createdAt: true,
-      user: {
-        select: {
-          role: true,
-          email: true,
-        },
-      },
-    },
-  });
-
-  const activeSubscriptions = await prisma.userSubscription.findMany({
-    where: {
-      ...startedSubscription(new Date()),
-      expiresAt: {
-        gt: new Date(),
-      },
-      plan: {
-        code: {
-          in: ["BASIC", "PRO"],
-        },
-        isActive: true,
-      },
-      user: {
-        role: "USER",
-        email: {
-          notIn: Array.from(FINANCIAL_INTERNAL_EMAILS),
-        },
-      },
-    },
-    select: {
-      plan: {
-        select: {
-          code: true,
-          dailyRouteLimit: true,
-        },
-      },
-    },
-  });
-
-  const commercialPayments = approvedPayments.filter((payment) => isCommercialUser(payment.user));
-  const internalTestPayments = approvedPayments.filter((payment) => isInternalOrTestUser(payment.user));
-
-  const revenueCommercialTotalCents = commercialPayments.reduce((sum, payment) => sum + payment.amountCents, 0);
-  const revenueCommercialMonthCents = commercialPayments.reduce((sum, payment) => {
-    return payment.createdAt >= new Date(new Date().getFullYear(), new Date().getMonth(), 1) ? sum + payment.amountCents : sum;
-  }, 0);
-  const revenueCommercial30dCents = commercialPayments.reduce((sum, payment) => {
-    return payment.createdAt >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) ? sum + payment.amountCents : sum;
-  }, 0);
-  const revenueInternalTestTotalCents = internalTestPayments.reduce((sum, payment) => sum + payment.amountCents, 0);
-  const revenueInternalTestMonthCents = internalTestPayments.reduce((sum, payment) => {
-    return payment.createdAt >= new Date(new Date().getFullYear(), new Date().getMonth(), 1) ? sum + payment.amountCents : sum;
-  }, 0);
-
-  const planPayments = commercialPayments.filter((payment) => payment.productType === "BASIC_PLAN" || payment.productType === "PRO_PLAN");
-  const basicPlansSold = planPayments.filter((payment) => payment.productType === "BASIC_PLAN").length;
-  const proPlansSold = planPayments.filter((payment) => payment.productType === "PRO_PLAN").length;
-  const plansSold = planPayments.length;
-  const extraRoutePayments = commercialPayments.filter((payment) => payment.productType === "EXTRA_ROUTE");
-  const extraRouteTransactions = extraRoutePayments.length;
-  const extraRouteUnits = extraRoutePayments.reduce((sum, payment) => sum + payment.quantity, 0);
-  const extraRouteRevenueCents = extraRoutePayments.reduce((sum, payment) => sum + payment.amountCents, 0);
-
-  const ticketAverageCents =
-    commercialPayments.length > 0
-      ? revenueCommercialTotalCents / commercialPayments.length
-      : 0;
-
-  const mrrBasicUsers = activeSubscriptions.filter((sub) => sub.plan.code === "BASIC").length;
-  const mrrProUsers = activeSubscriptions.filter((sub) => sub.plan.code === "PRO").length;
-  const mrrBasicCents = mrrBasicUsers * 3999;
-  const mrrProCents = mrrProUsers * 6999;
-
-  return {
-    revenueCommercialTotalCents,
-    revenueCommercialMonthCents,
-    revenueCommercial30dCents,
-    revenueInternalTestTotalCents,
-    revenueInternalTestMonthCents,
-    mrrBasicCents,
-    mrrProCents,
-    mrrTotalCents: mrrBasicCents + mrrProCents,
-    basicPlansSold,
-    proPlansSold,
-    plansSold,
-    extraRouteTransactions,
-    extraRouteUnits,
-    extraRouteRevenueCents,
-    ticketAverageCents,
-  };
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!requireSuperAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const users = await prisma.user.findMany({
-      orderBy: [{ createdAt: "desc" }, { email: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        active: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const params = new URL(request.url).searchParams;
+    const userId = params.get("historyFor");
+    if (userId !== null) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(userId)) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+      const payments = await prisma.paymentTransaction.findMany({
+        where: { userId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 8,
+      });
+      const credits = await prisma.routeCredit.findMany({
+        where: { userId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 10,
+      });
+      const actions = await prisma.adminAccessLog.findMany({
+        where: { targetUserId: userId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 10,
+        include: { admin: { select: { id: true, name: true, email: true } } },
+      });
+      return NextResponse.json({
+        recentPayments: payments.map(serializePaymentTransaction),
+        recentRouteCredits: credits.map(serializeRouteCredit),
+        recentAdminActions: actions.map(serializeAdminAction),
+      });
+    }
+
+    const now = new Date();
+    const { requestedPage, pageSize, query } = readAdminPagination(params);
+    const list = await listAdminSubscriptionIds(now, params.get("filter") ?? "ALL", query, requestedPage, pageSize);
+    const ids = list.rows.map((row) => row.id);
+    const users = ids.length ? await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { ...accessAccountSelect, name: true, email: true, createdAt: true, updatedAt: true },
+    }) : [];
+    const access = await getAdminAccessSnapshots(users, now);
+    const subscriptionIds = list.rows.flatMap((row) => row.latestSubscriptionId ? [row.latestSubscriptionId] : []);
+    const subscriptions = subscriptionIds.length ? await prisma.userSubscription.findMany({
+      where: { id: { in: subscriptionIds } },
+      include: { plan: true },
+    }) : [];
+    const paymentIds = list.rows.flatMap((row) => row.latestPaymentId ? [row.latestPaymentId] : []);
+    const payments = paymentIds.length ? await prisma.paymentTransaction.findMany({
+      where: { id: { in: paymentIds } },
+    }) : [];
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const subscriptionsById = new Map(subscriptions.map((subscription) => [subscription.id, serializeSubscriptionRow(subscription)]));
+    const paymentsById = new Map(payments.map((payment) => [payment.id, serializePaymentTransaction(payment)]));
+    const financialSummary = await getAdminFinancialSummary(now);
+
+    const rows = list.rows.flatMap((row) => {
+      const user = usersById.get(row.id);
+      const snapshot = access.get(row.id);
+      if (!user || !snapshot) return [];
+      const { id, name, email, role, active, createdAt, updatedAt } = user;
+      const latestSubscription = row.latestSubscriptionId ? subscriptionsById.get(row.latestSubscriptionId) ?? null : null;
+      const current = snapshot.activeSubscription;
+      return [{
+        id, userId: id, name, email, role, active, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
+        access: snapshot,
+        currentSubscription: current,
+        latestSubscription,
+        latestPayment: row.latestPaymentId ? paymentsById.get(row.latestPaymentId) ?? null : null,
+        planOrigin: row.planOrigin,
+        subscriptionStatusLabel: row.subscriptionStatusLabel,
+        creditsAvailable: snapshot.routeCreditsBalance + snapshot.subscriptionCycleRemaining,
+        creditsUsedInCycle: snapshot.subscriptionCycleUsed,
+        cycleStartAt: current?.startsAt ?? latestSubscription?.startsAt ?? null,
+        cycleExpiresAt: current?.expiresAt ?? latestSubscription?.expiresAt ?? null,
+      }];
     });
-
-    const rows = await Promise.all(users.map((user) => buildUserRow(user)));
-    const financialSummary = await buildFinancialSummary();
-
-    const summary = {
-      totalUsers: rows.length,
-      activeUsers: rows.filter((row) => row.active).length,
-      inactiveUsers: rows.filter((row) => !row.active).length,
-      activePlans: rows.filter((row) => !!row.currentSubscription).length,
-      basicPlans: rows.filter((row) => row.currentSubscription?.code === "BASIC").length,
-      proPlans: rows.filter((row) => row.currentSubscription?.code === "PRO").length,
-      freePlans: rows.filter((row) => row.currentSubscription?.code === "FREE").length,
-      usersWithCredits: rows.filter((row) => row.access.routeCreditsBalance > 0).length,
-      expiredPlans: rows.filter((row) => row.subscriptionStatusLabel === "VENCIDO").length,
-      pendingPayments: rows.filter((row) => row.subscriptionStatusLabel === "PAGAMENTO PENDENTE").length,
-    };
 
     return NextResponse.json({
       ok: true,
-      summary,
+      summary: list.summary,
       financialSummary,
+      pagination: adminPage(requestedPage, pageSize, list.total),
       users: rows,
     });
   } catch (error) {
     console.error("Erro admin subscriptions GET:", error);
-    return NextResponse.json(
-      { error: "Erro ao listar assinaturas." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao listar assinaturas." }, { status: 500 });
   }
 }
 
@@ -868,20 +587,7 @@ export async function PATCH(req: Request, ctx: any) {
       return NextResponse.json({ error: "Ação administrativa inválida." }, { status: 400 });
     }
 
-    const refreshed = await buildUserRow({
-      id: targetUser.id,
-      name: targetUser.name,
-      email: targetUser.email,
-      role: targetUser.role,
-      active: targetUser.active,
-      createdAt: targetUser.createdAt,
-      updatedAt: targetUser.updatedAt,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      user: refreshed,
-    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof ScheduledRenewalError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("Erro admin subscriptions PATCH:", error);

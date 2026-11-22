@@ -134,6 +134,7 @@ try {
   const status = await new Promise((resolveStatus, reject) => {
     const suites = ['tests/account-security.integration.test.ts'];
     if (process.argv.includes('--with-infinitepay')) suites.push('tests/infinitepay.integration.test.ts');
+    if (process.argv.includes('--with-payment-load')) suites.push('tests/admin-payment-load.integration.test.ts');
     const child = spawn(process.execPath, ['--import', 'tsx', '--test', '--test-concurrency=1', ...suites], { cwd: root, env, stdio: 'inherit', windowsHide: true });
     child.on('error', reject); child.on('exit', code => resolveStatus(code ?? 1));
   });

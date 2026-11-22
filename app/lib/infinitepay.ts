@@ -55,6 +55,8 @@ async function post(path: "/links" | "/payment_check", key: string, payload: unk
     return data;
   } catch (error) {
     if (error instanceof InfinitePayError) throw error;
+    if (error instanceof SyntaxError) throw new InfinitePayError("INVALID_RESPONSE");
+    if (error instanceof Error && error.name === "TimeoutError") throw new InfinitePayError("TIMEOUT");
     throw new InfinitePayError("COMMUNICATION_FAILURE");
   }
 }

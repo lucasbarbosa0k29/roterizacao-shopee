@@ -7,35 +7,15 @@ import bcrypt from "bcrypt";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { passwordPolicyError } from "@/app/lib/password-policy.js";
-import { getAdminUserAccessSnapshot } from "@/app/lib/access-control";
+import type { Prisma } from "@prisma/client";
+import { accessAccountSelect, getAdminAccessSnapshots } from "@/app/lib/access-control";
+import { adminPage, readAdminPagination } from "@/app/lib/admin-pagination";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
 import {
   DUPLICATE_WHATSAPP_MESSAGE,
   INVALID_WHATSAPP_MESSAGE,
   normalizeBrazilianWhatsapp,
 } from "@/app/lib/whatsapp";
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  mapper: (item: T, index: number) => Promise<R>
-) {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex++;
-      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => worker())
-  );
-
-  return results;
-}
 
 async function logAdminAction(
   tx: any,
@@ -57,44 +37,51 @@ async function logAdminAction(
 }
 
 // ✅ LISTAR USUÁRIOS
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!requireAdmin(session?.user as any)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const params = new URL(request.url).searchParams;
+    const { query, requestedPage, pageSize } = readAdminPagination(params);
+    const where: Prisma.UserWhereInput = {};
     const canSeeAdmins = isSuperAdmin(session?.user as any);
-
+    if (!canSeeAdmins) where.role = "USER";
+    if (params.get("active") === "1") where.active = true;
+    if (query) {
+      const contains = query.replace(/[\\%_]/g, "\\$&");
+      where.OR = [
+        { name: { contains, mode: "insensitive" } },
+        { email: { contains, mode: "insensitive" } },
+        ...(["ADMIN", "USER"] as const).filter((role) => role.includes(query.toUpperCase())).map((role) => ({ role })),
+      ];
+    }
+    const pagination = adminPage(requestedPage, pageSize, await prisma.user.count({ where }));
     const users = await prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ name: { sort: "asc", nulls: "last" } }, { email: "asc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pageSize,
+      take: pageSize,
       select: {
-        id: true,
+        ...accessAccountSelect,
         name: true,
         email: true,
-        role: true,
-        active: true,
-        accessBlockedAt: true,
-        accessBlockReason: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    const visibleUsers = canSeeAdmins
-      ? users
-      : users.filter((user) => user.role !== "ADMIN");
-
-    const usersWithAccess = await mapWithConcurrency(
-      visibleUsers,
-      2,
-      async (user) => ({
+    const access = await getAdminAccessSnapshots(users, new Date());
+    return NextResponse.json({
+      ok: true,
+      pagination,
+      users: users.map(({ emailVerificationRequired: _required, emailVerifiedAt: _verified, ...user }) => ({
         ...user,
-        access: await getAdminUserAccessSnapshot(user.id),
-      })
-    );
-
-    return NextResponse.json({ ok: true, users: usersWithAccess });
+        access: access.get(user.id),
+      })),
+    });
   } catch (e) {
     console.error("Erro admin list users:", e);
     return NextResponse.json({ error: "Erro ao listar usuários." }, { status: 500 });

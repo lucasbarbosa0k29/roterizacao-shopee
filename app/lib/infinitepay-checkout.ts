@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { Prisma, type PaymentTransaction } from "@prisma/client";
 import { prisma } from "./prisma";
 import { canUseAccount } from "./account-security";
 import {
   createInfinitePayLink, INFINITEPAY_PRODUCTS, infinitePayAppOrigin, infinitePayCredentials,
-  isRecord, paymentReference,
+  InfinitePayError, isRecord, paymentReference,
 } from "./infinitepay";
 import { hasConflictingPaidCycle, lockSubscriptionOwner } from "./subscription-cycles";
 
@@ -23,6 +24,57 @@ export function readCheckoutRequest(body: unknown, header: string | null) {
 }
 
 type CheckoutInput = NonNullable<ReturnType<typeof readCheckoutRequest>>;
+
+export function logInfinitePayCheckoutFailure(
+  stage: "order" | "provider" | "mark-review" | "save-link",
+  error: unknown,
+  startedAt: number,
+  orderNsu?: string | null,
+) {
+  const code = error instanceof Prisma.PrismaClientKnownRequestError && /^P\d{4}$/.test(error.code)
+    ? error.code
+    : error instanceof InfinitePayError && /^(HTTP_[1-5]\d{2}|TIMEOUT|COMMUNICATION_FAILURE|INVALID_RESPONSE|INVALID_LINK|APP_URL_INVALID|CONFIG_MISSING)$/.test(error.message)
+      ? error.message
+      : "UNEXPECTED";
+  console.error("InfinitePay checkout", {
+    stage,
+    code,
+    durationMs: Math.round(performance.now() - startedAt),
+    orderTrace: orderNsu ? createHash("sha256").update(orderNsu).digest("hex").slice(0, 16) : undefined,
+  });
+}
+
+const issuanceSelect = {
+  externalReference: true, status: true, checkoutExpiresAt: true,
+  infinitePayCheckoutUrl: true, checkoutAttempts: true, checkoutRetryAt: true,
+} as const;
+
+function readIssuanceState(payment: Pick<PaymentTransaction, keyof typeof issuanceSelect>, now: Date) {
+  const orderNsu = payment.externalReference;
+  if (payment.status !== "PENDING") return { state: "ORDER_CLOSED", orderNsu } as const;
+  if (!payment.checkoutExpiresAt || payment.checkoutExpiresAt <= now) return { state: "EXPIRED", orderNsu } as const;
+  if (payment.infinitePayCheckoutUrl) {
+    return { state: "READY", orderNsu, checkoutUrl: payment.infinitePayCheckoutUrl } as const;
+  }
+  if (payment.checkoutRetryAt && payment.checkoutRetryAt > now) return { state: "CHECKOUT_PENDING", orderNsu } as const;
+  return { state: "CHECKOUT_REVIEW", orderNsu } as const;
+}
+
+async function rereadIssuance(id: string, orderNsu: string | null) {
+  const payment = await prisma.paymentTransaction.findUnique({ where: { id }, select: issuanceSelect });
+  return payment ? readIssuanceState(payment, new Date()) : { state: "ORDER_CLOSED", orderNsu } as const;
+}
+
+async function markIssuanceForReview(where: Prisma.PaymentTransactionWhereInput, id: string, orderNsu: string | null) {
+  const startedAt = performance.now();
+  try {
+    const marked = await prisma.paymentTransaction.updateMany({ where, data: { checkoutRetryAt: null } });
+    if (!marked.count) return await rereadIssuance(id, orderNsu);
+  } catch (error) {
+    logInfinitePayCheckoutFailure("mark-review", error, startedAt, orderNsu);
+  }
+  return { state: "CHECKOUT_REVIEW", orderNsu } as const;
+}
 
 export async function startInfinitePayCheckout(userId: string, input: CheckoutInput) {
   const { key, handle } = infinitePayCredentials();
@@ -91,7 +143,7 @@ export async function startInfinitePayCheckout(userId: string, input: CheckoutIn
     return { payment } as const;
   }, { isolationLevel: "ReadCommitted" });
 
-  if (!order.payment) return { state: order.state };
+  if (!order.payment) return { state: order.state, orderNsu: undefined };
   const payment = order.payment;
   const orderNsu = payment.externalReference;
   const now = new Date();
@@ -99,13 +151,7 @@ export async function startInfinitePayCheckout(userId: string, input: CheckoutIn
   if (!payment.checkoutExpiresAt || payment.checkoutExpiresAt <= now) return { state: "EXPIRED", orderNsu } as const;
   const storedInput = payment.infinitePayCheckoutInput;
   if (!isRecord(storedInput) || storedInput.handle !== handle) return { state: "CHECKOUT_REVIEW", orderNsu } as const;
-  if (payment.infinitePayCheckoutUrl) {
-    return { state: "READY", orderNsu, checkoutUrl: payment.infinitePayCheckoutUrl } as const;
-  }
-  if (payment.checkoutAttempts > 0) {
-    const state = payment.checkoutRetryAt && payment.checkoutRetryAt > now ? "CHECKOUT_PENDING" : "CHECKOUT_REVIEW";
-    return { state, orderNsu } as const;
-  }
+  if (payment.infinitePayCheckoutUrl || payment.checkoutAttempts > 0) return readIssuanceState(payment, now);
 
   const claimed = await prisma.paymentTransaction.updateMany({
     where: {
@@ -114,14 +160,30 @@ export async function startInfinitePayCheckout(userId: string, input: CheckoutIn
     },
     data: { checkoutAttempts: { increment: 1 }, checkoutRetryAt: new Date(now.getTime() + ISSUANCE_WINDOW_MS) },
   });
-  if (!claimed.count) return { state: "CHECKOUT_PENDING", orderNsu } as const;
+  if (!claimed.count) return rereadIssuance(payment.id, orderNsu);
 
-  const link = await createInfinitePayLink(key, storedInput).catch(() => null);
-  if (!link) return { state: "CHECKOUT_REVIEW", orderNsu } as const;
-  const saved = await prisma.paymentTransaction.updateMany({
-    where: { id: payment.id, status: "PENDING", checkoutAttempts: 1, infinitePayCheckoutUrl: null },
-    data: { infinitePayCheckoutUrl: link.url, infinitePaySlug: link.slug, checkoutRetryAt: null },
-  });
-  if (!saved.count) return { state: "CHECKOUT_PENDING", orderNsu } as const;
+  const unissuedOrder = { id: payment.id, status: "PENDING", checkoutAttempts: 1, infinitePayCheckoutUrl: null } as const;
+  const providerStartedAt = performance.now();
+  let link: Awaited<ReturnType<typeof createInfinitePayLink>>;
+  try {
+    link = await createInfinitePayLink(key, storedInput);
+  } catch (error) {
+    logInfinitePayCheckoutFailure("provider", error, providerStartedAt, orderNsu);
+    return markIssuanceForReview(unissuedOrder, payment.id, orderNsu);
+  }
+
+  const saveStartedAt = performance.now();
+  try {
+    const saved = await prisma.paymentTransaction.updateMany({
+      where: unissuedOrder,
+      data: { infinitePayCheckoutUrl: link.url, infinitePaySlug: link.slug, checkoutRetryAt: null },
+    });
+    if (!saved.count) return await rereadIssuance(payment.id, orderNsu);
+  } catch (error) {
+    // The provider may already have created a payable link. Keep the durable
+    // attempt so a database failure never becomes another call to /links.
+    logInfinitePayCheckoutFailure("save-link", error, saveStartedAt, orderNsu);
+    return markIssuanceForReview(unissuedOrder, payment.id, orderNsu);
+  }
   return { state: "READY", orderNsu, checkoutUrl: link.url } as const;
 }

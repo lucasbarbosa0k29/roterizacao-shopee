@@ -2,6 +2,7 @@
 
 import {
   Children,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import type { AdminPage } from "@/app/lib/admin-pagination";
+import AdminPagination from "../AdminPagination";
 
 type SubscriptionStatusLabel =
   | "ATIVO"
@@ -95,39 +98,6 @@ type SubscriptionUserRow = {
     fulfilledSourceId: string | null;
     externalReference: string;
   } | null;
-  recentPayments: Array<{
-    id: string;
-    provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
-    fulfillmentReviewReason: string | null;
-    productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
-    quantity: number;
-    amountCents: number;
-    currency: string;
-    status: string;
-    createdAt: string;
-    approvedAt: string | null;
-    fulfilledAt: string | null;
-    fulfilledSourceId: string | null;
-    externalReference: string;
-  }>;
-  recentRouteCredits: Array<{
-    id: string;
-    delta: number;
-    reason: string;
-    notes: string | null;
-    createdAt: string;
-  }>;
-  recentAdminActions: Array<{
-    id: string;
-    action: string;
-    metadata: unknown;
-    createdAt: string;
-    admin: {
-      id: string;
-      name: string | null;
-      email: string;
-    };
-  }>;
   planOrigin: PlanOrigin;
   subscriptionStatusLabel: SubscriptionStatusLabel;
   creditsAvailable: number;
@@ -167,11 +137,48 @@ type FinancialSummary = {
   ticketAverageCents: number;
 };
 
+type SubscriptionHistory = {
+  recentPayments: Array<{
+    id: string;
+    provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
+    fulfillmentReviewReason: string | null;
+    productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
+    quantity: number;
+    amountCents: number;
+    currency: string;
+    status: string;
+    createdAt: string;
+    approvedAt: string | null;
+    fulfilledAt: string | null;
+    fulfilledSourceId: string | null;
+    externalReference: string;
+  }>;
+  recentRouteCredits: Array<{
+    id: string;
+    delta: number;
+    reason: string;
+    notes: string | null;
+    createdAt: string;
+  }>;
+  recentAdminActions: Array<{
+    id: string;
+    action: string;
+    metadata: unknown;
+    createdAt: string;
+    admin: {
+      id: string;
+      name: string | null;
+      email: string;
+    };
+  }>;
+};
+
 type AdminSubscriptionsResponse = {
   ok: true;
   summary: Summary;
   financialSummary: FinancialSummary;
   users: SubscriptionUserRow[];
+  pagination: AdminPage;
 };
 
 type FilterKey =
@@ -196,7 +203,7 @@ type MenuState = {
 type MenuPosition = Omit<MenuState, "userId">;
 
 type ModalState =
-  | { kind: "history"; user: SubscriptionUserRow }
+  | { kind: "history"; user: SubscriptionUserRow; history?: SubscriptionHistory; failed?: boolean }
   | {
       kind: "plan";
       user: SubscriptionUserRow;
@@ -313,6 +320,10 @@ function getStatusColor(status: SubscriptionStatusLabel) {
 }
 
 export default function AdminSubscriptionsPage() {
+  const [page, setPage] = useState(1);
+  const [refresh, setRefresh] = useState(0);
+  const [pagination, setPagination] = useState<AdminPage | null>(null);
+  const listRequest = useRef<AbortController | null>(null);
   const [users, setUsers] = useState<SubscriptionUserRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
@@ -326,12 +337,17 @@ export default function AdminSubscriptionsPage() {
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
     try {
       setLoading(true);
       setError(null);
 
-      const res = await fetch("/api/admin/subscriptions", {
+      const params = new URLSearchParams({ page: String(page), filter, q: query.trim() });
+      const res = await fetch(`/api/admin/subscriptions?${params}`, {
+        signal: controller.signal,
         method: "GET",
         credentials: "include",
         cache: "no-store",
@@ -342,8 +358,10 @@ export default function AdminSubscriptionsPage() {
         error?: string;
       };
 
+      if (controller.signal.aborted) return;
       if (!res.ok) {
         setUsers([]);
+        setPagination(null);
         setSummary(null);
         setFinancialSummary(null);
         setError(data.error || "Erro ao carregar assinaturas.");
@@ -351,22 +369,42 @@ export default function AdminSubscriptionsPage() {
       }
 
       setUsers(Array.isArray(data.users) ? data.users : []);
+      setPagination(data.pagination ?? null);
       setSummary(data.summary ?? null);
       setFinancialSummary((data as Partial<AdminSubscriptionsResponse>).financialSummary ?? null);
-    } catch (loadError) {
-      console.error("Erro ao carregar assinaturas:", loadError);
+    } catch {
+      if (controller.signal.aborted) return;
       setUsers([]);
+      setPagination(null);
       setSummary(null);
       setFinancialSummary(null);
       setError("Erro ao carregar assinaturas.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }
+  }, [page, filter, query]);
 
   useEffect(() => {
-    load();
-  }, []);
+    const timer = window.setTimeout(() => void load(), 200);
+    return () => {
+      window.clearTimeout(timer);
+      listRequest.current?.abort();
+    };
+  }, [load, refresh]);
+
+  async function openHistory(user: SubscriptionUserRow) {
+    const pending = { kind: "history", user } as const;
+    setModal(pending);
+    try {
+      const params = new URLSearchParams({ historyFor: user.id });
+      const response = await fetch(`/api/admin/subscriptions?${params}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("History unavailable");
+      const history = await response.json() as SubscriptionHistory;
+      setModal((current) => current === pending ? { ...pending, history } : current);
+    } catch {
+      setModal((current) => current === pending ? { ...pending, failed: true } : current);
+    }
+  }
 
   useEffect(() => {
     setPortalRoot(document.body);
@@ -476,7 +514,7 @@ export default function AdminSubscriptionsPage() {
       }
 
       setModal(null);
-      await load();
+      setRefresh((value) => value + 1);
     } catch (err) {
       console.error("Erro ao executar ação:", err);
       alert("Erro ao executar ação.");
@@ -484,42 +522,6 @@ export default function AdminSubscriptionsPage() {
       setBusyId(null);
     }
   }
-
-  const filteredUsers = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return users
-      .filter((user) => {
-        if (filter === "ACTIVE" && !user.active) return false;
-        if (filter === "INACTIVE" && user.active) return false;
-        if (filter === "BASIC" && user.currentSubscription?.code !== "BASIC") return false;
-        if (filter === "PRO" && user.currentSubscription?.code !== "PRO") return false;
-        if (filter === "NO_PLAN" && user.currentSubscription) return false;
-        if (filter === "WITH_CREDITS" && user.creditsAvailable <= 0) return false;
-        if (filter === "NO_CREDITS" && user.creditsAvailable > 0) return false;
-        if (filter === "EXPIRED" && user.subscriptionStatusLabel !== "VENCIDO") return false;
-        if (filter === "PENDING" && user.subscriptionStatusLabel !== "PAGAMENTO PENDENTE") return false;
-
-        if (!q) return true;
-
-        const hay = [user.id, user.name, user.email, user.currentSubscription?.code, user.planOrigin]
-          .map((part) => String(part ?? "").toLowerCase())
-          .join(" | ");
-
-        return hay.includes(q);
-      })
-      .sort((a, b) => {
-        const nameA = String(a.name || "").trim();
-        const nameB = String(b.name || "").trim();
-
-        if (!nameA && nameB) return 1;
-        if (nameA && !nameB) return -1;
-
-        return (
-          nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" }) ||
-          a.email.localeCompare(b.email, "pt-BR", { sensitivity: "base" })
-        );
-      });
-  }, [users, filter, query]);
 
   const stats = useMemo(() => {
     const base = summary ?? {
@@ -697,7 +699,7 @@ export default function AdminSubscriptionsPage() {
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setFilter(item.key)}
+                  onClick={() => { setFilter(item.key); setPage(1); }}
                   className={[
                     "rounded-full px-4 py-2 text-sm font-semibold transition",
                     filter === item.key
@@ -726,7 +728,7 @@ export default function AdminSubscriptionsPage() {
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm outline-none ring-0 placeholder:text-slate-400 focus:border-teal-400"
                 placeholder="Ex.: Maria, maria@email.com ou c123..."
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => { setQuery(event.target.value); setPage(1); }}
               />
             </div>
           </div>
@@ -736,7 +738,7 @@ export default function AdminSubscriptionsPage() {
               <div className="p-8 text-slate-600">Carregando assinaturas...</div>
             ) : error ? (
               <div className="p-8 text-rose-700">{error}</div>
-            ) : filteredUsers.length === 0 ? (
+            ) : users.length === 0 ? (
               <div className="p-8 text-slate-600">Nenhum usuário encontrado.</div>
             ) : (
               <table className="w-full min-w-full table-fixed text-[13px]">
@@ -762,7 +764,7 @@ export default function AdminSubscriptionsPage() {
                 </thead>
 
                 <tbody>
-                  {filteredUsers.map((user) => {
+                  {users.map((user) => {
                     const isBusy = busyId === user.id;
                     const activePlan = user.currentSubscription?.code ?? null;
                     const lastPayment = user.latestPayment;
@@ -876,6 +878,7 @@ export default function AdminSubscriptionsPage() {
                 </tbody>
               </table>
             )}
+            {!loading && pagination && <AdminPagination value={pagination} onChange={setPage} />}
           </div>
         </div>
       </div>
@@ -1000,12 +1003,7 @@ export default function AdminSubscriptionsPage() {
                 className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
                 disabled={busyId === menuUser.id}
                 onClick={() =>
-                  closeMenuAndRun(() =>
-                    setModal({
-                      kind: "history",
-                      user: menuUser,
-                    })
-                  )
+                  closeMenuAndRun(() => { void openHistory(menuUser); })
                 }
               >
                 Ver histórico
@@ -1167,9 +1165,14 @@ export default function AdminSubscriptionsPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {!modal.history && (
+              <p className="mt-6 text-sm text-slate-600" role="status">
+                {modal.failed ? "Não foi possível carregar o histórico." : "Carregando histórico..."}
+              </p>
+            )}
+            {modal.history && <div className="mt-6 grid gap-4 lg:grid-cols-3">
               <HistoryPanel title="Pagamentos" emptyLabel="Sem pagamentos recentes">
-                {modal.user.recentPayments.map((payment) => (
+                {modal.history.recentPayments.map((payment) => (
                   <div key={payment.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1193,7 +1196,7 @@ export default function AdminSubscriptionsPage() {
               </HistoryPanel>
 
               <HistoryPanel title="Créditos" emptyLabel="Sem movimentações de crédito">
-                {modal.user.recentRouteCredits.map((credit) => (
+                {modal.history.recentRouteCredits.map((credit) => (
                   <div key={credit.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1222,7 +1225,7 @@ export default function AdminSubscriptionsPage() {
               </HistoryPanel>
 
               <HistoryPanel title="Ações administrativas" emptyLabel="Sem ações recentes">
-                {modal.user.recentAdminActions.map((action) => (
+                {modal.history.recentAdminActions.map((action) => (
                   <div key={action.id} className="max-w-full rounded-2xl border border-slate-200 p-4">
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -1251,7 +1254,7 @@ export default function AdminSubscriptionsPage() {
                   </div>
                 ))}
               </HistoryPanel>
-            </div>
+            </div>}
           </div>
         </div>
       )}

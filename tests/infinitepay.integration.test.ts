@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test, { after, before } from "node:test";
-import type { PaymentProductType } from "@prisma/client";
+import { Prisma, PrismaClient, type PaymentProductType } from "@prisma/client";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 assert.ok(databaseUrl && databaseUrl === process.env.DATABASE_URL && process.env.TEST_DB_RUN_ID);
@@ -22,6 +22,23 @@ const overrides = new Map<string, { paid?: boolean; amount?: number; paidAmount?
 const mercadoPagoPayments = new Map<string, { id: string; status: string; external_reference: string }>();
 const requests: Array<{ path: string; order: string; body: string }> = [];
 let failNextLink = false;
+let nextLinkResponse: (() => Response) | undefined;
+let checkoutWriteFailure: "save" | "save-and-mark" | null = null;
+const failureClient = new PrismaClient({ log: [] }).$extends({
+  query: {
+    paymentTransaction: {
+      async updateMany({ args, query }) {
+        const isSave = typeof args.data.infinitePayCheckoutUrl === "string";
+        const isMark = args.data.checkoutRetryAt === null;
+        if (checkoutWriteFailure && (isSave || (checkoutWriteFailure === "save-and-mark" && isMark))) {
+          throw new Prisma.PrismaClientKnownRequestError("secret connection data", { code: "P2024", clientVersion: "test" });
+        }
+        return query(args);
+      },
+    },
+  },
+});
+Reflect.set(globalThis, "prisma", failureClient);
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const path = String(url);
@@ -42,6 +59,11 @@ globalThis.fetch = async (url, init) => {
     if (failNextLink) {
       failNextLink = false;
       throw new Error("simulated lost response after the gateway received the order");
+    }
+    if (nextLinkResponse) {
+      const respond = nextLinkResponse;
+      nextLinkResponse = undefined;
+      return respond();
     }
     return Response.json({ url: `https://checkout.infinitepay.com.br/pay/${input.order_nsu}`, slug: input.order_nsu });
   }
@@ -363,8 +385,9 @@ test("a lost checkout response is reviewed without issuing a second link", async
   const order = first.orderNsu!;
   const stored = await payment(order);
   assert.equal(stored.infinitePayCheckoutUrl, null);
-  assert.equal((await services.startInfinitePayCheckout(user.id, input)).state, "CHECKOUT_PENDING");
-  await services.prisma.paymentTransaction.update({ where: { id: stored.id }, data: { checkoutRetryAt: new Date(0) } });
+  assert.equal(stored.checkoutRetryAt, null);
+  assert.equal((await services.startInfinitePayCheckout(user.id, input)).state, "CHECKOUT_REVIEW");
+  assert.equal(await services.getInfinitePayOrderStatus(user.id, order), "CHECKOUT_REVIEW");
   const recovered = await services.startInfinitePayCheckout(user.id, { ...input, idempotencyKey: randomUUID() });
   assert.equal(recovered.state, "CHECKOUT_REVIEW");
   assert.equal(recovered.orderNsu, order);
@@ -372,6 +395,102 @@ test("a lost checkout response is reviewed without issuing a second link", async
   assert.equal(matching.length, 1);
   await confirm(order);
   assert.ok((await payment(order)).fulfilledAt);
+});
+
+for (const [code, reply] of [
+  ["HTTP_403", () => new Response("secret response body", { status: 403 })],
+  ["HTTP_429", () => new Response("secret response body", { status: 429 })],
+  ["TIMEOUT", () => { throw new DOMException("secret timeout detail", "TimeoutError"); }],
+  ["INVALID_RESPONSE", () => new Response("{bad json secret response body")],
+  ["INVALID_LINK", () => Response.json({ url: "https://outside.example.test/secret" })],
+] as const) {
+  test(`checkout records a sanitized ${code} and keeps the same order for review`, async (t) => {
+    const logger = t.mock.method(console, "error", () => {});
+    const user = await account();
+    const input = services.readCheckoutRequest({ productType: "EXTRA_ROUTE" }, randomUUID())!;
+    nextLinkResponse = reply;
+    const result = await services.startInfinitePayCheckout(user.id, input);
+    assert.equal(result.state, "CHECKOUT_REVIEW");
+    const orderNsu = result.orderNsu!;
+    const second = await services.startInfinitePayCheckout(user.id, { ...input, idempotencyKey: randomUUID() });
+    assert.equal(second.state, "CHECKOUT_REVIEW");
+    assert.equal(second.orderNsu, orderNsu);
+    assert.equal(requests.filter((request) => request.order === orderNsu).length, 1);
+    assert.equal(logger.mock.calls.length, 1);
+    const entry = logger.mock.calls[0].arguments[1] as { code: string; stage: string; orderTrace: string };
+    assert.equal(entry.code, code);
+    assert.equal(entry.stage, "provider");
+    assert.match(entry.orderTrace, /^[a-f0-9]{16}$/);
+    assert.doesNotMatch(JSON.stringify(logger.mock.calls[0].arguments), /secret|example|synthetic|rotta_/i);
+  });
+}
+
+test("P2024 after the provider created a link records review without reissuing", async (t) => {
+  const logger = t.mock.method(console, "error", () => {});
+  const user = await account();
+  const input = services.readCheckoutRequest({ productType: "EXTRA_ROUTE" }, randomUUID())!;
+  checkoutWriteFailure = "save";
+  const result = await services.startInfinitePayCheckout(user.id, input).finally(() => { checkoutWriteFailure = null; });
+  assert.equal(result.state, "CHECKOUT_REVIEW");
+  const orderNsu = result.orderNsu!;
+  assert.equal((await payment(orderNsu)).checkoutRetryAt, null);
+  assert.equal(await services.getInfinitePayOrderStatus(user.id, orderNsu), "CHECKOUT_REVIEW");
+  assert.equal((await services.startInfinitePayCheckout(user.id, input)).state, "CHECKOUT_REVIEW");
+  assert.equal(requests.filter((request) => request.order === orderNsu).length, 1);
+  assert.match(JSON.stringify(logger.mock.calls[0].arguments), /save-link.*P2024/);
+  assert.doesNotMatch(JSON.stringify(logger.mock.calls[0].arguments), /secret|rotta_/);
+  const capture = randomUUID();
+  await confirm(orderNsu, capture);
+  await confirm(orderNsu, capture);
+  assert.equal(await services.prisma.routeCredit.count({ where: { userId: user.id } }), 1);
+});
+
+test("persistent exhaustion keeps a durable claim and becomes review once its window expires", async (t) => {
+  const logger = t.mock.method(console, "error", () => {});
+  const user = await account();
+  const input = services.readCheckoutRequest({ productType: "EXTRA_ROUTE" }, randomUUID())!;
+  checkoutWriteFailure = "save-and-mark";
+  const result = await services.startInfinitePayCheckout(user.id, input).finally(() => { checkoutWriteFailure = null; });
+  assert.equal(result.state, "CHECKOUT_REVIEW");
+  assert.equal((await services.startInfinitePayCheckout(user.id, input)).state, "CHECKOUT_PENDING");
+  const orderNsu = result.orderNsu!;
+  const stored = await payment(orderNsu);
+  assert.equal(stored.checkoutAttempts, 1);
+  await services.prisma.paymentTransaction.update({ where: { id: stored.id }, data: { checkoutRetryAt: new Date(0) } });
+  const retried = await services.startInfinitePayCheckout(user.id, { ...input, idempotencyKey: randomUUID() });
+  assert.equal(retried.state, "CHECKOUT_REVIEW");
+  assert.equal(retried.orderNsu, orderNsu);
+  assert.equal(requests.filter((request) => request.order === orderNsu).length, 1);
+  assert.match(JSON.stringify(logger.mock.calls[1].arguments), /mark-review.*P2024/);
+});
+
+test("a competing request sees pending only while the provider call is unfinished", async () => {
+  const user = await account();
+  const input = services.readCheckoutRequest({ productType: "EXTRA_ROUTE" }, randomUUID())!;
+  const { promise: providerStarted, resolve: signalProvider } = Promise.withResolvers<void>();
+  const { promise: resumeProvider, resolve: resume } = Promise.withResolvers<void>();
+  const respond = globalThis.fetch;
+  globalThis.fetch = async (...args) => {
+    if (String(args[0]).endsWith("/links")) {
+      signalProvider();
+      await resumeProvider;
+    }
+    return respond(...args);
+  };
+  const first = services.startInfinitePayCheckout(user.id, input);
+  try {
+    await providerStarted;
+    const waiting = await services.startInfinitePayCheckout(user.id, { ...input, idempotencyKey: randomUUID() });
+    assert.equal(waiting.state, "CHECKOUT_PENDING");
+    assert.equal(await services.getInfinitePayOrderStatus(user.id, waiting.orderNsu!), "CHECKOUT_PENDING");
+  } finally {
+    resume();
+    globalThis.fetch = respond;
+    await first;
+  }
+  const ready = await services.startInfinitePayCheckout(user.id, input);
+  assert.equal(ready.state, "READY");
+  assert.equal(requests.filter((request) => request.order === ready.orderNsu).length, 1);
 });
 
 test("mismatched amounts and reused captures never deliver benefits", async () => {

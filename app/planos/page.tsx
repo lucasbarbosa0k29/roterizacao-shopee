@@ -52,6 +52,8 @@ type CheckoutResponse = {
 const paymentMessages: Record<string, string> = {
   COMPLETED: "Pagamento confirmado. Seus benefícios foram atualizados.",
   REVIEW: "Pagamento em análise. Acompanhe o pedido ou fale com o suporte.",
+  CHECKOUT_PENDING: "O link de pagamento está sendo preparado.",
+  CHECKOUT_REVIEW: "Não foi possível confirmar a emissão do link. Fale com o suporte antes de tentar outra compra.",
   PENDING: "Aguardando confirmação do pagamento.",
   EXPIRED: "O prazo do checkout terminou. Um pagamento recebido ainda pode ser conciliado.",
   REJECTED: "Pagamento recusado.",
@@ -246,7 +248,13 @@ export default function PlanosPage() {
         return;
       }
       if (useInfinitePay && data.state === "CHECKOUT_REVIEW") {
-        setCheckoutError("Não foi possível recuperar o link deste pedido. Fale com o suporte antes de tentar outra compra.");
+        if (data.orderNsu) {
+          window.history.replaceState(null, "", `/planos?paymentOrder=${encodeURIComponent(data.orderNsu)}`);
+          setRequestedOrder(data.orderNsu);
+          setPaymentState("CHECKOUT_REVIEW");
+        } else {
+          setCheckoutError(paymentMessages.CHECKOUT_REVIEW);
+        }
         return;
       }
       if (useInfinitePay && (data.state === "EXPIRED" || data.state === "ORDER_CLOSED")) {
@@ -372,6 +380,7 @@ export default function PlanosPage() {
               <div className="mb-4 rounded-2xl bg-slate-100 p-4 text-sm text-slate-800">
                 <p role="status">{paymentMessages[paymentState]}</p>
                 {(paymentState === "PENDING" || paymentState === "REVIEW" || paymentState === "EXPIRED" ||
+                  paymentState === "CHECKOUT_PENDING" || paymentState === "CHECKOUT_REVIEW" ||
                   paymentState === "UNAVAILABLE") && (
                   <button type="button" className="mt-2 font-semibold underline"
                     onClick={() => setStatusRefresh((attempt) => attempt + 1)}>

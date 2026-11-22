@@ -93,23 +93,42 @@ const database = model("database", {
       const value = accounts.get(where.id);
       return value ? selected(value, select) : null;
     },
-    findMany: async ({ select }: { select: Record<string, boolean> }) => {
+    count: async ({ where }: { where: { role?: string } }) =>
+      [...accounts.values()].filter((account) => !where.role || account.role === where.role).length,
+    findMany: async ({ where, select, skip, take }: {
+      where: { role?: string }; select: Record<string, boolean>; skip: number; take: number;
+    }) => {
       listQueries++;
-      return [...accounts.values()].map(value => selected(value, select));
+      return [...accounts.values()].filter((account) => !where.role || account.role === where.role)
+        .slice(skip, skip + take).map(value => selected(value, select));
     },
   }),
   routeCredit: model("routeCredit", {
     aggregate: async ({ where }: { where: { userId: string } }) => ({ _sum: { delta: balances.get(where.userId) ?? null } }),
+    groupBy: async ({ where }: { where: { userId: { in: string[] } } }) =>
+      where.userId.in.map((userId) => ({ userId, _sum: { delta: balances.get(userId) ?? null } })),
   }),
   userSubscription: model("userSubscription", {
-    findMany: async () => [],
+    findMany: async ({ where }: { where: { userId: string | { in: string[] }; status?: string } }) => {
+      if (where.status === "SCHEDULED") return [];
+      if (failSubscriptionRead) throw new Error("Synthetic subscription read failure");
+      return typeof where.userId === "string" ? [] : where.userId.in.flatMap((id) => {
+        const cycle = subscriptions.get(id);
+        return cycle ? [structuredClone(cycle)] : [];
+      });
+    },
     findFirst: async ({ where }: { where: { userId: string } }) => {
       if (failSubscriptionRead) throw new Error("Synthetic subscription read failure");
       return structuredClone(subscriptions.get(where.userId) ?? null);
     },
   }),
-  routeUsage: model("routeUsage", { count: async () => 2 }),
+  routeUsage: model("routeUsage", {
+    count: async () => 2,
+    groupBy: async ({ where }: { where: { subscriptionId?: { in: string[] } } }) =>
+      where.subscriptionId?.in.map((subscriptionId) => ({ subscriptionId, _count: { _all: 2 } })) ?? [],
+  }),
   importJob: model("importJob", { findFirst: async () => null }),
+  $queryRaw: async () => [],
 });
 
 const globals = globalThis as unknown as { prisma?: PrismaClient };
@@ -128,6 +147,7 @@ mock.method(nextHeaders, "cookies", async () => ({
 
 let route: typeof import("../app/api/admin/users/route");
 let access: typeof import("../app/lib/access-control");
+const list = () => route.GET(new Request("http://localhost/api/admin/users"));
 before(async () => {
   route = await import("../app/api/admin/users/route");
   access = await import("../app/lib/access-control");
@@ -162,7 +182,7 @@ test("authorized legacy administrator lists active, inactive and pending users w
   const beforeBalances = structuredClone([...balances]);
   const beforeSubscriptions = structuredClone([...subscriptions]);
   await signInAs("legacy-admin");
-  const response = await route.GET();
+  const response = await list();
   assert.equal(response.status, 200);
   const result = await response.json() as { ok: boolean; users: ListedUser[] };
   assert.equal(result.ok, true);
@@ -205,7 +225,7 @@ test("authorized legacy administrator lists active, inactive and pending users w
 test("confirmed administrator and current session version remain authorized", async () => {
   for (const id of ["confirmed-admin", "revoked-admin"]) {
     await signInAs(id, { sessionVersion: accounts.get(id)!.sessionVersion });
-    assert.equal((await route.GET()).status, 200);
+    assert.equal((await list()).status, 200);
   }
 });
 
@@ -220,7 +240,7 @@ for (const denied of [
 ]) {
   test(`administrative list denies ${denied.name} before querying users`, async () => {
     if (denied.id) await signInAs(denied.id, denied.claims);
-    const response = await route.GET();
+    const response = await list();
     assert.equal(response.status, 403);
     assert.deepEqual(await response.json(), { error: "Forbidden" });
     assert.equal(listQueries, 0);
@@ -231,7 +251,7 @@ for (const denied of [
 test("administrative list denies a tampered session cookie", async () => {
   await signInAs("legacy-admin");
   sessionCookie += "tampered";
-  assert.equal((await route.GET()).status, 403);
+  assert.equal((await list()).status, 403);
   assert.equal(listQueries, 0);
 });
 
@@ -272,7 +292,7 @@ test("administrative inspection of a pending administrator preserves entitlement
 test("unexpected database failures remain errors instead of fabricated zero balances", async () => {
   await signInAs("legacy-admin");
   failSubscriptionRead = true;
-  const response = await route.GET();
+  const response = await list();
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), { error: "Erro ao listar usuários." });
   assert.deepEqual(unexpectedOperations, []);

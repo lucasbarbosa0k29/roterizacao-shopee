@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { isSuperAdmin } from "@/app/lib/admin-roles";
 import { PASSWORD_MIN_LENGTH, passwordPolicyError } from "@/app/lib/password-policy.js";
+
+import type { AdminPage } from "@/app/lib/admin-pagination";
+import AdminPagination from "../AdminPagination";
 
 type UserRow = {
   id: string;
@@ -73,6 +76,11 @@ export default function AdminUsersPage() {
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
   const [creating, setCreating] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [refresh, setRefresh] = useState(0);
+  const [pagination, setPagination] = useState<AdminPage | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const listRequest = useRef<AbortController | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [q, setQ] = useState("");
@@ -100,32 +108,39 @@ export default function AdminUsersPage() {
     } as const;
   }
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
+    setLoadingUsers(true);
+    setListError(null);
     try {
-      setLoadingUsers(true);
-      const res = await fetch("/api/admin/users", {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "Cache-Control": "no-store" },
+      const params = new URLSearchParams({ page: String(page), q: q.trim(), active: onlyActive ? "1" : "0" });
+      const res = await fetch(`/api/admin/users?${params}`, {
+        credentials: "include", cache: "no-store", signal: controller.signal,
       });
-
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data?.error || "Erro ao listar usuários.");
-        setUsers([]);
-        return;
-      }
-
+      if (!res.ok) throw new Error(data?.error || "Erro ao listar usu\u00e1rios.");
+      if (controller.signal.aborted) return;
       setUsers(Array.isArray(data?.users) ? data.users : []);
+      setPagination(data.pagination ?? null);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setListError(error instanceof Error ? error.message : "Erro ao listar usu\u00e1rios.");
+      setUsers([]);
+      setPagination(null);
     } finally {
-      setLoadingUsers(false);
+      if (!controller.signal.aborted) setLoadingUsers(false);
     }
-  }
+  }, [page, q, onlyActive]);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    const timer = window.setTimeout(() => void loadUsers(), 200);
+    return () => {
+      window.clearTimeout(timer);
+      listRequest.current?.abort();
+    };
+  }, [loadUsers, refresh]);
 
   useEffect(() => {
     if (!openActionsMenu) return;
@@ -214,38 +229,6 @@ export default function AdminUsersPage() {
     void action();
   }
 
-  const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase();
-    return users
-      .filter((u) => {
-        if (onlyActive && !u.active) return false;
-        if (!qq) return true;
-
-        const hay = [u.name, u.email, u.role]
-          .map((x) => String(x ?? "").toLowerCase())
-          .join(" | ");
-
-        return hay.includes(qq);
-      })
-      .sort((a, b) => {
-        const nameA = String(a.name || "").trim();
-        const nameB = String(b.name || "").trim();
-
-        if (!nameA && nameB) return 1;
-        if (nameA && !nameB) return -1;
-
-        return (
-          nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" }) ||
-          a.email.localeCompare(b.email, "pt-BR", { sensitivity: "base" })
-        );
-      });
-  }, [users, q, onlyActive]);
-
-  const visibleUsers = useMemo(() => {
-    if (canManageAdmins) return filtered;
-    return filtered.filter((user) => user.role !== "ADMIN");
-  }, [filtered, canManageAdmins]);
-
   useEffect(() => {
     if (!canManageAdmins && role === "ADMIN") {
       setRole("USER");
@@ -289,7 +272,7 @@ export default function AdminUsersPage() {
       setPassword("");
       setRole("USER");
 
-      await loadUsers();
+      setRefresh((value) => value + 1);
     } finally {
       setCreating(false);
     }
@@ -316,7 +299,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      await loadUsers();
+      setRefresh((value) => value + 1);
     } finally {
       setBusyId(null);
     }
@@ -339,7 +322,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      await loadUsers();
+      setRefresh((value) => value + 1);
     } finally {
       setBusyId(null);
     }
@@ -377,7 +360,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      await loadUsers();
+      setRefresh((value) => value + 1);
     } finally {
       setBusyId(null);
     }
@@ -605,14 +588,14 @@ export default function AdminUsersPage() {
               className="px-3 py-2 rounded-xl border text-sm w-[260px]"
               placeholder="Buscar (nome, email, role...)"
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
             />
 
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"
                 checked={onlyActive}
-                onChange={(e) => setOnlyActive(e.target.checked)}
+                onChange={(e) => { setOnlyActive(e.target.checked); setPage(1); }}
               />
               só ativos
             </label>
@@ -629,7 +612,9 @@ export default function AdminUsersPage() {
 
         {loadingUsers ? (
           <div className="p-5 text-slate-600">Carregando...</div>
-        ) : visibleUsers.length === 0 ? (
+        ) : listError ? (
+          <div className="p-5 text-rose-700" role="alert">{listError}</div>
+        ) : users.length === 0 ? (
           <div className="p-5 text-slate-600">Nenhum usuário encontrado.</div>
         ) : (
           <div className="p-5 overflow-auto">
@@ -650,7 +635,7 @@ export default function AdminUsersPage() {
               </thead>
 
               <tbody>
-                {visibleUsers.map((u) => {
+                {users.map((u) => {
                   const busy = busyId === u.id;
                   const access = getSafeAccess(u);
                   const actionsOpen = openActionsMenu?.userId === u.id;
@@ -945,6 +930,7 @@ export default function AdminUsersPage() {
                 })}
               </tbody>
             </table>
+            {pagination && <AdminPagination value={pagination} onChange={setPage} />}
           </div>
         )}
       </div>
