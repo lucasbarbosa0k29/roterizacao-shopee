@@ -176,6 +176,7 @@ for (const [product, price] of Object.entries(products) as Array<[PaymentProduct
     const user = await account();
     const order = await checkout(user.id, product);
     assert.equal(issued.get(order)?.items[0].price, price);
+    assert.equal(issued.get(order)?.options.assured_installments, 1);
     assert.equal(issued.get(order)?.options.single_payment, true);
     assert.deepEqual(issued.get(order)?.options.payment_methods_enabled, ["credit_card", "pix"]);
     await confirm(order);
@@ -194,6 +195,44 @@ for (const [product, price] of Object.entries(products) as Array<[PaymentProduct
     }
   });
 }
+
+test("an existing order keeps its original checkout options and reuses the issued link", async () => {
+  const user = await account();
+  const idempotencyKey = randomUUID();
+  const orderNsu = randomUUID();
+  const checkoutExpiresAt = new Date(Date.now() + 60 * 60_000);
+  const originalInput = {
+    handle: "rotta_test",
+    order_nsu: orderNsu,
+    items: [{ description: "Rotta - Rota avulsa", quantity: 1, price: 199 }],
+    redirect_url: "https://rotta.example.test/api/payments/infinitepay/return",
+    webhook_url: "https://rotta.example.test/api/webhooks/infinitepay",
+    options: {
+      single_payment: true,
+      valid_until: checkoutExpiresAt.toISOString(),
+      require_delivery_address: false,
+      payment_methods_enabled: ["credit_card", "pix"],
+    },
+  };
+  await services.prisma.paymentTransaction.create({
+    data: {
+      userId: user.id, provider: "INFINITEPAY", productType: "EXTRA_ROUTE", quantity: 1,
+      amountCents: 199, externalReference: orderNsu, idempotencyKey, checkoutExpiresAt,
+      infinitePayCheckoutInput: originalInput,
+    },
+  });
+
+  assert.equal(await checkout(user.id, "EXTRA_ROUTE", 1, idempotencyKey), orderNsu);
+  const stored = await payment(orderNsu);
+  assert.deepEqual(stored.infinitePayCheckoutInput, originalInput);
+  const replay = await services.startInfinitePayCheckout(user.id, {
+    productType: "EXTRA_ROUTE", quantity: 1, idempotencyKey: randomUUID(),
+  });
+  assert.deepEqual(replay, { state: "READY", orderNsu, checkoutUrl: stored.infinitePayCheckoutUrl });
+  const linkCalls = requests.filter((request) => request.order === orderNsu && request.path.endsWith("/links"));
+  assert.equal(linkCalls.length, 1);
+  assert.deepEqual(JSON.parse(linkCalls[0].body), originalInput);
+});
 
 for (const code of ["BASIC", "PRO"] as const) {
   test(`early ${code} renewal preserves accrued credits and switches at the exact boundary`, async () => {

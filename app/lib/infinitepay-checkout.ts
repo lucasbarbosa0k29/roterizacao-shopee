@@ -128,6 +128,7 @@ export async function startInfinitePayCheckout(userId: string, input: CheckoutIn
       redirect_url: `${origin}/api/payments/infinitepay/return`,
       webhook_url: `${origin}/api/webhooks/infinitepay`,
       options: {
+        assured_installments: 1,
         single_payment: true,
         valid_until: checkoutExpiresAt.toISOString(),
         require_delivery_address: false,
