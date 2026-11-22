@@ -6,6 +6,7 @@ import { authOptions } from "@/app/lib/auth";
 import { passwordPolicyError } from "@/app/lib/password-policy.js";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
+import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
 
 async function getIdFromCtx(ctx: any) {
   const maybeParams = ctx?.params;
@@ -55,10 +56,11 @@ function getSaoPauloDayKey(date = new Date()) {
 }
 
 async function revokeActiveSubscriptions(tx: any, userId: string) {
+  await guardAdminCycleChange(tx, userId);
   await tx.userSubscription.updateMany({
     where: {
       userId,
-      status: "ACTIVE",
+      ...administrativelyRevocable(new Date()),
     },
     data: {
       status: "REVOKED",
@@ -597,11 +599,10 @@ export async function PATCH(req: Request, ctx: any) {
 
       case "REVOKE_ACTIVE_SUBSCRIPTION": {
         const result = await prisma.$transaction(async (tx) => {
+          await guardAdminCycleChange(tx, id);
+          const revocable = { userId: id, ...administrativelyRevocable(new Date()) };
           const activeSubscriptions = await tx.userSubscription.findMany({
-            where: {
-              userId: id,
-              status: "ACTIVE",
-            },
+            where: revocable,
             include: {
               plan: {
                 select: {
@@ -627,10 +628,7 @@ export async function PATCH(req: Request, ctx: any) {
           );
 
           await tx.userSubscription.updateMany({
-            where: {
-              userId: id,
-              status: "ACTIVE",
-            },
+            where: revocable,
             data: {
               status: "REVOKED",
             },
@@ -732,6 +730,7 @@ export async function PATCH(req: Request, ctx: any) {
       },
     });
   } catch (e) {
+    if (e instanceof ScheduledRenewalError) return NextResponse.json({ error: e.message }, { status: 409 });
     console.error("Erro admin PATCH user:", e);
     return NextResponse.json(
       { error: "Erro ao atualizar usuário." },

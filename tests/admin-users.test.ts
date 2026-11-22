@@ -102,6 +102,7 @@ const database = model("database", {
     aggregate: async ({ where }: { where: { userId: string } }) => ({ _sum: { delta: balances.get(where.userId) ?? null } }),
   }),
   userSubscription: model("userSubscription", {
+    findMany: async () => [],
     findFirst: async ({ where }: { where: { userId: string } }) => {
       if (failSubscriptionRead) throw new Error("Synthetic subscription read failure");
       return structuredClone(subscriptions.get(where.userId) ?? null);

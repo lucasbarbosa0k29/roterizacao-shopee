@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { AccessControlError, getUserAccessSnapshot } from "@/app/lib/access-control";
+import { infinitePayCheckoutEnabled } from "@/app/lib/infinitepay";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function GET() {
     }
 
     const snapshot = await getUserAccessSnapshot(userId);
-    return NextResponse.json(snapshot);
+    return NextResponse.json({ ...snapshot, infinitePayCheckoutEnabled: infinitePayCheckoutEnabled() });
   } catch (error) {
     if (error instanceof AccessControlError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     console.error("GET /api/access/me error:", error);

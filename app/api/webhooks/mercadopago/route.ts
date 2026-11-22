@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
-import { fulfillApprovedPaymentTransaction } from "@/app/lib/payment-fulfillment";
+import { fulfillApprovedPaymentTransaction, MANUAL_REFUND_RECORDED } from "@/app/lib/payment-fulfillment";
 
 export const runtime = "nodejs";
 
@@ -180,6 +180,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
+    if (transaction.provider !== "MERCADOPAGO") {
+      return NextResponse.json({ error: "Payment provider mismatch." }, { status: 409 });
+    }
     const mercadoPagoPaymentId = getString(payload.id);
     const nextStatus = mapPaymentStatus(payload.status);
     const approvedAt =
@@ -187,8 +190,10 @@ export async function POST(request: Request) {
         ? transaction.approvedAt ?? new Date(payload.date_approved || Date.now())
         : transaction.approvedAt;
 
-    await prisma.paymentTransaction.update({
-      where: { id: transaction.id },
+    const updated = await prisma.paymentTransaction.updateMany({
+      where: { id: transaction.id, OR: [
+        { fulfillmentReviewReason: null }, { fulfillmentReviewReason: { not: MANUAL_REFUND_RECORDED } },
+      ] },
       data: {
         mercadoPagoPaymentId,
         status: nextStatus,
@@ -197,7 +202,7 @@ export async function POST(request: Request) {
       },
     });
 
-    if (nextStatus === "APPROVED") {
+    if (updated.count && nextStatus === "APPROVED") {
       await fulfillApprovedPaymentTransaction(transaction.id);
     }
 

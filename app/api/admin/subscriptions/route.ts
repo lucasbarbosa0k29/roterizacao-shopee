@@ -4,6 +4,7 @@ import { prisma } from "@/app/lib/prisma";
 import { authOptions } from "@/app/lib/auth";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { requireSuperAdmin } from "@/app/lib/admin-roles";
+import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError, startedSubscription } from "@/app/lib/subscription-cycles";
 
 export const runtime = "nodejs";
 
@@ -16,12 +17,13 @@ type ActiveSubscriptionSnapshot = {
   dailyRouteLimit: number;
   isUnlimited: boolean;
   source: "ADMIN_GRANT" | "TRIAL" | "INFINITEPAY_LINK" | "MANUAL_PAYMENT";
-  status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  status: "ACTIVE" | "EXPIRED" | "REVOKED" | "SCHEDULED";
 };
 
 type PaymentTransactionSnapshot = {
   id: string;
-  provider: "MERCADOPAGO" | "ASAAS";
+  provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
+  fulfillmentReviewReason: string | null;
   productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
   quantity: number;
   amountCents: number;
@@ -75,7 +77,7 @@ type SubscriptionHistoryRow = {
   recentPayments: PaymentTransactionSnapshot[];
   recentRouteCredits: RouteCreditSnapshot[];
   recentAdminActions: AdminActionSnapshot[];
-  planOrigin: "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano";
+  planOrigin: "manual" | "Mercado Pago" | "Asaas" | "InfinitePay" | "avulso" | "sem plano";
   subscriptionStatusLabel: string;
   creditsAvailable: number;
   creditsUsedInCycle: number;
@@ -117,10 +119,11 @@ function getSaoPauloDayKey(date = new Date()) {
 }
 
 async function revokeActiveSubscriptions(tx: any, userId: string) {
+  await guardAdminCycleChange(tx, userId);
   await tx.userSubscription.updateMany({
     where: {
       userId,
-      status: "ACTIVE",
+      ...administrativelyRevocable(new Date()),
     },
     data: {
       status: "REVOKED",
@@ -194,6 +197,7 @@ function serializePaymentTransaction(transaction: any): PaymentTransactionSnapsh
   return {
     id: transaction.id,
     provider: transaction.provider,
+    fulfillmentReviewReason: transaction.fulfillmentReviewReason ?? null,
     productType: transaction.productType,
     quantity: transaction.quantity,
     amountCents: transaction.amountCents,
@@ -243,11 +247,12 @@ function normalizeDateString(value: string | Date | null | undefined) {
 
 function getPlanOrigin(
   user: SubscriptionHistoryRow
-): "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano" {
+): "manual" | "Mercado Pago" | "Asaas" | "InfinitePay" | "avulso" | "sem plano" {
   const active = user.currentSubscription;
   const latestPayment = user.latestPayment;
 
   if (active) {
+    if (active.source === "INFINITEPAY_LINK") return "InfinitePay";
     if (active.source === "ADMIN_GRANT" || active.source === "TRIAL") {
       return "manual";
     }
@@ -259,7 +264,7 @@ function getPlanOrigin(
       return "Asaas";
     }
 
-    if (active.source === "MANUAL_PAYMENT" || active.source === "INFINITEPAY_LINK") {
+    if (active.source === "MANUAL_PAYMENT") {
       return "Mercado Pago";
     }
   }
@@ -269,6 +274,7 @@ function getPlanOrigin(
     (latestPayment.productType === "BASIC_PLAN" || latestPayment.productType === "PRO_PLAN") &&
     ["APPROVED", "FULFILLED"].includes(latestPayment.status)
   ) {
+    if (latestPayment.provider === "INFINITEPAY") return "InfinitePay";
     return latestPayment.provider === "ASAAS" ? "Asaas" : "Mercado Pago";
   }
 
@@ -371,8 +377,8 @@ async function buildUserRow(user: {
       }),
     ]);
 
-  const currentSubscription = subscriptions.find((item) => item.status === "ACTIVE") ?? null;
-  const latestSubscription = subscriptions[0] ?? null;
+  const currentSubscription = access.activeSubscription;
+  const latestSubscription = subscriptions.find((item) => item.startsAt <= new Date()) ?? null;
   const latestPayment = paymentTransactions[0] ?? null;
   const routeCreditsBalance = access.routeCreditsBalance;
   const creditsAvailable = routeCreditsBalance + access.subscriptionCycleRemaining;
@@ -387,7 +393,7 @@ async function buildUserRow(user: {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
     access,
-    currentSubscription: currentSubscription ? serializeSubscriptionRow(currentSubscription) : null,
+    currentSubscription,
     latestSubscription: latestSubscription ? serializeSubscriptionRow(latestSubscription) : null,
     latestPayment: latestPayment ? serializePaymentTransaction(latestPayment) : null,
     recentPayments: paymentTransactions.map(serializePaymentTransaction),
@@ -436,7 +442,7 @@ async function buildFinancialSummary(): Promise<FinancialSummary> {
 
   const activeSubscriptions = await prisma.userSubscription.findMany({
     where: {
-      status: "ACTIVE",
+      ...startedSubscription(new Date()),
       expiresAt: {
         gt: new Date(),
       },
@@ -643,7 +649,7 @@ export async function PATCH(req: Request, ctx: any) {
 
     if (rawAction === "RENEW_CYCLE" || rawAction === "REACTIVATE_SUBSCRIPTION") {
       const existingActive = await prisma.userSubscription.findFirst({
-        where: { userId, status: "ACTIVE" },
+        where: { userId, ...administrativelyRevocable(new Date()) },
         include: {
           plan: {
             select: {
@@ -663,7 +669,7 @@ export async function PATCH(req: Request, ctx: any) {
       const fallbackSubscription =
         existingActive ||
         (await prisma.userSubscription.findFirst({
-          where: { userId },
+          where: { userId, startsAt: { lte: new Date() } },
           include: {
             plan: {
               select: {
@@ -773,7 +779,7 @@ export async function PATCH(req: Request, ctx: any) {
       const activeSubscriptions = await prisma.userSubscription.findMany({
         where: {
           userId,
-          status: "ACTIVE",
+          ...administrativelyRevocable(new Date()),
         },
         orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
         select: {
@@ -877,6 +883,7 @@ export async function PATCH(req: Request, ctx: any) {
       user: refreshed,
     });
   } catch (error) {
+    if (error instanceof ScheduledRenewalError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("Erro admin subscriptions PATCH:", error);
     return NextResponse.json(
       { error: "Erro ao atualizar assinaturas." },

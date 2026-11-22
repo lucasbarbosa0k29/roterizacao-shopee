@@ -1,5 +1,5 @@
 // Creates a fresh, loopback-only PostgreSQL cluster. Never consumes DATABASE_URL.
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,7 +9,7 @@ import { createServer } from 'node:net';
 import assert from 'node:assert/strict';
 
 const root = resolve(import.meta.dirname, '..');
-const toolsRoot = process.env.ROTTA_TEST_TOOLS || join(tmpdir(), 'rotta-security-pg17-tools');
+const toolsRoot = process.env.ROTTA_TEST_TOOLS || root;
 const { default: EmbeddedPostgres } = await import(pathToFileURL(join(toolsRoot, 'node_modules/embedded-postgres/dist/index.js')).href);
 const folder = await mkdtemp(join(tmpdir(), 'rotta-auth-test-'));
 const port = await new Promise((resolvePort, reject) => {
@@ -21,7 +21,9 @@ const runId = randomBytes(8).toString('hex');
 const database = `rotta_auth_test_${runId}`;
 const password = randomBytes(24).toString('hex');
 const url = `postgresql://postgres:${password}@127.0.0.1:${port}/${database}`;
-const env = { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url, TEST_DB_RUN_ID: runId,
+const env = { ...process.env, NODE_ENV: 'test', ROTTA_LOCAL_DEV: '0',
+  INFINITEPAY_CHECKOUT_ENABLED: '0', LEGACY_EARLY_RENEWAL_ENABLED: '0',
+  DATABASE_URL: url, TEST_DATABASE_URL: url, TEST_DB_RUN_ID: runId,
   AUTH_CODE_SECRET: randomBytes(32).toString('hex'), DOCUMENT_HMAC_SECRET: randomBytes(32).toString('hex'),
   AUTH_RATE_LIMIT_SECRET: randomBytes(32).toString('hex'), NEXTAUTH_SECRET: randomBytes(32).toString('hex'),
   NEXTAUTH_URL: 'http://localhost:3000', RESEND_API_KEY: 'test-only', RESEND_FROM_EMAIL: 'test@example.test' };
@@ -50,13 +52,17 @@ try {
   await admin.query(`CREATE DATABASE "${database}_history"`);
   await admin.end();
   // Exercise the real production migration command only against the fresh local database.
+  const isolatedSchema = join(folder, 'prisma/schema.prisma');
+  await mkdir(join(folder, 'prisma'));
+  await cp(join(root, 'prisma/schema.prisma'), isolatedSchema);
+  await cp(join(root, 'prisma/migrations'), join(folder, 'prisma/migrations'), { recursive: true });
   execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'deploy'], {
-    cwd: root, env: { ...env, DATABASE_URL: `${url}_history` }, stdio: 'pipe', timeout: 60_000,
+    cwd: folder, env: { ...env, DATABASE_URL: `${url}_history` }, stdio: 'pipe', timeout: 60_000,
   });
   console.log('PASS: full migration history applied to a second fresh PostgreSQL 17 database.');
   try {
-    execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-schema-datasource', join(root, 'prisma/schema.prisma'), '--to-schema-datamodel', join(root, 'prisma/schema.prisma'), '--exit-code', '--script'], {
-      cwd: root, env: { ...env, DATABASE_URL: `${url}_history` }, stdio: 'pipe', timeout: 60_000,
+    execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-schema-datasource', isolatedSchema, '--to-schema-datamodel', isolatedSchema, '--exit-code', '--script'], {
+      cwd: folder, env: { ...env, DATABASE_URL: `${url}_history` }, stdio: 'pipe', timeout: 60_000,
     });
   } catch (error) {
     if (error.status === 2) console.error(String(error.stdout));
@@ -67,7 +73,7 @@ try {
   const oldSchema = execFileSync('git', ['show', '4c8e71caf86be9a927f508d2e0081caba077cfdc:prisma/schema.prisma'], { cwd: root, encoding: 'utf8' });
   const schemaPath = join(folder, 'legacy.prisma');
   await writeFile(schemaPath, oldSchema);
-  const baselineSql = execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', schemaPath, '--script'], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const baselineSql = execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', schemaPath, '--script'], { cwd: folder, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const client = pg.getPgClient(database, '127.0.0.1');
   await client.connect();
   // Some embedded-postgres versions expect the database in client options; verify before writing.
@@ -112,9 +118,23 @@ try {
   if (JSON.stringify(snapshot.rows) !== JSON.stringify(after.rows)) throw new Error('Migration changed legacy data');
   assert.deepEqual((await client.query(legacyData)).rows, legacySnapshot.rows);
   console.log('PASS: additive migration preserved legacy company, credits, subscription and payment.');
+  const infinitePayMigration = await readFile(join(folder, 'prisma/migrations/20261122120000_infinitepay_and_scheduled_cycles/migration.sql'), 'utf8');
+  await client.query(infinitePayMigration);
+  await client.query(await readFile(join(folder, 'prisma/migrations/20261122130000_payment_checkout_intents/migration.sql'), 'utf8'));
+  const migrated = await client.query(`SELECT (SELECT row_to_json(c) FROM "Company" c WHERE id='legacy-company') AS company,
+    (SELECT row_to_json(c) FROM "RouteCredit" c WHERE id='legacy-credit') AS credit,
+    (SELECT row_to_json(s) FROM "UserSubscription" s WHERE id='legacy-sub') AS subscription,
+    (SELECT row_to_json(p) FROM "PaymentTransaction" p WHERE id='legacy-payment') AS payment`);
+  for (const [table, before] of Object.entries(after.rows[0])) {
+    assert.deepEqual(Object.fromEntries(Object.keys(before).map(key => [key, migrated.rows[0][table][key]])), before);
+  }
+  assert.deepEqual((await client.query(legacyData)).rows, legacySnapshot.rows);
+  console.log('PASS: InfinitePay migration preserved the existing payment, plan, credits and route usage.');
   await client.end();
   const status = await new Promise((resolveStatus, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', '--test', 'tests/account-security.integration.test.ts'], { cwd: root, env, stdio: 'inherit', windowsHide: true });
+    const suites = ['tests/account-security.integration.test.ts'];
+    if (process.argv.includes('--with-infinitepay')) suites.push('tests/infinitepay.integration.test.ts');
+    const child = spawn(process.execPath, ['--import', 'tsx', '--test', '--test-concurrency=1', ...suites], { cwd: root, env, stdio: 'inherit', windowsHide: true });
     child.on('error', reject); child.on('exit', code => resolveStatus(code ?? 1));
   });
   process.exitCode = status;

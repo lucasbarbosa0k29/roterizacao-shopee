@@ -1,226 +1,65 @@
-import { Prisma, type PaymentProductType, type PaymentProvider } from "@prisma/client";
+import type { PaymentTransaction, Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
+import { createPaidSubscriptionCycle, lockSubscriptionOwner } from "./subscription-cycles";
 
-const MAX_FULFILLMENT_ATTEMPTS = 3;
+export const MANUAL_REFUND_RECORDED = "MANUAL_REFUND_RECORDED";
 
-type FulfillmentResult =
-  | {
-      fulfilled: true;
-      paymentTransactionId: string;
-      productType: PaymentProductType;
-      fulfilledSourceId: string;
-    }
-  | {
-      fulfilled: false;
-      paymentTransactionId: string;
-      reason: "ALREADY_FULFILLED_OR_NOT_APPROVED";
-    };
-
-function addDays(base: Date, days: number) {
-  const next = new Date(base);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getPlanCode(productType: PaymentProductType) {
-  switch (productType) {
-    case "BASIC_PLAN":
-      return "BASIC";
-    case "PRO_PLAN":
-      return "PRO";
-    default:
-      return null;
+// The caller holds the user and payment row locks through the transaction.
+export async function grantPaymentBenefit(
+  tx: Prisma.TransactionClient,
+  payment: PaymentTransaction,
+  now: Date,
+  administrativeRecovery = false
+) {
+  const paymentTransactionId = payment.id;
+  if (payment.status !== "APPROVED" || payment.fulfilledAt || payment.fulfillmentReviewReason) {
+    return { fulfilled: false, paymentTransactionId, reason: "ALREADY_FULFILLED_OR_NOT_APPROVED" } as const;
   }
-}
 
-function getPaymentProviderLabel(provider: PaymentProvider) {
-  switch (provider) {
-    case "ASAAS":
-      return "Asaas";
-    case "MERCADOPAGO":
-    default:
-      return "Mercado Pago";
-  }
-}
-
-function getPaymentProviderTransactionId(transaction: {
-  mercadoPagoPaymentId: string | null;
-  asaasPaymentId: string | null;
-}) {
-  return transaction.mercadoPagoPaymentId ?? transaction.asaasPaymentId ?? "unknown";
-}
-
-function isSerializableTransactionError(error: unknown) {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2034"
-  );
-}
-
-async function fulfillApprovedPaymentTransactionOnce(
-  paymentTransactionId: string
-): Promise<FulfillmentResult> {
-  return prisma.$transaction(
-    async (tx) => {
-      const now = new Date();
-
-      const claimed = await tx.paymentTransaction.updateMany({
-        where: {
-          id: paymentTransactionId,
-          status: "APPROVED",
-          fulfilledAt: null,
-        },
-        data: {
-          fulfilledAt: now,
-        },
-      });
-
-      if (claimed.count === 0) {
-        return {
-          fulfilled: false,
-          paymentTransactionId,
-          reason: "ALREADY_FULFILLED_OR_NOT_APPROVED",
-        };
-      }
-
-      const transaction = await tx.paymentTransaction.findUnique({
-        where: { id: paymentTransactionId },
-        select: {
-          id: true,
-          userId: true,
-          productType: true,
-          quantity: true,
-          provider: true,
-          mercadoPagoPaymentId: true,
-          asaasPaymentId: true,
-          externalReference: true,
-        },
-      });
-
-      if (!transaction) {
-        throw new Error(`PaymentTransaction not found after claim: ${paymentTransactionId}`);
-      }
-
-      if (transaction.productType === "EXTRA_ROUTE") {
-        const routeCredit = await tx.routeCredit.create({
-          data: {
-            userId: transaction.userId,
-            delta: transaction.quantity,
-            reason: "MANUAL_PAYMENT",
-            notes: [
-              `${getPaymentProviderLabel(transaction.provider)} payment ${getPaymentProviderTransactionId(transaction)}`,
-              `PaymentTransaction ${transaction.id}`,
-              `External reference ${transaction.externalReference}`,
-            ].join(" | "),
-          },
-          select: { id: true },
-        });
-
-        await tx.paymentTransaction.update({
-          where: { id: transaction.id },
-          data: {
-            fulfilledSourceId: routeCredit.id,
-          },
-        });
-
-        return {
-          fulfilled: true,
-          paymentTransactionId: transaction.id,
-          productType: transaction.productType,
-          fulfilledSourceId: routeCredit.id,
-        };
-      }
-
-      const planCode = getPlanCode(transaction.productType);
-      if (!planCode) {
-        throw new Error(`Unsupported payment product type: ${transaction.productType}`);
-      }
-
-      const plan = await tx.subscriptionPlan.findFirst({
-        where: {
-          code: planCode,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          code: true,
-          durationDays: true,
-        },
-      });
-
-      if (!plan || !plan.durationDays || plan.durationDays <= 0) {
-        throw new Error(`Active subscription plan with duration not found: ${planCode}`);
-      }
-
-      await tx.userSubscription.updateMany({
-        where: {
-          userId: transaction.userId,
-          status: "ACTIVE",
-        },
-        data: {
-          status: "REVOKED",
-        },
-      });
-
-      const startsAt = now;
-      const expiresAt = addDays(startsAt, plan.durationDays);
-
-      const subscription = await tx.userSubscription.create({
-        data: {
-          userId: transaction.userId,
-          planId: plan.id,
-          status: "ACTIVE",
-          source: "MANUAL_PAYMENT",
-          startsAt,
-          expiresAt,
-          notes: [
-            `${getPaymentProviderLabel(transaction.provider)} payment ${getPaymentProviderTransactionId(transaction)}`,
-            `PaymentTransaction ${transaction.id}`,
-            `External reference ${transaction.externalReference}`,
-          ].join(" | "),
-        },
-        select: { id: true },
-      });
-
+  const provider = payment.provider === "INFINITEPAY" ? "InfinitePay" : payment.provider === "ASAAS" ? "Asaas" : "Mercado Pago";
+  const providerId = payment.infinitePayTransactionId ?? payment.asaasPaymentId ?? payment.mercadoPagoPaymentId;
+  const notes = `${provider} payment ${providerId ?? "unknown"} | PaymentTransaction ${payment.id} | External reference ${payment.externalReference}`;
+  let fulfilledSourceId: string;
+  if (payment.productType === "EXTRA_ROUTE") {
+    const credit = await tx.routeCredit.create({
+      data: { userId: payment.userId, paymentTransactionId, delta: payment.quantity, reason: "MANUAL_PAYMENT", notes },
+      select: { id: true },
+    });
+    fulfilledSourceId = credit.id;
+  } else {
+    const result = await createPaidSubscriptionCycle(
+      tx, { id: payment.id, userId: payment.userId, provider: payment.provider, productType: payment.productType },
+      now, notes, administrativeRecovery
+    );
+    if ("review" in result && result.review) {
       await tx.paymentTransaction.update({
-        where: { id: transaction.id },
-        data: {
-          fulfilledSourceId: subscription.id,
-        },
+        where: { id: paymentTransactionId },
+        data: { fulfillmentReviewReason: result.review },
       });
-
-      return {
-        fulfilled: true,
-        paymentTransactionId: transaction.id,
-        productType: transaction.productType,
-        fulfilledSourceId: subscription.id,
-      };
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-  );
-}
-
-export async function fulfillApprovedPaymentTransaction(
-  paymentTransactionId: string
-): Promise<FulfillmentResult> {
-  for (let attempt = 1; attempt <= MAX_FULFILLMENT_ATTEMPTS; attempt += 1) {
-    try {
-      return await fulfillApprovedPaymentTransactionOnce(paymentTransactionId);
-    } catch (error) {
-      if (
-        isSerializableTransactionError(error) &&
-        attempt < MAX_FULFILLMENT_ATTEMPTS
-      ) {
-        continue;
-      }
-
-      throw error;
+      return { fulfilled: false, paymentTransactionId, reason: result.review } as const;
     }
+    fulfilledSourceId = result.subscription.id;
   }
 
-  return {
-    fulfilled: false,
-    paymentTransactionId,
-    reason: "ALREADY_FULFILLED_OR_NOT_APPROVED",
-  };
+  await tx.paymentTransaction.update({
+    where: { id: paymentTransactionId },
+    data: { fulfilledAt: now, fulfilledSourceId },
+  });
+  return { fulfilled: true, paymentTransactionId, productType: payment.productType, fulfilledSourceId } as const;
+}
+
+export async function fulfillApprovedPaymentTransaction(paymentTransactionId: string) {
+  const order = await prisma.paymentTransaction.findUnique({
+    where: { id: paymentTransactionId },
+    select: { userId: true, provider: true },
+  });
+  if (!order || order.provider === "INFINITEPAY") {
+    return { fulfilled: false, paymentTransactionId, reason: "ALREADY_FULFILLED_OR_NOT_APPROVED" } as const;
+  }
+  return prisma.$transaction(async (tx) => {
+    await lockSubscriptionOwner(tx, order.userId);
+    await tx.$queryRaw`SELECT id FROM "PaymentTransaction" WHERE id = ${paymentTransactionId} FOR UPDATE`;
+    const payment = await tx.paymentTransaction.findUniqueOrThrow({ where: { id: paymentTransactionId } });
+    return grantPaymentBenefit(tx, payment, new Date());
+  }, { isolationLevel: "ReadCommitted" });
 }

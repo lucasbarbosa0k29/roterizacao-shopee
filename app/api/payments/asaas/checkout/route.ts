@@ -6,6 +6,7 @@ import { authOptions } from "@/app/lib/auth";
 import { canUseAccount, checkoutCustomerData } from "@/app/lib/account-security";
 import { prisma } from "@/app/lib/prisma";
 import { localDevelopmentEnabled } from "@/app/lib/local-development.js";
+import { hasConflictingPaidCycle, legacyEarlyRenewalEnabled } from "@/app/lib/subscription-cycles";
 
 export const runtime = "nodejs";
 
@@ -186,6 +187,11 @@ export async function POST(request: Request) {
 
     if (!user || !canUseAccount(user)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (legacyEarlyRenewalEnabled() && productType !== "EXTRA_ROUTE" &&
+        await hasConflictingPaidCycle(prisma, userId, productType, new Date())) {
+      return NextResponse.json({ state: "PLAN_CHANGE_REQUIRES_REVIEW" }, { status: 409 });
     }
 
     const config = PRODUCT_CONFIG[productType];

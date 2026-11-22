@@ -21,7 +21,7 @@ type SubscriptionStatusLabel =
   | "SEM PLANO"
   | "BLOQUEADO";
 
-type PlanOrigin = "manual" | "Mercado Pago" | "Asaas" | "avulso" | "sem plano";
+type PlanOrigin = "manual" | "Mercado Pago" | "Asaas" | "InfinitePay" | "avulso" | "sem plano";
 
 type SubscriptionUserRow = {
   id: string;
@@ -97,6 +97,8 @@ type SubscriptionUserRow = {
   } | null;
   recentPayments: Array<{
     id: string;
+    provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
+    fulfillmentReviewReason: string | null;
     productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
     quantity: number;
     amountCents: number;
@@ -1177,11 +1179,11 @@ export default function AdminSubscriptionsPage() {
                         </div>
                       </div>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                        {payment.status}
+                        {payment.status === "APPROVED" && payment.fulfillmentReviewReason ? "EM ANÁLISE" : payment.status}
                       </span>
                     </div>
                     <div className="mt-3 text-sm text-slate-600">
-                      {payment.quantity}x • {formatMoney(payment.amountCents)}
+                      {payment.provider} · {payment.quantity}x • {formatMoney(payment.amountCents)}
                     </div>
                     <div className="mt-1 text-xs text-slate-500 font-mono">
                       {payment.externalReference}

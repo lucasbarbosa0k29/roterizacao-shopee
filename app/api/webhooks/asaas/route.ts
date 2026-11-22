@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
-import { fulfillApprovedPaymentTransaction } from "@/app/lib/payment-fulfillment";
+import { fulfillApprovedPaymentTransaction, MANUAL_REFUND_RECORDED } from "@/app/lib/payment-fulfillment";
 
 export const runtime = "nodejs";
 
@@ -169,8 +169,10 @@ export async function POST(request: NextRequest) {
     const approvedAt =
       nextStatus === "APPROVED" ? transaction.approvedAt ?? new Date() : transaction.approvedAt;
 
-    await prisma.paymentTransaction.update({
-      where: { id: transaction.id },
+    const updated = await prisma.paymentTransaction.updateMany({
+      where: { id: transaction.id, OR: [
+        { fulfillmentReviewReason: null }, { fulfillmentReviewReason: { not: MANUAL_REFUND_RECORDED } },
+      ] },
       data: {
         asaasPaymentId: asaasPaymentId ?? transaction.asaasPaymentId,
         status: nextStatus,
@@ -179,7 +181,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (nextStatus === "APPROVED") {
+    if (updated.count && nextStatus === "APPROVED") {
       await fulfillApprovedPaymentTransaction(transaction.id);
     }
 

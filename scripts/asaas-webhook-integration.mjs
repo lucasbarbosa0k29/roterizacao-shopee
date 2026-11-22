@@ -1,5 +1,5 @@
 // Fresh local database only. Never uses the application's DATABASE_URL.
-import { mkdtemp } from 'node:fs/promises';
+import { copyFile, mkdtemp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -24,6 +24,7 @@ const password = randomBytes(24).toString('hex');
 const url = `postgresql://postgres:${password}@127.0.0.1:${port}/${database}`;
 const env = {
   ...process.env, NODE_ENV: 'test', ROTTA_LOCAL_DEV: '0',
+  INFINITEPAY_CHECKOUT_ENABLED: '0', LEGACY_EARLY_RENEWAL_ENABLED: '0',
   DATABASE_URL: url, TEST_DATABASE_URL: url, TEST_DB_RUN_ID: runId,
   ASAAS_WEBHOOK_SECRET: 'synthetic-webhook-secret-for-offline-tests',
   ASAAS_ACCESS_TOKEN: 'synthetic-unused', MERCADOPAGO_ACCESS_TOKEN: 'synthetic-unused',
@@ -54,8 +55,10 @@ try {
     await admin.query(`CREATE DATABASE "${database}"`);
   } finally { await admin.end(); }
   stage = 'prepare isolated schema';
+  const schema = join(folder, 'schema.prisma');
+  await copyFile(join(root, 'prisma/schema.prisma'), schema);
   execFileSync(process.execPath, [join(root, 'node_modules/prisma/build/index.js'),
-    'db', 'push', '--skip-generate'], { cwd: root, env, stdio: 'pipe', timeout: 60_000 });
+    'db', 'push', '--schema', schema, '--skip-generate'], { cwd: folder, env, stdio: 'pipe', timeout: 60_000 });
   console.log('Asaas tests: fresh loopback-only PostgreSQL; synthetic webhooks; providers blocked.');
   process.exitCode = await new Promise((resolveStatus, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', '--test',

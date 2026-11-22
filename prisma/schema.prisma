@@ -22,6 +22,7 @@ enum UserSubscriptionStatus {
   ACTIVE
   EXPIRED
   REVOKED
+  SCHEDULED
 }
 
 enum SubscriptionSource {
@@ -49,6 +50,7 @@ enum RouteCreditReason {
 enum PaymentProvider {
   MERCADOPAGO
   ASAAS
+  INFINITEPAY
 }
 
 enum PaymentProductType {
@@ -66,6 +68,12 @@ enum PaymentStatus {
   REFUNDED
   EXPIRED
   FULFILLED
+}
+
+enum PaymentEventStatus {
+  PENDING
+  PROCESSED
+  REVIEW
 }
 
 enum CnpjProvider {
@@ -283,12 +291,14 @@ model UserSubscription {
   expiresAt        DateTime?
   grantedByAdminId String?
   notes            String?
+  paymentTransactionId String? @unique
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
   user        User             @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
   plan        SubscriptionPlan @relation(fields: [planId], references: [id])
   routeUsages RouteUsage[]
+  paymentTransaction PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
 
   @@index([userId, status, expiresAt])
   @@index([planId])
@@ -321,8 +331,10 @@ model RouteCredit {
   reason    RouteCreditReason
   notes     String?
   createdAt DateTime          @default(now())
+  paymentTransactionId String? @unique
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentTransaction PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
 }
@@ -350,6 +362,17 @@ model PaymentTransaction {
   initPoint               String?
   sandboxInitPoint        String?
 
+  idempotencyKey           String?
+  infinitePayCheckoutUrl   String?
+  infinitePayCheckoutInput Json?
+  infinitePaySlug          String?
+  infinitePayTransactionId String? @unique
+  paidAmountCents          Int?
+  checkoutExpiresAt        DateTime?
+  checkoutRetryAt          DateTime?
+  checkoutAttempts         Int @default(0)
+  fulfillmentReviewReason  String?
+
   approvedAt        DateTime?
   fulfilledAt       DateTime?
   fulfilledSourceId String?
@@ -358,10 +381,45 @@ model PaymentTransaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  events       PaymentEvent[]
+  routeCredit  RouteCredit?
+  subscription UserSubscription?
+  checkoutIntents PaymentCheckoutIntent[]
+
+  @@unique([userId, idempotencyKey])
   @@index([userId, createdAt])
   @@index([provider, status])
   @@index([productType, status])
   @@index([approvedAt])
+}
+
+model PaymentCheckoutIntent {
+  userId               String
+  key                  String
+  paymentTransactionId String
+  paymentTransaction   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@index([paymentTransactionId])
+}
+
+model PaymentEvent {
+  id                   String             @id @default(cuid())
+  paymentTransactionId String
+  kind                 String
+  slug                 String
+  transactionNsu       String
+  status               PaymentEventStatus @default(PENDING)
+  attempts             Int                @default(0)
+  nextAttemptAt        DateTime           @default(now())
+  lastError            String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  paymentTransaction PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentTransactionId, kind, slug, transactionNsu], map: "PaymentEvent_signal_key")
+  @@index([status, nextAttemptAt])
 }
 
 model AdminAccessLog {

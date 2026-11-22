@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { canUseAccount } from "./account-security";
+import { startedSubscription } from "./subscription-cycles";
 
 type AccessPlanCode = "FREE" | "BASIC" | "PRO";
 type AccessRole = "ADMIN" | "USER";
@@ -31,6 +32,7 @@ export type UserAccessSnapshot = {
     source: "ADMIN_GRANT" | "TRIAL" | "INFINITEPAY_LINK" | "MANUAL_PAYMENT";
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
   };
+  scheduledSubscriptions: Array<{ id: string; code: AccessPlanCode; name: string; startsAt: string; expiresAt: string | null }>;
   todayRouteUsage: number;
   planRouteUsageToday: number;
   subscriptionCycleAllowance: number;
@@ -95,8 +97,8 @@ function isUnlimitedPlan(plan: { code: AccessPlanCode; isUnlimited: boolean }) {
   return plan.code === "FREE" || plan.isUnlimited;
 }
 
-export async function getTodayRouteUsage(userId: string) {
-  const usageDayKey = getSaoPauloDayKey();
+export async function getTodayRouteUsage(userId: string, now = new Date()) {
+  const usageDayKey = getSaoPauloDayKey(now);
 
   const count = await prisma.routeUsage.count({
     where: {
@@ -172,14 +174,15 @@ async function getSubscriptionCycleAllowanceFromDb(
     startsAt: Date;
     expiresAt: Date | null;
     plan: { dailyRouteLimit: number };
-  }
+  },
+  now: Date
 ) {
   const cycleUsed = await getSubscriptionCycleUsageFromDb(db, subscription.id);
   const rawCycleAccrued =
-    getAccruedCycleDays(subscription.startsAt, subscription.expiresAt) *
+    getAccruedCycleDays(subscription.startsAt, subscription.expiresAt, now) *
     subscription.plan.dailyRouteLimit;
   const cycleAllowance =
-    getTotalCycleDays(subscription.startsAt, subscription.expiresAt) *
+    getTotalCycleDays(subscription.startsAt, subscription.expiresAt, now) *
     subscription.plan.dailyRouteLimit;
   const cycleAccrued = Math.min(rawCycleAccrued, cycleAllowance);
   const cycleRemaining = Math.max(0, cycleAccrued - cycleUsed);
@@ -192,17 +195,14 @@ async function getSubscriptionCycleAllowanceFromDb(
   };
 }
 
-async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string) {
-  const now = new Date();
-
+async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string, now: Date) {
   const subscription = await db.userSubscription.findFirst({
     where: {
       userId,
-      status: "ACTIVE",
+      ...startedSubscription(now),
       plan: {
         isActive: true,
       },
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
     orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
     include: {
@@ -213,8 +213,16 @@ async function getActiveSubscriptionFromDb(db: AccessControlDb, userId: string) 
   return subscription;
 }
 
-async function getActiveSubscription(userId: string) {
-  return getActiveSubscriptionFromDb(prisma, userId);
+async function getScheduledSubscriptions(userId: string, now: Date) {
+  const cycles = await prisma.userSubscription.findMany({
+    where: { userId, status: "SCHEDULED", startsAt: { gt: now } },
+    orderBy: { startsAt: "asc" },
+    include: { plan: { select: { code: true, name: true } } },
+  });
+  return cycles.map((cycle) => ({
+    id: cycle.id, code: cycle.plan.code, name: cycle.plan.name,
+    startsAt: cycle.startsAt.toISOString(), expiresAt: cycle.expiresAt?.toISOString() ?? null,
+  }));
 }
 
 async function getActiveWorkspaceAccessFromDb(db: AccessControlDb, userId: string) {
@@ -255,7 +263,7 @@ function serializeActiveWorkspaceAccess(
   };
 }
 
-function serializeActiveSubscription(activeSubscription: NonNullable<Awaited<ReturnType<typeof getActiveSubscription>>>) {
+function serializeActiveSubscription(activeSubscription: NonNullable<Awaited<ReturnType<typeof getActiveSubscriptionFromDb>>>): NonNullable<UserAccessSnapshot["activeSubscription"]> {
   return {
     id: activeSubscription.id,
     code: activeSubscription.plan.code,
@@ -265,23 +273,24 @@ function serializeActiveSubscription(activeSubscription: NonNullable<Awaited<Ret
     dailyRouteLimit: activeSubscription.plan.dailyRouteLimit,
     isUnlimited: activeSubscription.plan.isUnlimited,
     source: activeSubscription.source,
-    status: activeSubscription.status,
+    status: "ACTIVE",
   };
 }
 
-export async function getUserAccessSnapshot(userId: string): Promise<UserAccessSnapshot> {
-  return buildUserAccessSnapshot(userId, "protected");
+export async function getUserAccessSnapshot(userId: string, now = new Date()): Promise<UserAccessSnapshot> {
+  return buildUserAccessSnapshot(userId, "protected", now);
 }
 
 // Read-only inspection after the caller authorizes the administrator.
 // Protected features must keep using getUserAccessSnapshot instead.
 export async function getAdminUserAccessSnapshot(userId: string): Promise<UserAccessSnapshot> {
-  return buildUserAccessSnapshot(userId, "admin");
+  return buildUserAccessSnapshot(userId, "admin", new Date());
 }
 
 async function buildUserAccessSnapshot(
   userId: string,
-  context: "protected" | "admin"
+  context: "protected" | "admin",
+  now: Date
 ): Promise<UserAccessSnapshot> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -313,6 +322,7 @@ async function buildUserAccessSnapshot(
       isBlocked,
       blockReason: user.accessBlockReason ?? null,
       activeSubscription: null,
+      scheduledSubscriptions: [],
       todayRouteUsage: 0,
       planRouteUsageToday: 0,
       subscriptionCycleAllowance: 0,
@@ -331,20 +341,22 @@ async function buildUserAccessSnapshot(
     };
   }
 
-  const usageDayKey = getSaoPauloDayKey();
+  const usageDayKey = getSaoPauloDayKey(now);
   const [
     activeSubscription,
     todayRouteUsage,
     routeCreditsBalance,
     dailySubscriptionUsage,
     activeWorkspaceAccess,
+    scheduledSubscriptions,
   ] =
     await Promise.all([
-      getActiveSubscription(user.id),
-      getTodayRouteUsage(user.id),
+      getActiveSubscriptionFromDb(prisma, user.id, now),
+      getTodayRouteUsage(user.id, now),
       getRouteCreditBalance(user.id),
       getDailySubscriptionUsageFromDb(prisma, user.id, usageDayKey),
       getActiveWorkspaceAccessFromDb(prisma, user.id),
+      getScheduledSubscriptions(user.id, now),
     ]);
   const serializedWorkspaceAccess = activeWorkspaceAccess
     ? serializeActiveWorkspaceAccess(activeWorkspaceAccess)
@@ -355,7 +367,7 @@ async function buildUserAccessSnapshot(
     !isBlocked &&
     (hasActiveSubscription || hasRouteCredit || !!serializedWorkspaceAccess);
   const subscriptionCycle = activeSubscription
-    ? await getSubscriptionCycleAllowanceFromDb(prisma, activeSubscription)
+    ? await getSubscriptionCycleAllowanceFromDb(prisma, activeSubscription, now)
     : {
         cycleAllowance: 0,
         cycleUsed: 0,
@@ -370,19 +382,8 @@ async function buildUserAccessSnapshot(
       isAdmin,
       isBlocked: true,
       blockReason: user.accessBlockReason ?? null,
-      activeSubscription: activeSubscription
-        ? {
-            id: activeSubscription.id,
-            code: activeSubscription.plan.code,
-            name: activeSubscription.plan.name,
-            startsAt: activeSubscription.startsAt.toISOString(),
-            expiresAt: activeSubscription.expiresAt?.toISOString() ?? null,
-            dailyRouteLimit: activeSubscription.plan.dailyRouteLimit,
-            isUnlimited: activeSubscription.plan.isUnlimited,
-            source: activeSubscription.source,
-            status: activeSubscription.status,
-          }
-        : null,
+      activeSubscription: activeSubscription ? serializeActiveSubscription(activeSubscription) : null,
+      scheduledSubscriptions,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
       subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
@@ -409,6 +410,7 @@ async function buildUserAccessSnapshot(
       isBlocked: false,
       blockReason: user.accessBlockReason ?? null,
       activeSubscription: null,
+      scheduledSubscriptions,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
       subscriptionCycleAllowance: 0,
@@ -435,6 +437,7 @@ async function buildUserAccessSnapshot(
       isBlocked: false,
       blockReason: null,
       activeSubscription: null,
+      scheduledSubscriptions,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
       subscriptionCycleAllowance: 0,
@@ -469,6 +472,7 @@ async function buildUserAccessSnapshot(
       isBlocked: false,
       blockReason: null,
       activeSubscription: serializeActiveSubscription(subscription),
+      scheduledSubscriptions,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
       subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
@@ -495,6 +499,7 @@ async function buildUserAccessSnapshot(
       isBlocked: false,
       blockReason: null,
       activeSubscription: serializeActiveSubscription(subscription),
+      scheduledSubscriptions,
       todayRouteUsage,
       planRouteUsageToday: dailySubscriptionUsage,
       subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
@@ -520,6 +525,7 @@ async function buildUserAccessSnapshot(
     isBlocked: false,
     blockReason: null,
     activeSubscription: serializeActiveSubscription(subscription),
+    scheduledSubscriptions,
     todayRouteUsage,
     planRouteUsageToday: dailySubscriptionUsage,
     subscriptionCycleAllowance: subscriptionCycle.cycleAllowance,
@@ -609,9 +615,10 @@ export async function consumeRouteAllowance({
             );
           }
 
-          const usageDayKey = getSaoPauloDayKey();
+          const now = new Date();
+          const usageDayKey = getSaoPauloDayKey(now);
           const [activeSubscription, routeCreditsBalance] = await Promise.all([
-            getActiveSubscriptionFromDb(tx, userId),
+            getActiveSubscriptionFromDb(tx, userId, now),
             getRouteCreditBalanceFromDb(tx, userId),
           ]);
 
@@ -640,7 +647,8 @@ export async function consumeRouteAllowance({
 
             const subscriptionCycle = await getSubscriptionCycleAllowanceFromDb(
               tx,
-              activeSubscription
+              activeSubscription,
+              now
             );
             if (subscriptionCycle.cycleRemaining > 0) {
               const usage = await tx.routeUsage.create({
@@ -706,7 +714,7 @@ export async function consumeRouteAllowance({
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       );
-    } catch (error: any) {
+    } catch (error) {
       if (error instanceof AccessControlError) {
         throw error;
       }

@@ -171,7 +171,7 @@ test("duplicate confirmed/received events across both authentication formats gra
   await f.assertLegacyUnchanged();
 });
 
-test("simultaneous duplicate webhooks grant credits once using real serializable transactions", async () => {
+test("simultaneous duplicate webhooks grant credits once with transactional locking", async () => {
   const f = await fixture();
   const responses = await Promise.all([
     f.call({ header: SECRET }), f.call({ header: WRONG, query: SECRET }),
@@ -205,20 +205,44 @@ test("failed credit grant rolls back the claim and a webhook retry grants credit
 });
 
 for (const product of ["BASIC_PLAN", "PRO_PLAN"] as const) {
-  test(`duplicate ${product} confirmation preserves the subscription granted by the first event`, async () => {
+  test(`opt-in legacy renewal keeps the Basic cycle for duplicate ${product} confirmation`, async (context) => {
+    process.env.LEGACY_EARLY_RENEWAL_ENABLED = "1";
+    context.after(() => { delete process.env.LEGACY_EARLY_RENEWAL_ENABLED; });
     await db.subscriptionPlan.upsert({ where: { code: "PRO" }, update: {},
       create: { code: "PRO", name: "Fixture Pro", durationDays: 30, dailyRouteLimit: 10 } });
     const f = await fixture(product);
     assert.equal((await f.call({ header: WRONG, query: SECRET })).status, 200);
     const subscriptions = await db.userSubscription.findMany({ where: { userId: f.user.id }, orderBy: { id: "asc" } });
-    assert.equal(subscriptions.length, 2);
+    assert.equal(subscriptions.length, product === "BASIC_PLAN" ? 2 : 1);
     assert.equal(subscriptions.filter(s => s.status === "ACTIVE").length, 1);
-    assert.equal(subscriptions.filter(s => s.status === "REVOKED").length, 1);
+    assert.equal(subscriptions.filter(s => s.status === "SCHEDULED").length, product === "BASIC_PLAN" ? 1 : 0);
+    assert.equal((await f.payment()).fulfillmentReviewReason, product === "PRO_PLAN" ? "PLAN_CHANGE_REQUIRES_REVIEW" : null);
     assert.equal((await f.purchasedCredits()).length, 0);
     assert.equal((await f.call({ header: SECRET })).status, 200);
     assert.deepEqual(await db.userSubscription.findMany({ where: { userId: f.user.id }, orderBy: { id: "asc" } }), subscriptions);
   });
 }
+
+test("disabled rollout preserves access through the previous release's ACTIVE-only lookup after a renewal", async () => {
+  delete process.env.INFINITEPAY_CHECKOUT_ENABLED;
+  delete process.env.LEGACY_EARLY_RENEWAL_ENABLED;
+  const f = await fixture("BASIC_PLAN");
+  assert.equal((await f.call({ header: SECRET })).status, 200);
+  assert.equal((await f.call({ header: SECRET })).status, 200);
+  const paid = await f.payment();
+  assert.ok(paid.fulfilledSourceId);
+  assert.equal(await db.userSubscription.count({ where: { userId: f.user.id, status: "SCHEDULED" } }), 0);
+  const now = new Date();
+  const previousRelease = await db.userSubscription.findFirst({
+    where: { userId: f.user.id, status: "ACTIVE", plan: { isActive: true },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
+  });
+  assert.equal(previousRelease?.id, paid.fulfilledSourceId);
+  const { getUserAccessSnapshot } = await import("../app/lib/access-control");
+  await db.user.update({ where: { id: f.user.id }, data: { emailVerificationRequired: false } });
+  assert.equal((await getUserAccessSnapshot(f.user.id, now)).activeSubscription?.id, previousRelease?.id);
+});
 
 test("pending payment grants no credits", async () => {
   const f = await fixture();
@@ -228,6 +252,26 @@ test("pending payment grants no credits", async () => {
   assert.equal(payment.status, "PENDING");
   assert.equal(payment.fulfilledAt, null);
   assert.equal((await f.purchasedCredits()).length, 0);
+  await f.assertLegacyUnchanged();
+});
+
+test("a manually recorded full refund stays closed after a repeated approval", async () => {
+  const f = await fixture("PRO_PLAN");
+  const admin = await db.user.create({ data: {
+    email: `${randomUUID()}@example.test`, password: "isolated", role: "ADMIN",
+  } });
+  await db.paymentTransaction.update({ where: { id: f.transaction.id }, data: {
+    status: "APPROVED", approvedAt: new Date(), asaasPaymentId: f.payload.payment.id,
+    fulfillmentReviewReason: "PLAN_CHANGE_REQUIRES_REVIEW",
+  } });
+  const { resolvePaymentReview } = await import("../app/lib/payment-review");
+  assert.deepEqual(await resolvePaymentReview(admin.id, {
+    action: "record-refund", orderNsu: f.transaction.externalReference, captureReference: f.payload.payment.id,
+    amountCents: f.transaction.amountCents, evidence: "REFUND-23", eventId: null,
+  }), { resolved: true });
+  assert.equal((await f.call({ header: SECRET })).status, 200);
+  assert.equal((await f.payment()).status, "REFUNDED");
+  assert.equal((await f.payment()).fulfilledAt, null);
   await f.assertLegacyUnchanged();
 });
 

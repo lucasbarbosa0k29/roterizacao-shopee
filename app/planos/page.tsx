@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const WHATSAPP_BUSINESS_URL =
   process.env.NEXT_PUBLIC_WHATSAPP_BUSINESS_URL || "https://wa.me/SEU_NUMERO_AQUI";
@@ -22,6 +22,8 @@ type AccessSnapshot = {
     source: "ADMIN_GRANT" | "TRIAL" | "INFINITEPAY_LINK" | "MANUAL_PAYMENT";
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
   };
+  scheduledSubscriptions?: Array<{ id: string; name: string; startsAt: string; expiresAt: string | null }>;
+  infinitePayCheckoutEnabled?: boolean;
   todayRouteUsage: number;
   planRouteUsageToday: number;
   subscriptionCycleAllowance: number;
@@ -43,7 +45,43 @@ type CheckoutResponse = {
   checkoutUrl?: string;
   paymentTransactionId?: string;
   error?: string;
+  state?: string;
+  orderNsu?: string;
 };
+
+const paymentMessages: Record<string, string> = {
+  COMPLETED: "Pagamento confirmado. Seus benefícios foram atualizados.",
+  REVIEW: "Pagamento em análise. Acompanhe o pedido ou fale com o suporte.",
+  PENDING: "Aguardando confirmação do pagamento.",
+  EXPIRED: "O prazo do checkout terminou. Um pagamento recebido ainda pode ser conciliado.",
+  REJECTED: "Pagamento recusado.",
+  CANCELED: "Pagamento cancelado.",
+  REFUNDED: "Pagamento reembolsado.",
+  UNAVAILABLE: "Não foi possível consultar o pagamento.",
+};
+
+function readCheckoutKey(storageKey: string) {
+  try {
+    return window.sessionStorage.getItem(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+function rememberCheckoutKey(storageKey: string, key: string | null) {
+  try {
+    if (key) window.sessionStorage.setItem(storageKey, key);
+    else window.sessionStorage.removeItem(storageKey);
+  } catch {
+    // Keep the in-memory key when browser storage is unavailable.
+  }
+}
+
+function formatCycleDate(date: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short",
+  }).format(new Date(date));
+}
 
 function PaymentButton({
   label,
@@ -68,30 +106,11 @@ function PaymentButton({
   );
 }
 
-function getAvailableRoutesLabel(access: AccessSnapshot | null) {
-  if (!access) return "-";
-  if (access.isBlocked) return "Bloqueado";
-  if (access.isAdmin || access.isUnlimited || access.allowanceSource === "FREE") {
-    return "Ilimitado";
-  }
-  if (access.activeSubscription) {
-    const remaining = access.subscriptionCycleRemaining;
-    return remaining > 0
-      ? `${remaining} Rota${remaining === 1 ? "" : "s"} Disponível${remaining === 1 ? "" : "eis"}`
-      : "0 Rotas Disponíveis";
-  }
-  if (access.routeCreditsBalance > 0) {
-    return `Créditos: ${access.routeCreditsBalance}`;
-  }
-  return "-";
-}
-
 function getCycleResetLabel(access: AccessSnapshot | null) {
   const expiresAt = access?.activeSubscription?.expiresAt;
   if (!expiresAt) return "Sem data de expiração";
 
-  const resetDate = new Date(expiresAt);
-  return resetDate.toLocaleDateString("pt-BR");
+  return new Date(expiresAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
 export default function PlanosPage() {
@@ -101,6 +120,12 @@ export default function PlanosPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<PaymentProductType | null>(null);
   const [extraRouteQuantity, setExtraRouteQuantity] = useState(1);
+  const [paymentState, setPaymentState] = useState<string | null>(null);
+  const [requestedOrder, setRequestedOrder] = useState<string | null>(null);
+  const [statusRefresh, setStatusRefresh] = useState(0);
+  const checkoutKeys = useRef(new Map<string, string>());
+  const checkoutInFlight = useRef(false);
+  const paymentCompleted = paymentState === "COMPLETED";
 
   const EXTRA_ROUTE_MIN = 1;
   const EXTRA_ROUTE_MAX = 100;
@@ -142,25 +167,61 @@ export default function PlanosPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [paymentCompleted]);
+
+  useEffect(() => {
+    const order = requestedOrder ?? new URLSearchParams(window.location.search).get("paymentOrder");
+    if (!order) return;
+    const controller = new AbortController();
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/payments/infinitepay/status?order=${encodeURIComponent(order)}`, {
+          cache: "no-store", signal: controller.signal,
+        });
+        if (res.ok) {
+          const { state } = await res.json() as { state: string };
+          setPaymentState(state);
+        } else {
+          setPaymentState("UNAVAILABLE");
+        }
+      } catch {
+        if (!controller.signal.aborted) setPaymentState("UNAVAILABLE");
+      }
+    };
+    void checkStatus();
+    return () => controller.abort();
+  }, [requestedOrder, statusRefresh]);
 
   async function startCheckout(productType: PaymentProductType) {
+    if (checkoutInFlight.current) return;
+    if (!access) {
+      setCheckoutError("Entre na sua conta para carregar as opções de pagamento.");
+      return;
+    }
+    checkoutInFlight.current = true;
     try {
       setCheckoutError(null);
       setCheckoutLoading(productType);
 
       const quantity = productType === "EXTRA_ROUTE" ? extraRouteQuantity : 1;
+      const useInfinitePay = access?.infinitePayCheckoutEnabled === true;
+      const intent = `rotta:checkout:${access.userId}:${productType}:${quantity}`;
+      const headers = new Headers({ "Content-Type": "application/json" });
+      if (useInfinitePay) {
+        const key = checkoutKeys.current.get(intent) ?? readCheckoutKey(intent) ?? crypto.randomUUID();
+        checkoutKeys.current.set(intent, key);
+        rememberCheckoutKey(intent, key);
+        headers.set("Idempotency-Key", key);
+      }
       const checkoutEndpoint =
-        productType === "EXTRA_ROUTE"
+        useInfinitePay ? "/api/payments/infinitepay/checkout" : productType === "EXTRA_ROUTE"
           ? "/api/payments/mercadopago/checkout"
           : "/api/payments/asaas/checkout";
 
       const res = await fetch(checkoutEndpoint, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           productType,
           quantity,
@@ -174,6 +235,33 @@ export default function PlanosPage() {
         return;
       }
 
+      if (data.state === "PLAN_CHANGE_REQUIRES_REVIEW") {
+        checkoutKeys.current.delete(intent);
+        rememberCheckoutKey(intent, null);
+        setCheckoutError("A troca de plano precisa de análise para preservar os benefícios já contratados. Fale com o suporte.");
+        return;
+      }
+      if (useInfinitePay && data.state === "CHECKOUT_PENDING") {
+        setCheckoutError("O checkout ainda está sendo preparado. Tente novamente em alguns instantes.");
+        return;
+      }
+      if (useInfinitePay && data.state === "CHECKOUT_REVIEW") {
+        setCheckoutError("Não foi possível recuperar o link deste pedido. Fale com o suporte antes de tentar outra compra.");
+        return;
+      }
+      if (useInfinitePay && (data.state === "EXPIRED" || data.state === "ORDER_CLOSED")) {
+        checkoutKeys.current.delete(intent);
+        rememberCheckoutKey(intent, null);
+        if (data.orderNsu && new URLSearchParams(window.location.search).get("paymentOrder") !== data.orderNsu) {
+          window.history.replaceState(null, "", `/planos?paymentOrder=${encodeURIComponent(data.orderNsu)}`);
+          setPaymentState(null);
+          setRequestedOrder(data.orderNsu);
+        } else {
+          setCheckoutError("O checkout anterior foi encerrado. Clique novamente para iniciar uma nova compra.");
+        }
+        return;
+      }
+
       if (!res.ok || !data.checkoutUrl) {
         setCheckoutError(data.error || "Não foi possível iniciar o checkout. Tente novamente.");
         return;
@@ -183,6 +271,7 @@ export default function PlanosPage() {
     } catch {
       setCheckoutError("Não foi possível iniciar o checkout. Verifique sua conexão e tente novamente.");
     } finally {
+      checkoutInFlight.current = false;
       setCheckoutLoading(null);
     }
   }
@@ -275,10 +364,36 @@ export default function PlanosPage() {
               </div>
 
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Atenção: o saldo acumulado expira ao final do ciclo do plano. Na renovação, um novo saldo é iniciado.
+                A renovação é manual. Ao comprar o mesmo plano antes do vencimento, o próximo ciclo começa após o atual. O saldo acumulado expira ao final de cada ciclo.
               </div>
             </div>
 
+            {paymentState && paymentMessages[paymentState] && (
+              <div className="mb-4 rounded-2xl bg-slate-100 p-4 text-sm text-slate-800">
+                <p role="status">{paymentMessages[paymentState]}</p>
+                {(paymentState === "PENDING" || paymentState === "REVIEW" || paymentState === "EXPIRED" ||
+                  paymentState === "UNAVAILABLE") && (
+                  <button type="button" className="mt-2 font-semibold underline"
+                    onClick={() => setStatusRefresh((attempt) => attempt + 1)}>
+                    Consultar pagamento
+                  </button>
+                )}
+              </div>
+            )}
+            {!!access?.scheduledSubscriptions?.length && (
+              <section className="mb-4 rounded-2xl bg-slate-100 p-4 text-slate-800">
+                <h2 className="font-semibold">Renovações agendadas</h2>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {access.scheduledSubscriptions.map((cycle) => (
+                    <li key={cycle.id}>
+                      {cycle.name} · {formatCycleDate(cycle.startsAt)}
+                      {cycle.expiresAt && ` a ${formatCycleDate(cycle.expiresAt)}`}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-sm">Horário de Brasília. Cada ciclo libera sua cota no início da vigência.</p>
+              </section>
+            )}
             {checkoutError ? (
               <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 shadow-sm">
                 {checkoutError}
