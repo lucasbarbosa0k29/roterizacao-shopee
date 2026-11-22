@@ -316,6 +316,30 @@ test("checkout idempotency, server pricing and cross-owner status protection", a
   assert.equal((await route.POST(new Request("https://rotta.example.test", { method: "POST" }))).status, 503);
 });
 
+test("a checkout on the .io host is saved and reused, with confirmation via the existing webhook", async () => {
+  const user = await account();
+  const input = services.readCheckoutRequest({ productType: "EXTRA_ROUTE", quantity: 10 }, randomUUID())!;
+  const link = "https://checkout.infinitepay.io/synthetic-payment";
+  nextLinkResponse = () => Response.json({ url: link }, { status: 201 });
+
+  const first = await services.startInfinitePayCheckout(user.id, input);
+  assert.equal(first.state, "READY");
+  const orderNsu = first.orderNsu!;
+  const original = await payment(orderNsu);
+  assert.equal(original.infinitePayCheckoutUrl, link);
+  assert.equal(original.infinitePaySlug, null);
+  assert.equal(original.amountCents, 1990);
+  const replay = await services.startInfinitePayCheckout(user.id, { ...input, idempotencyKey: randomUUID() });
+  assert.deepEqual(replay, { state: "READY", orderNsu, checkoutUrl: link });
+  assert.equal(requests.filter((request) => request.order === orderNsu && request.path.endsWith("/links")).length, 1);
+
+  const capture = randomUUID();
+  await confirm(orderNsu, capture);
+  await confirm(orderNsu, capture);
+  assert.equal((await payment(orderNsu)).routeCredit?.delta, 10);
+  assert.equal(await services.prisma.routeCredit.count({ where: { userId: user.id } }), 1);
+});
+
 test("a second independently confirmed capture requires refund review and never grants twice", async () => {
   const user = await account();
   const admin = await account();

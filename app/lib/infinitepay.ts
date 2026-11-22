@@ -2,7 +2,7 @@ import process from "node:process";
 import type { PaymentProductType } from "@prisma/client";
 
 const API = "https://api.checkout.infinitepay.io";
-const CHECKOUT_HOSTS = new Set(["buy.infinitepay.io", "checkout.infinitepay.com.br"]);
+const CHECKOUT_HOSTS = new Set(["buy.infinitepay.io", "checkout.infinitepay.com.br", "checkout.infinitepay.io"]);
 
 export const INFINITEPAY_PRODUCTS = {
   EXTRA_ROUTE: { price: 199, description: "Rotta - Rota avulsa", maxQuantity: 100 },
