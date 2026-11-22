@@ -3513,7 +3513,7 @@ async function processOne(
       original: "",
       normalized: null,
       normalizedLine: "",
-      status: "NAO_ENCONTRADO",
+      status: shopeeGpsScope ? "PARCIAL" : "NAO_ENCONTRADO",
       ...(shopeeGpsScope ? { ...sheetCoordinates, decisionReason: "SHOPEE_GPS_ADDRESS_EMPTY", locationResolved: false } : {}),
       lat: null,
       lng: null,
@@ -3545,6 +3545,7 @@ async function processOne(
     | "base"
     | CondoMemoryKeyKind = null;
   let matchedMemoryKey: string | null = null;
+  let manualMemoryConfirmed = false;
   let automaticMemory: { lat: number; lng: number; label?: string | null; exact: boolean } | null = null;
   let approxMemoryHit: null | { lat: number; lng: number; label?: string | null } = null;
   let approxMemoryTextHint: null | { suggestedAddressLine: string; reason: string } = null;
@@ -3592,6 +3593,7 @@ async function processOne(
         continue;
       }
 
+      manualMemoryConfirmed = shopeeGpsScope && !!mem.createdBy && candidate.kind === "exact";
       memoryHit = { lat: mem.lat, lng: mem.lng, label: mem.label };
       memoryHitKind = candidate.kind;
       matchedMemoryKey = candidate.key;
@@ -7257,6 +7259,8 @@ if (shouldAutoSaveAddressMemory) {
     finalMatchType = "MEMORY_APPROX";
   }
 
+  const finalManualStatus = shopeeGpsScope && memoryHit && manualMemoryConfirmed
+    ? "CONFIRMADO" as const : null;
   if (shopeeGpsScope && memoryHit) {
     ({ lat, lng } = memoryHit);
     status = "OK";
@@ -7264,7 +7268,8 @@ if (shouldAutoSaveAddressMemory) {
     finalMatchType = "MEMORY";
     coordinatePrecision = "MEMORY";
   }
-  // Keep unresolved rows eligible for recovery until all fallbacks have run.
+  // Preserve the legacy API codes for compatibility. Unresolved scoped rows
+  // have PARCIAL plus locationResolved=false, and become eligible for recovery.
   if (shopeeGpsScope && (lat == null || lng == null)) status = "PARCIAL";
   const shouldRecoverSheetGps = shopeeGpsScope && status === "PARCIAL" && (lat == null || lng == null) && !memoryHit;
   const shopeeGpsRecovery = shouldRecoverSheetGps && hasSheetCoordinate
@@ -7327,7 +7332,6 @@ if (shouldAutoSaveAddressMemory) {
     }
   }
 
-  if (lat == null || lng == null) status = "NAO_ENCONTRADO";
   const poiShadowUseful = poiShadow.confidence === "POI_HIGH" && poiShadow.found;
   const poiShadowDistanceToFinalM =
     poiShadowUseful &&
@@ -7409,7 +7413,7 @@ if (shouldAutoSaveAddressMemory) {
           originalSafetyGate: trindadeLocalFirstInspectOriginalSafetyGate,
         }
       : {}),
-    status,
+    status: finalManualStatus ?? status,
     ...(shopeeGpsScope ? {
       ...sheetCoordinates, locationResolved: lat != null && lng != null,
       ...(selectedSheetPoint ? { shopeeGpsQuality: selectedSheetPoint.quality, shopeeGpsDistanceM: selectedSheetPoint.distanceM } : {}),

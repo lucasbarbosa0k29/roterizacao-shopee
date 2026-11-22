@@ -70,12 +70,10 @@ export async function updateHistoryDb(
   id: string,
   payload: any
 ) {
-  const body = JSON.stringify(payload);
-  const response = await fetchJson(`/api/history/${encodeURIComponent(id)}`, {
+  await fetchJson(`/api/history/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    keepalive: !Array.isArray(payload.rows) && new Blob([body]).size < 60000,
+    keepalive: true,
     headers: { "Content-Type": "application/json" },
-    body, // ✅ corrigido aqui
+    body: JSON.stringify(payload), // ✅ corrigido aqui
   });
-  if (response?.ignored && Array.isArray(payload.rows)) throw new Error("Alteração desatualizada.");
 }

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Module = require('node:module');
 
-function createOfflineProcess({ root = process.cwd(), overlay = null, historyJob = null } = {}) {
+function createOfflineProcess({ root = process.cwd(), overlay = null } = {}) {
   const ts = require(path.join(root, 'node_modules/typescript'));
   const cache = new Map();
   let fixture = {};
@@ -13,15 +13,7 @@ function createOfflineProcess({ root = process.cwd(), overlay = null, historyJob
   const noop = async () => {};
   const prisma = {
     user: { findUnique: async () => ({ id: 'offline', role: 'ADMIN' }) },
-    importJob: {
-      create: async () => ({ id: 'offline' }),
-      findFirst: async ({where}) => where.id === historyJob?.id && where.userId === 'offline' ? structuredClone(historyJob) : null,
-      updateMany: async ({where, data}) => {
-        if (where.id !== historyJob?.id || where.userId !== 'offline') return {count: 0};
-        Object.assign(historyJob, structuredClone(data));
-        return {count: 1};
-      },
-    },
+    importJob: { create: async () => ({ id: 'offline' }) },
     addressMemory: {
     findUnique: async () => fixture.memory || null,
     findMany: async () => [],

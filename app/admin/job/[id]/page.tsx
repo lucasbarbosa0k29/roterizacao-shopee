@@ -1,7 +1,5 @@
 "use client";
 
-import { normalizeDeliveryRows } from "@/app/lib/delivery-status";
-
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -71,6 +69,12 @@ function hasManualEditData(manual: any) {
       (manual.notes && String(manual.notes).trim())
     )
   );
+}
+
+function getDerivedRowStatus(row: any, manual: any): Status {
+  if (manual?.confirmed) return "CONFIRMADO";
+  if (hasManualEditData(manual)) return "MANUAL";
+  return (row?.status || "NAO_ENCONTRADO") as Status;
 }
 
 function isMemoryHitRow(row: any) {
@@ -161,10 +165,10 @@ export default function AdminJobPage() {
     if (!job) return [];
 
     const rj = job.resultJson;
-    if (Array.isArray(rj)) return normalizeDeliveryRows(rj, {}, job.id);
+    if (Array.isArray(rj)) return rj;
 
     const rows = (rj as any)?.rows;
-    if (Array.isArray(rows)) return normalizeDeliveryRows(rows, rj.manualEdits ?? {}, job.id);
+    if (Array.isArray(rows)) return rows;
 
     return [];
   }, [job]);
@@ -253,7 +257,7 @@ export default function AdminJobPage() {
 
     rowsAll.forEach((row: any, idx: number) => {
       const manual = manualEdits[idx];
-      const derivedStatus = row.status;
+      const derivedStatus = getDerivedRowStatus(row, manual);
       statusCounts[derivedStatus] = (statusCounts[derivedStatus] || 0) + 1;
 
       if (manual?.review) {

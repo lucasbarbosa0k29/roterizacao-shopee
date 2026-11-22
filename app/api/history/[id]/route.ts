@@ -7,7 +7,6 @@ import {
   loadJobResult,
   saveJobResult,
 } from "@/app/lib/job-storage";
-import { normalizeDeliveryRows, reconcileConfirmationEdits } from "@/app/lib/delivery-status";
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -158,16 +157,19 @@ function getConsolidatedTotalStops(workspaceJson: any, fallbackTotalStops: numbe
     : fallbackTotalStops;
 }
 
-function getHistoryDisplayStatus(workspaceJson: any, status: string, jobId: string, deliveryCount: number) {
-  if (status === "PROCESSING" || status === "PENDING" || status === "FAILED") return status;
-  if (deliveryCount <= 0) return "REVIEW";
-  for (let index = 0; index < deliveryCount; index++) {
-    const edit = workspaceJson?.manualEdits?.[index];
-    if (!edit?.confirmed || edit.mapConfirmation?.jobId !== jobId || edit.mapConfirmation.index !== index) {
-      return "REVIEW";
-    }
+function getHistoryDisplayStatus(workspaceJson: any, status: string, totalStops: number) {
+  if (status === "PROCESSING" || status === "PENDING" || status === "FAILED") {
+    return status;
   }
-  return "DONE";
+
+  const summary = workspaceJson?.routeSummary;
+  const confirmedCount = Number(summary?.confirmedCount);
+  const allConfirmed =
+    summary?.allConfirmed === true &&
+    Number.isFinite(confirmedCount) &&
+    confirmedCount >= totalStops;
+
+  return allConfirmed ? "DONE" : "REVIEW";
 }
 
 export async function GET(
@@ -246,7 +248,7 @@ export async function GET(
         job: {
           ...job,
           totalStops,
-          displayStatus: getHistoryDisplayStatus(job.workspaceJson, job.status, safeId, job.totalStops),
+          displayStatus: getHistoryDisplayStatus(job.workspaceJson, job.status, totalStops),
           workspaceJson: undefined,
         },
       });
@@ -299,7 +301,7 @@ export async function GET(
       job: {
         ...job,
         resultPath: undefined,
-        resultJson: { ...normalized, rows: normalizeDeliveryRows(normalized.rows, workspace.manualEdits, safeId) },
+        resultJson: normalized,
         workspaceJson: workspace,
       },
     });
@@ -363,9 +365,6 @@ export async function PATCH(
 
     const payload = mergeWorkspaceJson(currentWorkspace, incomingWorkspace);
 
-    payload.manualEdits = reconcileConfirmationEdits(
-      currentWorkspace.manualEdits, incomingWorkspace.manualEdits, safeId, incomingRows, bodyRecord.confirmationIndex,
-    );
     const data: Prisma.ImportJobUpdateManyMutationInput = {
       workspaceJson: payload as Prisma.InputJsonValue,
     };
@@ -385,7 +384,7 @@ export async function PATCH(
       const currentResultEnvelope = normalizeResultJson(storedResultJson) ?? buildEmptyResultEnvelope();
       const nextResultEnvelope = {
         ...currentResultEnvelope,
-        rows: normalizeDeliveryRows(incomingRows, payload.manualEdits, safeId),
+        rows: incomingRows,
         manualEdits: payload.manualEdits,
         manualGroups: payload.manualGroups,
         autoGrouped: payload.autoGrouped,

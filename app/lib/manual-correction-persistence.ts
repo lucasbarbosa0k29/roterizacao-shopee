@@ -19,8 +19,7 @@ export function applyManualCoordinateToState<
 >(args: {
   rows: TRow[];
   manualEdits: Record<number, TEdit>;
-  index: number;
-  confirmedInJob: string | null;
+  idxsToApply: number[];
   coord: { lat: number; lng: number };
   manualEditPatch?: Partial<TEdit>;
 }) {
@@ -29,24 +28,26 @@ export function applyManualCoordinateToState<
   const nextManualEdits: Record<number, TEdit> = { ...args.manualEdits };
   const nextRows = [...args.rows];
 
-  const idx = args.index;
-  const currentRow = nextRows[idx];
-  if (!currentRow) throw new Error("Entrega inexistente");
-  nextManualEdits[idx] = {
-    ...nextManualEdits[idx],
-    ...manualEditPatch,
-    lat: args.coord.lat,
-    lng: args.coord.lng,
-    confirmed: !!args.confirmedInJob,
-    mapConfirmation: args.confirmedInJob
-      ? { jobId: args.confirmedInJob, index: idx, sequence: String(currentRow.sequence ?? "") }
-      : undefined,
-  } as TEdit;
-  nextRows[idx] = {
-    ...currentRow,
-    ...args.coord,
-    status: args.confirmedInJob ? "CONFIRMADO" : "PARCIAL",
-  };
+  for (const idx of args.idxsToApply) {
+    const currentManual = nextManualEdits[idx] || ({} as TEdit);
+    nextManualEdits[idx] = {
+      ...currentManual,
+      ...manualEditPatch,
+      lat: args.coord.lat,
+      lng: args.coord.lng,
+      confirmed: true,
+    } as TEdit;
+
+    const currentRow = nextRows[idx];
+    if (currentRow) {
+      nextRows[idx] = {
+        ...currentRow,
+        lat: args.coord.lat,
+        lng: args.coord.lng,
+        status: "CONFIRMADO",
+      } as TRow;
+    }
+  }
 
   return {
     rows: nextRows,
