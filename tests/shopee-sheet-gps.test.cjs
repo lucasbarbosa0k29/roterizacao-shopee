@@ -95,7 +95,7 @@ test('preserves a confirmed memory point ahead of sheet GPS', async () => {
   };
   const { result, calls } = await run(row, fixture);
   assert.equal(result.source, 'MEMORY');
-  assert.equal(result.status, 'CONFIRMADO');
+  assert.equal(result.status, 'OK');
   assert.equal(result.lat, fixture.memory.lat);
   assert.equal(result.lng, fixture.memory.lng);
   assert.ok(calls.every(call => call.endpoint === 'gemini'));
@@ -173,7 +173,7 @@ test('rejects a point with evidence that belongs to another city', async () => {
 test('uses city-compatible GPS before HERE when the sheet bairro and street are unverified', async () => {
   const input = { ...row, original: 'Rua Inexistente', bairro: 'Bairro fora do cadastro' };
   const baseline = await run({ ...input, latFromSheet: null, lngFromSheet: null });
-  assert.equal(baseline.result.status, 'PARCIAL');
+  assert.equal(baseline.result.status, 'NAO_ENCONTRADO');
   assert.equal(baseline.result.lat, null);
   assert.equal(baseline.result.decisionReason, 'LOW_SCORE');
   const candidate = await run(input);
@@ -196,7 +196,7 @@ test('eligible primary GPS takes priority over approximate memory while empty ad
   assert.equal(candidate.result.lat, input.latFromSheet);
   assert.equal(candidate.result.shopeeGpsPreviousDecisionReason, undefined);
   const empty = await run({ ...row, original: '' });
-  assert.equal(empty.result.status, 'PARCIAL');
+  assert.equal(empty.result.status, 'NAO_ENCONTRADO');
   assert.equal(empty.result.decisionReason, 'SHOPEE_GPS_ADDRESS_EMPTY');
   assert.equal(empty.result.lat, null);
 });
@@ -396,6 +396,6 @@ test('mixed batch validates only the selected sheet point', async () => {
   assert.equal(accepted.status, 'OK');
   assert.deepEqual([accepted.lat, accepted.lng], [unknown.latFromSheet, unknown.lngFromSheet]);
   assert.notEqual(invalid.source, 'SHOPEE_GPS');
-  assert.equal(invalid.status, 'PARCIAL');
+  assert.equal(invalid.status, 'NAO_ENCONTRADO');
   assert.equal(invalid.locationResolved, false);
 });

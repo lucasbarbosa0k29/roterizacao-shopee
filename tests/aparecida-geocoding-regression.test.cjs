@@ -111,7 +111,7 @@ test('108 addresses: stage gains, 56 preserved approvals, memory, geography and 
   }
   assert.equal(output[10].decisionReason,'LOCAL_APARECIDA_LOT_OK');
   assert.equal(baselineOutput[98].status,'OK'); // Known incomplete-export divergence.
-  assert.equal(output[98].status,'PARCIAL');assert.equal(output[98].lat,null);
+  assert.equal(output[98].status,'NAO_ENCONTRADO');assert.equal(output[98].lat,null);
   console.log('OFFLINE_CALL_COUNTS',JSON.stringify(counts));
 });
 for(const city of ['Goiânia','Trindade','Hidrolândia']) test(`unchanged pipeline and manual memory in ${city}`,{skip:!baseline},async()=>{
@@ -120,7 +120,10 @@ for(const city of ['Goiânia','Trindade','Hidrolândia']) test(`unchanged pipeli
   for(const memory of [null,{lat:-16.8,lng:-49.2,label:'Manually confirmed'}]) {
     const fixture={gemini:{rua:'Rua Alfa',quadra:'09',lote:'02',bairro:'Centro',cidade:city,estado:'GO',cep:'74000000'},here:[],memory};
     const a=await old.run(row,fixture),b=await h.run(row,fixture);
-    for(const key of ['status','lat','lng','decisionReason','normalizedLine']) assert.deepEqual(b.result[key],a.result[key],`${city} ${key}`);
+    const expectedStatus = a.result.lat == null || a.result.lng == null ? 'NAO_ENCONTRADO' :
+      a.result.status === 'CONFIRMADO' && a.result.source === 'MEMORY' ? 'OK' : a.result.status;
+    assert.equal(b.result.status, expectedStatus);
+    for(const key of ['lat','lng','decisionReason','normalizedLine']) assert.deepEqual(b.result[key],a.result[key],`${city} ${key}`);
     assert.deepEqual(b.calls,a.calls);
   }
 });
@@ -155,7 +158,7 @@ test('new local street conflicts retain the previous HERE queries and rejected c
     const previous=await old.run(input,fixture), current=await h.run(input,fixture);
     assert.deepEqual(current.calls,previous.calls,`original query plan retained at line ${line}`);
     assert.equal(current.calls.filter(x=>x.endpoint==='geocode').length,4);
-    assert.equal(current.result.status,'PARCIAL');
+    assert.equal(current.result.status,'NAO_ENCONTRADO');
     assert.equal(current.result.lat,null);assert.equal(current.result.lng,null);
     assert.equal(current.result.localLotUsedAsFinal,false);
     assert.ok(current.result.hereRankTop5.some(x=>Number.isFinite(x.pos?.lat)&&Number.isFinite(x.pos?.lng)));
@@ -165,20 +168,20 @@ test('review UI labels new street references as approximate and preserves manual
   const ts=require(require('node:path').join(root,'node_modules/typescript'));
   const source=fs.readFileSync(require('node:path').join(root,'app/page.tsx'),'utf8');
   const ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-  const names=new Set(['getRowStatus','getTrindadeShadow','isRowMemoryHitRow','isTrindadeVisuallyValidated','getVisualStatusLabel']);
+  const names=new Set(['getRowStatus','getVisualStatusLabel']);
   const functions=[];
   function visit(node){if(ts.isFunctionDeclaration(node)&&names.has(node.name?.text))functions.push(node.getText(ast));ts.forEachChild(node,visit);}
   visit(ast);assert.equal(functions.length,names.size);
   const code=ts.transpileModule(functions.join('\n'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
   const {isShopeeGpsCity}=h.readModule('app/lib/shopee-gps-scope.ts');
-  const ui=new Function('rows','manualEdits','isShopeeGpsCity',code+'\nreturn {getRowStatus,getVisualStatusLabel};')(
-    [{status:'PARCIAL',coordinatePrecision:'STREET',lat:-16.8,lng:-49.2},{status:'PARCIAL'}],
-    {1:{confirmed:true,lat:-16.8,lng:-49.2}}, isShopeeGpsCity);
+  const ui=new Function('rows','manualEdits','isShopeeGpsCity','deliveryStatus','historyId','jobId',code+'\nreturn {getRowStatus,getVisualStatusLabel};')(
+    [{status:'PARCIAL',coordinatePrecision:'STREET',lat:-16.8,lng:-49.2},{status:'PARCIAL',lat:-16.8,lng:-49.2}],
+    {1:{confirmed:true,mapConfirmation:{jobId:'job',index:1,sequence:''},lat:-16.8,lng:-49.2}}, isShopeeGpsCity,h.readModule('app/lib/delivery-status.ts').deliveryStatus,'job',null);
   assert.equal(ui.getVisualStatusLabel(ui.getRowStatus(0),{status:'PARCIAL',coordinatePrecision:'STREET',source:'HERE_GEOCODE'}),'Aproximado');
   assert.equal(ui.getRowStatus(1),'CONFIRMADO');
   const scoped={city:'Aparecida de Goiânia',lat:-16.8,lng:-49.2};
   assert.equal(ui.getVisualStatusLabel('OK',scoped),'Validado');
-  assert.equal(ui.getVisualStatusLabel('NAO_ENCONTRADO',{city:scoped.city}),'Aproximado');
+  assert.equal(ui.getVisualStatusLabel('NAO_ENCONTRADO',{city:scoped.city}),'Pendente');
   assert.equal(ui.getVisualStatusLabel('CONFIRMADO',scoped),'Confirmado');
   assert.equal(ui.getVisualStatusLabel('NAO_ENCONTRADO',{city:'Anápolis'}),'Pendente');
 });

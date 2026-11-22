@@ -9,9 +9,9 @@ import {
   listHistoryDb,
   updateHistoryDb,
 } from "./lib/history-db";
+import { deliveryStatus, groupDeliveryStatus } from "./lib/delivery-status";
 import { applyManualCoordinateToState } from "./lib/manual-correction-persistence";
 import { getRowDisplayIdentifier, isImileRow } from "./lib/row-display-identifier";
-import { isShopeeGpsCity } from "./lib/shopee-gps-scope";
 import {
   TUTORIAL_ACTIVE_KEY,
   startFinalExportTutorial,
@@ -1937,29 +1937,9 @@ useEffect(() => {
     return String(rows[i]?.original || "");
   }
 
- function getRowStatus(i: number): Status {
-  const manual = manualEdits[i];
-
-  // ✅ confirmado continua confirmado (mesmo com review)
-  if (manual?.confirmed) return "CONFIRMADO";
-
-  // ✅ "MANUAL" só quando tiver edição de verdade (review sozinho não conta)
-  const hasManualData = !!(
-    manual &&
-    (
-      (manual.address && manual.address.trim()) ||
-      typeof manual.lat === "number" ||
-      typeof manual.lng === "number" ||
-      (manual.quadra && manual.quadra.trim()) ||
-      (manual.lote && manual.lote.trim())
-    )
-  );
-
-  if (hasManualData) return "MANUAL";
-
-  // ✅ mantém o status original (OK / PARCIAL / NAO_ENCONTRADO)
-  return (rows[i]?.status || "NAO_ENCONTRADO") as Status;
-}
+  function getRowStatus(i: number) {
+    return deliveryStatus(rows[i], manualEdits[i], historyId || jobId, i);
+  }
 
   function isRowMemoryHit(i: number) {
     const row = rows[i] as any;
@@ -1970,55 +1950,16 @@ useEffect(() => {
     return !!row?.memoryDebug?.memoryHit || decisionReason.startsWith("MEMORY");
   }
 
-  function getTrindadeShadow(row: any) {
-    return row?.trindadeShadow || row?.trindadeShadowAudit || null;
-  }
-
-  function isRowMemoryHitRow(row: any) {
-    const decisionReason = String(row?.decisionReason || row?.memoryDebug?.decisionReason || "").toUpperCase();
-    return !!row?.memoryDebug?.memoryHit || decisionReason.startsWith("MEMORY");
-  }
-
-  function isTrindadeVisuallyValidated(row: any) {
-    const trindadeShadow = getTrindadeShadow(row);
-    if (trindadeShadow?.matchedLayer === "logradouros") return false;
-    return (
-      row?.localFirstInspectApplied !== true &&
-      (
-        row?.localFirstTrindadeUsedAsFinal === true ||
-        row?.source === "LOCALFIRST_TRINDADE" ||
-        row?.matchType === "LOCALFIRST_TRINDADE" ||
-        trindadeShadow?.localFirstAppliedAsFinal === true
-      )
-    );
-  }
-
-  function getVisualStatusLabel(status: Status, row: any) {
-    if (isShopeeGpsCity(String(row?.city ?? ""))) {
-      if (status === "CONFIRMADO") return "Confirmado";
-      if ((status === "OK" || status === "PARCIAL" && isTrindadeVisuallyValidated(row)) &&
-          typeof row?.lat === "number" && typeof row?.lng === "number") return "Validado";
-      return "Aproximado";
-    }
-    const trindadeShadow = getTrindadeShadow(row);
-    return status === "OK" && isRowMemoryHitRow(row)
-      ? "Memória"
-      : status === "OK"
-        ? "Validado"
-        : status === "PARCIAL" && isTrindadeVisuallyValidated(row)
-          ? "Validado"
-          : status === "PARCIAL"
-            ? "Aproximado"
-            : status === "NAO_ENCONTRADO"
-              ? "Pendente"
-              : status === "CONFIRMADO"
-                ? "Confirmado"
-                : status;
+  function getVisualStatusLabel(status: Status) {
+    if (status === "CONFIRMADO") return "Confirmado";
+    if (status === "OK") return "Validado";
+    if (status === "PARCIAL") return "Aproximado";
+    return "Pendente";
   }
 
   function getGroupBaseIdx(idxs: number[]) {
     for (const idx of idxs) {
-      if (manualEdits[idx]?.confirmed || rows[idx]?.status === "CONFIRMADO") return idx;
+      if (getRowStatus(idx) === "CONFIRMADO") return idx;
     }
     return idxs[0];
   }
@@ -2506,17 +2447,9 @@ useEffect(() => {
 
       const statuses = idxs.map(getRowStatus);
 
-      const status: Status = statuses.includes("CONFIRMADO")
-        ? "CONFIRMADO"
-        : statuses.includes("MANUAL")
-          ? "MANUAL"
-          : statuses.includes("OK")
-            ? "OK"
-            : statuses.includes("PARCIAL")
-              ? "PARCIAL"
-              : "NAO_ENCONTRADO";
+      const status = groupDeliveryStatus(statuses);
 
-      const statusLabel = getVisualStatusLabel(status, rows[baseIdx]);
+      const statusLabel = getVisualStatusLabel(status);
 
       return {
         id: g.id,
@@ -2537,7 +2470,7 @@ useEffect(() => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds, condoGrouped, condoBreakIds]);
+  }, [historyId, jobId, rows, manualEdits, manualGroups, autoGrouped, autoBreakIds, condoGrouped, condoBreakIds]);
 
   const visibleGroupedRows: GroupedRow[] = useMemo(() => {
     function seqNumOf(i: number) {
@@ -2581,7 +2514,7 @@ useEffect(() => {
         displayIdentifier,
         sourceType: String(rows[idx]?.sourceType || "").trim() || undefined,
         status,
-        statusLabel: getVisualStatusLabel(status, rows[idx]),
+        statusLabel: getVisualStatusLabel(status),
         addressDisplay: <div className="font-medium">{address}</div>,
         addressForExport: getExportAddress(idx),
         bairro,
@@ -2645,15 +2578,7 @@ useEffect(() => {
       const lat = typeof m?.lat === "number" ? m.lat : rows[baseIdx]?.lat ?? null;
       const lng = typeof m?.lng === "number" ? m.lng : rows[baseIdx]?.lng ?? null;
       const statuses = idxs.map(getRowStatus);
-      const status: Status = statuses.includes("CONFIRMADO")
-        ? "CONFIRMADO"
-        : statuses.includes("MANUAL")
-          ? "MANUAL"
-          : statuses.includes("OK")
-            ? "OK"
-            : statuses.includes("PARCIAL")
-              ? "PARCIAL"
-              : "NAO_ENCONTRADO";
+      const status = groupDeliveryStatus(statuses);
 
       return {
         ...source,
@@ -2663,7 +2588,7 @@ useEffect(() => {
         displayIdentifier,
         sourceType: String(rows[baseIdx]?.sourceType || "").trim() || undefined,
         status,
-        statusLabel: getVisualStatusLabel(status, rows[baseIdx]),
+        statusLabel: getVisualStatusLabel(status),
         addressDisplay,
         addressForExport,
         bairro,
@@ -2707,7 +2632,7 @@ useEffect(() => {
     );
 
     return items.map(({ sortOrder, displayKey, ...row }) => row);
-  }, [rows, manualEdits, groupedRows, groupItemExclusions]);
+  }, [historyId, jobId, rows, manualEdits, groupedRows, groupItemExclusions]);
 
   const overviewMapPoints = useMemo(() => {
     return visibleGroupedRows
@@ -2746,7 +2671,6 @@ useEffect(() => {
 
         if (
           group.statusLabel === "Validado" ||
-          group.statusLabel === "Memória" ||
           group.status === "CONFIRMADO"
         ) summary.ok += 1;
         else if (group.statusLabel === "Aproximado") summary.partial += 1;
@@ -3356,8 +3280,9 @@ function clearReview(groupId: string) {
     setGoogleSearchLoading(false);
   }
 
-  async function applyConfirmedCoordToIdxs(args: {
-    idxsToApply: number[];
+  async function saveDeliveryCoordinate(args: {
+    index: number;
+    confirmedInJob: string | null;
     coord: { lat: number; lng: number };
     afterConfirm?: () => void;
     manualEditPatch?: Partial<ManualEdit>;
@@ -3365,21 +3290,19 @@ function clearReview(groupId: string) {
     const nextState = applyManualCoordinateToState<RowItem, ManualEdit>({
       rows,
       manualEdits,
-      idxsToApply: args.idxsToApply,
+      index: args.index,
+      confirmedInJob: args.confirmedInJob,
       coord: args.coord,
       manualEditPatch: args.manualEditPatch,
     });
-
-    setManualEdits(nextState.manualEdits);
-    setRows(nextState.rows);
 
     const saveHistoryId = historyId || jobId || null;
     if (saveHistoryId) {
       const updatedAtMs = Date.now();
       lastWorkspaceUpdatedAtRef.current = updatedAtMs;
-      latestWorkspaceSaveRef.current = {
-        historyId: saveHistoryId,
-        payload: {
+      try {
+        await updateHistoryDb(saveHistoryId, {
+          confirmationIndex: args.confirmedInJob ? args.index : undefined,
           version: 1,
           rows: nextState.rows,
           manualEdits: nextState.manualEdits,
@@ -3392,16 +3315,19 @@ function clearReview(groupId: string) {
           routeSummary,
           name: historyName || file?.name || "Planilha",
           updatedAtMs,
-        },
-      };
-
-      await flushWorkspaceNow();
+        });
+      } catch {
+        alert("Não foi possível salvar a entrega. Tente novamente.");
+        return;
+      }
     }
-
+    setManualEdits(nextState.manualEdits);
+    setRows(nextState.rows);
     args.afterConfirm?.();
 
     try {
-      const snapshot = args.idxsToApply
+      if (!args.confirmedInJob) return;
+      const snapshot = [args.index]
         .map((idx) => rows[idx])
         .filter(Boolean) as Array<{ original?: string; city?: string }>;
 
@@ -3491,30 +3417,9 @@ function clearReview(groupId: string) {
     }
   }
 
-  async function applyConfirmedCoordToGroup(args: {
-    baseIdx: number;
-    coord: { lat: number; lng: number };
-    groupId?: string | null;
-    afterConfirm?: () => void;
-    manualEditPatch?: Partial<ManualEdit>;
-  }) {
-    const targetGroup =
-      (args.groupId ? getVisibleGroupById(args.groupId) : null) ||
-      visibleGroupedRows.find((g) => Array.isArray(g.idxs) && g.idxs.includes(args.baseIdx)) ||
-      null;
-
-    const idxsToApply = targetGroup?.idxs?.length ? targetGroup.idxs : [args.baseIdx];
-
-    await applyConfirmedCoordToIdxs({
-      idxsToApply,
-      coord: args.coord,
-      afterConfirm: args.afterConfirm,
-      manualEditPatch: args.manualEditPatch,
-    });
-  }
-
   async function confirmManualModal() {
-    if (modalIdx == null) return;
+    const confirmedInJob = historyId || jobId;
+    if (modalIdx == null || !confirmedInJob) return;
 
     // ✅ coord final: se não mexeu no pino, usa a coord atual da linha
     const row = rows[modalIdx];
@@ -3547,8 +3452,9 @@ function clearReview(groupId: string) {
       const quadra = String(draft?.quadra || pickedQuadra || "").trim();
       const lote = String(draft?.lote || pickedLote || "").trim();
 
-      await applyConfirmedCoordToGroup({
-        baseIdx: modalIdx,
+      await saveDeliveryCoordinate({
+        index: modalIdx,
+        confirmedInJob,
         coord,
         afterConfirm: closeManualModal,
         manualEditPatch: {
@@ -3578,25 +3484,12 @@ function clearReview(groupId: string) {
       reverseGeocodeServer(coord.lat, coord.lng).catch(() => {});
     }
 
-     await applyConfirmedCoordToGroup({
-        baseIdx: modalIdx,
-        coord,
-        afterConfirm: closeManualModal,
-    });
-  }
-
-  function confirmOverviewSelectedPoint() {
-    if (!overviewSelectedPoint) return;
-    if (overviewSelectedPoint.status === "CONFIRMADO") return;
-
-    void applyConfirmedCoordToGroup({
-      baseIdx: overviewSelectedPoint.baseIdx,
-      groupId: overviewSelectedPoint.id,
-      coord: {
-        lat: overviewSelectedPoint.lat,
-        lng: overviewSelectedPoint.lng,
-      },
-      afterConfirm: () => setOverviewSelectedGroupId(null),
+    await saveDeliveryCoordinate({
+      index: modalIdx,
+      confirmedInJob,
+      coord,
+      manualEditPatch: { quadra: pickedQuadra || undefined, lote: pickedLote || undefined },
+      afterConfirm: closeManualModal,
     });
   }
 
@@ -3621,8 +3514,9 @@ function clearReview(groupId: string) {
   function saveOverviewMoveDraft() {
     if (!overviewMoveDraft) return;
 
-    void applyConfirmedCoordToIdxs({
-      idxsToApply: [overviewMoveDraft.baseIdx],
+    void saveDeliveryCoordinate({
+      index: overviewMoveDraft.baseIdx,
+      confirmedInJob: null,
       coord: overviewMoveDraft.coord,
       afterConfirm: () => {
         setOverviewMoveDraft(null);
@@ -3688,18 +3582,6 @@ function clearReview(groupId: string) {
       setPickedQuadra(q);
       setPickedLote(l);
 
-      if (modalIdx !== null) {
-        setManualEdits((prev) => ({
-          ...prev,
-          [modalIdx]: {
-            ...prev[modalIdx],
-            lat: pinLatLng?.lat,
-            lng: pinLatLng?.lng,
-            quadra: q,
-            lote: l,
-          },
-        }));
-      }
 
       return;
     }
@@ -3726,18 +3608,6 @@ function clearReview(groupId: string) {
     setPickedQuadra(q);
     setPickedLote(l);
 
-    if (modalIdx !== null) {
-      setManualEdits((prev) => ({
-        ...prev,
-        [modalIdx]: {
-          ...prev[modalIdx],
-          lat: pinLatLng?.lat,
-          lng: pinLatLng?.lng,
-          quadra: q,
-          lote: l,
-        },
-      }));
-    }
   } catch (err) {
     console.error("Erro ao buscar quadra/lote", err);
   }
@@ -5071,7 +4941,7 @@ useEffect(() => {
                                   ? "border-red-200 bg-rose-50/90"
                                   : groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
                                   ? "border-slate-300 bg-slate-200/80 shadow-[0_14px_32px_rgba(15,23,42,0.08)]"
-                                  : g.idxs.some((i) => manualEdits[i]?.confirmed)
+                                  : g.status === "CONFIRMADO"
                                   ? "border-emerald-200 bg-emerald-50/80"
                                   : "border-slate-200 bg-white/95"
                               }`
@@ -5109,17 +4979,7 @@ useEffect(() => {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span
-                                      className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
-                                        g.statusLabel === "Validado" ||
-                                        g.statusLabel === "Memória" ||
-                                        g.status === "CONFIRMADO"
-                                          ? "OK"
-                                          : g.statusLabel === "Aproximado"
-                                            ? "PARCIAL"
-                                            : g.statusLabel === "Pendente"
-                                              ? "NAO_ENCONTRADO"
-                                              : g.status,
-                                      )}`}
+                                      className={`inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(g.status)}`}
                                     >
                                       {g.statusLabel}
                                     </span>
@@ -5338,7 +5198,7 @@ useEffect(() => {
           ? "bg-red-50/90 text-red-800 shadow-[inset_3px_0_0_rgba(220,38,38,0.75)] hover:bg-red-100/80"
           : groupMode && idxsToToggle.every((i) => selectedIdxs.has(i))
           ? "bg-slate-200/80 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.35)]"
-          : g.idxs.some((i) => manualEdits[i]?.confirmed)
+          : g.status === "CONFIRMADO"
           ? "bg-emerald-100/90 shadow-[inset_3px_0_0_rgba(16,185,129,0.8)] hover:bg-emerald-200/70"
           : "odd:bg-white even:bg-slate-50/55 hover:bg-[#f2f7f7]"
      }`
@@ -5650,19 +5510,9 @@ onContextMenu={(e) => {
                                       {isImileRow(rows[idx]) ? "Cliente" : "Seq"} {getRowDisplayIdentifier(rows[idx])}
                                     </span>
                                     <span
-                                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(
-                                        getVisualStatusLabel(status, rows[idx]) === "Validado" ||
-                                        getVisualStatusLabel(status, rows[idx]) === "Memória" ||
-                                        status === "CONFIRMADO"
-                                          ? "OK"
-                                          : getVisualStatusLabel(status, rows[idx]) === "Aproximado"
-                                            ? "PARCIAL"
-                                            : getVisualStatusLabel(status, rows[idx]) === "Pendente"
-                                              ? "NAO_ENCONTRADO"
-                                              : status,
-                                      )}`}
+                                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold shadow-sm ${getStatusBadgeClass(status)}`}
                                     >
-                                      {getVisualStatusLabel(status, rows[idx])}
+                                      {getVisualStatusLabel(status)}
                                     </span>
                                   </div>
 
@@ -5690,6 +5540,13 @@ onContextMenu={(e) => {
                                     )}
                                   </div>
 
+                                  <button type="button" className="rounded-lg border px-3 py-2 text-sm"
+                                    onClick={() => {
+                                      setGroupConferenceGroupId(null);
+                                      openManualModalForIdx(idx);
+                                    }}>
+                                    Abrir no mapa
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -6014,16 +5871,6 @@ onContextMenu={(e) => {
                               </div>
                             )}
 
-                            {overviewSelectedPoint.status !== "CONFIRMADO" && (
-                              <button
-                                type="button"
-                                onClick={confirmOverviewSelectedPoint}
-                                className="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
-                              >
-                                Confirmar
-                              </button>
-                            )}
-
                             <button
                               type="button"
                               onClick={() => {
@@ -6108,7 +5955,7 @@ onContextMenu={(e) => {
             <div className="min-w-0">
               <div className="text-[10px] md:text-[11px] font-semibold text-slate-500">ORIGINAL</div>
               <div className="text-xs md:text-sm font-semibold text-slate-900 truncate">
-  {modalOriginal}
+  {modalIdx != null && `Entrega ${getRowDisplayIdentifier(rows[modalIdx])} · `}{modalOriginal}
   {(pickedCep || modalCep) && ` - ${pickedCep || modalCep}`}
 </div>
             </div>

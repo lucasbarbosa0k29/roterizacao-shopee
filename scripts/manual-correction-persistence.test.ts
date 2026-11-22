@@ -50,7 +50,8 @@ for (const [idx, row] of cases.entries()) {
   const next = applyManualCoordinateToState({
     rows: cases,
     manualEdits: {},
-    idxsToApply: [idx],
+    index: idx,
+    confirmedInJob: "job-a",
     coord: manualCoord,
   });
 

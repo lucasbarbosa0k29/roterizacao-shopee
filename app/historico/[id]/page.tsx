@@ -45,33 +45,6 @@ type TrindadeResultRow = {
   localFirstInspectApplied?: boolean | null;
 };
 
-function getTrindadeShadow(row: TrindadeResultRow) {
-  return row?.trindadeShadow || row?.trindadeShadowAudit || null;
-}
-
-function isTrindadeVisuallyValidated(row: TrindadeResultRow) {
-  const trindadeShadow = getTrindadeShadow(row);
-  if (trindadeShadow?.matchedLayer === "logradouros") return false;
-  return (
-    row?.localFirstInspectApplied !== true &&
-    (
-      row?.localFirstTrindadeUsedAsFinal === true ||
-      row?.source === "LOCALFIRST_TRINDADE" ||
-      row?.matchType === "LOCALFIRST_TRINDADE" ||
-      trindadeShadow?.localFirstAppliedAsFinal === true
-    )
-  );
-}
-
-function getTrindadeStatusDisplayLabel(status: string, row: TrindadeResultRow) {
-  if (status === "OK") return "Validado";
-  if (status === "PARCIAL" && isTrindadeVisuallyValidated(row)) return "Validado";
-  if (status === "PARCIAL") return "Aproximado";
-  if (status === "NAO_ENCONTRADO" || status === "NÃO ENCONTRADO") return "Pendente";
-  if (status === "CONFIRMADO") return "Confirmado";
-  return getStatusDisplayLabel(status);
-}
-
 function getStatusDisplayLabel(status: string) {
   if (status === "OK") return "Validado";
   if (status === "PARCIAL") return "Aproximado";
@@ -121,7 +94,8 @@ export default function HistoricoDetailPage() {
   if (loading) return <div className="p-8">Carregando...</div>;
   if (!job) return <div className="p-8">Nao encontrado.</div>;
 
-  const rows = (Array.isArray(job.resultJson) ? job.resultJson : []) as TrindadeResultRow[];
+  const result = job.resultJson as { rows?: TrindadeResultRow[] } | undefined;
+  const rows: TrindadeResultRow[] = Array.isArray(result) ? result : result?.rows ?? [];
 
   return (
     <div className="p-8">
@@ -186,7 +160,7 @@ export default function HistoricoDetailPage() {
                 {rows.slice(0, 500).map((r: TrindadeResultRow, idx: number) => (
                   <tr key={idx} className="border-b last:border-b-0">
                     <td className="py-2 pr-3">{getRowDisplayIdentifier(r)}</td>
-                    <td className="py-2 pr-3">{getTrindadeStatusDisplayLabel(String(r.status ?? ""), r)}</td>
+                    <td className="py-2 pr-3">{getStatusDisplayLabel(String(r.status ?? ""))}</td>
                     <td className="py-2 pr-3">{r.original ?? ""}</td>
                     <td className="py-2 pr-3">{r.quadraAuto ?? ""}</td>
                     <td className="py-2 pr-3">{r.loteAuto ?? ""}</td>
