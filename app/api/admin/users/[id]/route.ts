@@ -6,7 +6,7 @@ import { authOptions } from "@/app/lib/auth";
 import { passwordPolicyError } from "@/app/lib/password-policy.js";
 import { getUserAccessSnapshot } from "@/app/lib/access-control";
 import { isSuperAdmin, requireAdmin } from "@/app/lib/admin-roles";
-import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
+import { administrativelyRevocable, guardAdminCycleChange, lockSubscriptionOwner, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
 
 async function getIdFromCtx(ctx: any) {
   const maybeParams = ctx?.params;
@@ -546,6 +546,7 @@ export async function PATCH(req: Request, ctx: any) {
 
       case "REMOVE_ROUTE_CREDITS": {
         const result = await prisma.$transaction(async (tx) => {
+          await lockSubscriptionOwner(tx, id);
           const creditsBefore = await getRouteCreditsBalance(tx, id);
 
           if (creditsBefore <= 0) {
@@ -588,7 +589,7 @@ export async function PATCH(req: Request, ctx: any) {
           });
 
           return { ok: true as const };
-        });
+        }, { isolationLevel: "Serializable" });
 
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: result.status });

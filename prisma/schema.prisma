@@ -332,9 +332,12 @@ model RouteCredit {
   notes     String?
   createdAt DateTime          @default(now())
   paymentTransactionId String? @unique
+  reversalOfCreditId String? @unique
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentTransaction PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  reversalOfCredit RouteCredit? @relation("RouteCreditReversal", fields: [reversalOfCreditId], references: [id], onDelete: SetNull)
+  reversal RouteCredit? @relation("RouteCreditReversal")
 
   @@index([userId, createdAt])
 }

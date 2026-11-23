@@ -217,3 +217,52 @@ test("subscription filters use the same São Paulo credit boundary as user acces
   assert.deepEqual(list.rows.map((row) => row.id), [userId]);
   assert.equal((await access.getUserAccessSnapshot(userId, now)).subscriptionCycleRemaining, 1);
 });
+
+test("only a confirmed same-origin super-admin request can record a historical Basic refund", async () => {
+  const review = await import("../app/api/admin/payments/review/route");
+  const userId = users[4].id;
+  const plan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { code: "BASIC" } });
+  const order = await prisma.paymentTransaction.create({
+    data: {
+      userId, provider: "INFINITEPAY", productType: "BASIC_PLAN", status: "APPROVED",
+      amountCents: 3999, paidAmountCents: 3999, approvedAt: startsAt, fulfilledAt: startsAt,
+      externalReference: "load-historical-refund", infinitePayTransactionId: "load-capture-refund",
+      infinitePaySlug: "load-refund-slug", fulfilledSourceId: "load-historical-cycle",
+    },
+  });
+  const cycle = await prisma.userSubscription.create({
+    data: {
+      id: "load-historical-cycle", userId, planId: plan.id, startsAt, expiresAt,
+      source: "INFINITEPAY_LINK", paymentTransactionId: order.id,
+    },
+  });
+  const history = (owner: string) => adminSubscriptions.GET(new Request(
+    `http://localhost/admin-test?historyFor=${owner}&paymentOrder=${order.externalReference}`,
+  ));
+  const submit = (confirmed: boolean, origin = new URL(process.env.NEXTAUTH_URL!).origin) => review.POST(new Request(
+    "http://localhost:3000/api/admin/payments/review",
+    {
+      method: "POST", headers: { origin, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "record-infinitepay-refund", confirmed, orderNsu: order.externalReference,
+        captureReference: order.infinitePayTransactionId, amountCents: 3999, evidence: "REFUND-PROOF-01",
+      }),
+    },
+  ));
+
+  const original = sessionCookie;
+  try {
+    sessionCookie = normalAdminCookie;
+    assert.equal((await submit(true)).status, 403);
+  } finally {
+    sessionCookie = original;
+  }
+  assert.equal((await submit(true, "https://external.example.test")).status, 403);
+  assert.equal((await submit(false)).status, 400);
+  assert.equal((await prisma.userSubscription.findUniqueOrThrow({ where: { id: cycle.id } })).status, "ACTIVE");
+  assert.equal((await (await history(first)).json()).recentPayments.length, 0);
+  assert.equal((await (await history(userId)).json()).recentPayments[0].status, "APPROVED");
+  assert.equal((await submit(true)).status, 200);
+  assert.equal((await (await history(userId)).json()).recentPayments[0].status, "REFUNDED");
+  assert.equal((await prisma.userSubscription.findUniqueOrThrow({ where: { id: cycle.id } })).status, "REVOKED");
+});

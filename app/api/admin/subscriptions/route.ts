@@ -6,7 +6,8 @@ import { accessAccountSelect, getAdminAccessSnapshots } from "@/app/lib/access-c
 import { adminPage, readAdminPagination } from "@/app/lib/admin-pagination";
 import { getAdminFinancialSummary, listAdminSubscriptionIds } from "@/app/lib/admin-subscription-list";
 import { requireSuperAdmin } from "@/app/lib/admin-roles";
-import { administrativelyRevocable, guardAdminCycleChange, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
+import { paymentReference } from "@/app/lib/infinitepay";
+import { administrativelyRevocable, guardAdminCycleChange, lockSubscriptionOwner, ScheduledRenewalError } from "@/app/lib/subscription-cycles";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,8 @@ type PaymentTransactionSnapshot = {
   productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
   quantity: number;
   amountCents: number;
+  paidAmountCents: number | null;
+  infinitePayTransactionId: string | null;
   currency: string;
   status: "PENDING" | "REQUIRES_ACTION" | "APPROVED" | "REJECTED" | "CANCELED" | "REFUNDED" | "EXPIRED" | "FULFILLED";
   mercadoPagoPreferenceId: string | null;
@@ -161,6 +164,8 @@ function serializePaymentTransaction(transaction: any): PaymentTransactionSnapsh
     productType: transaction.productType,
     quantity: transaction.quantity,
     amountCents: transaction.amountCents,
+    paidAmountCents: transaction.paidAmountCents ?? null,
+    infinitePayTransactionId: transaction.infinitePayTransactionId ?? null,
     currency: transaction.currency,
     status: transaction.status,
     mercadoPagoPreferenceId: transaction.mercadoPagoPreferenceId ?? null,
@@ -211,8 +216,13 @@ export async function GET(request: Request) {
     const userId = params.get("historyFor");
     if (userId !== null) {
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(userId)) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+      const paymentOrder = params.get("paymentOrder");
+      const externalReference = paymentReference(paymentOrder);
+      if (paymentOrder !== null && !externalReference) {
+        return NextResponse.json({ error: "Referência de pedido inválida." }, { status: 400 });
+      }
       const payments = await prisma.paymentTransaction.findMany({
-        where: { userId },
+        where: { userId, ...(externalReference ? { externalReference } : {}) },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 8,
       });
@@ -542,24 +552,13 @@ export async function PATCH(req: Request, ctx: any) {
         );
       }
 
-      if (rawAction === "REMOVE_ROUTE_CREDITS") {
-        const creditsBefore = await getRouteCreditsBalance(prisma, userId);
-        if (creditsBefore <= 0) {
-          return NextResponse.json(
-            { error: "O usuário não possui créditos para remover." },
-            { status: 400 }
-          );
+      const creditError = await prisma.$transaction(async (tx) => {
+        await lockSubscriptionOwner(tx, userId);
+        if (rawAction === "REMOVE_ROUTE_CREDITS") {
+          const creditsBefore = await getRouteCreditsBalance(tx, userId);
+          if (creditsBefore <= 0) return "O usuário não possui créditos para remover.";
+          if (credits > creditsBefore) return "Não é permitido remover mais créditos do que o saldo atual.";
         }
-
-        if (credits > creditsBefore) {
-          return NextResponse.json(
-            { error: "Não é permitido remover mais créditos do que o saldo atual." },
-            { status: 400 }
-          );
-        }
-      }
-
-      await prisma.$transaction(async (tx) => {
         await tx.routeCredit.create({
           data: {
             userId,
@@ -582,7 +581,9 @@ export async function PATCH(req: Request, ctx: any) {
             notes: notes || null,
           },
         });
-      });
+        return null;
+      }, { isolationLevel: "Serializable" });
+      if (creditError) return NextResponse.json({ error: creditError }, { status: 400 });
     } else {
       return NextResponse.json({ error: "Ação administrativa inválida." }, { status: 400 });
     }

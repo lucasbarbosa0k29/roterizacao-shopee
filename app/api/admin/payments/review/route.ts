@@ -4,6 +4,7 @@ import { authOptions } from "@/app/lib/auth";
 import { isRecord, paymentReference } from "@/app/lib/infinitepay";
 import { readPaymentJson } from "@/app/lib/payment-http";
 import { resolvePaymentReview } from "@/app/lib/payment-review";
+import { recordInfinitePayRefund } from "@/app/lib/infinitepay-refund";
 import { prisma } from "@/app/lib/prisma";
 
 export const runtime = "nodejs";
@@ -45,8 +46,15 @@ export async function POST(request: Request) {
     const eventId = paymentReference(body.eventId);
     const { amountCents } = body;
     if (!orderNsu || !captureReference || !evidence || typeof amountCents !== "number" ||
-        !Number.isSafeInteger(amountCents) || amountCents <= 0 ||
-        (action !== "retry-benefit" && action !== "record-refund" && action !== "record-duplicate-refund") ||
+        !Number.isSafeInteger(amountCents) || amountCents <= 0) return new Response(null, { status: 400 });
+    if (action === "record-infinitepay-refund") {
+      if (body.confirmed !== true) return Response.json({ error: "Confirme o estorno integral na InfinitePay." }, { status: 400 });
+      const result = await recordInfinitePayRefund(adminId, { orderNsu, captureReference, evidence, amountCents });
+      return result ? Response.json(result) : Response.json(
+        { error: "Não foi possível vincular o estorno aos dados do pagamento e do benefício." }, { status: 409 },
+      );
+    }
+    if ((action !== "retry-benefit" && action !== "record-refund" && action !== "record-duplicate-refund") ||
         (action === "record-duplicate-refund" && !eventId)) return new Response(null, { status: 400 });
     const result = await resolvePaymentReview(adminId, { action, orderNsu, captureReference, evidence, eventId, amountCents });
     return Response.json(result ?? { resolved: false }, { status: result?.resolved ? 200 : 409 });

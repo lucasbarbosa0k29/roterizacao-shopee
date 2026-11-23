@@ -172,6 +172,7 @@ export async function getInfinitePayOrderStatus(userId: string, orderNsu: string
     },
   });
   if (!order) return null;
+  if (order.status === "REFUNDED") return "REFUNDED";
   if (order.fulfilledAt) return "COMPLETED";
   if (order.status === "APPROVED" && order.fulfillmentReviewReason) return "REVIEW";
   if (order.status !== "PENDING") return order.status;

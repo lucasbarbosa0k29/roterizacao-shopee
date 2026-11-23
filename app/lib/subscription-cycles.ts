@@ -88,13 +88,36 @@ export async function createPaidSubscriptionCycle(
       data: { status: "REVOKED" },
     });
   } else {
+    const gaps: { from: number; to: number }[] = [];
     for (const [index, cycle] of remaining.entries()) {
       if (cycle.planId !== plan.id) return { review: "PLAN_CHANGE_REQUIRES_REVIEW" } as const;
       if (!cycle.plan.isActive || !cycle.expiresAt || cycle.expiresAt <= cycle.startsAt ||
-          (index > 0 && cycle.startsAt.getTime() !== startsAt.getTime())) {
+          (index > 0 && cycle.startsAt < startsAt)) {
         return { review: "CYCLE_CONFLICT" } as const;
       }
+      if (index > 0 && cycle.startsAt > startsAt) {
+        gaps.push({ from: startsAt.getTime(), to: cycle.startsAt.getTime() });
+      }
       startsAt = cycle.expiresAt;
+    }
+    if (gaps.length) {
+      // Paid renewals retain their original dates when a cycle is refunded.
+      const refunded = await tx.userSubscription.findMany({
+        where: {
+          userId: payment.userId, planId: plan.id, status: "REVOKED",
+          paymentTransaction: { provider: "INFINITEPAY", status: "REFUNDED" },
+        },
+        select: { startsAt: true, expiresAt: true },
+      });
+      const refundedEnds = new Map(refunded.map((cycle) => [cycle.startsAt.getTime(), cycle.expiresAt?.getTime()]));
+      for (const { from, to } of gaps) {
+        let boundary = from;
+        while (boundary < to) {
+          const next = refundedEnds.get(boundary);
+          if (next === undefined || next <= boundary || next > to) return { review: "CYCLE_CONFLICT" } as const;
+          boundary = next;
+        }
+      }
     }
     if (startsAt > now && !canSchedule && !hasScheduled) {
       return { review: "CYCLE_CONFLICT" } as const;

@@ -91,7 +91,8 @@ async function importServices() {
   const legacy = await import("../app/lib/payment-fulfillment");
   const cycles = await import("../app/lib/subscription-cycles");
   const review = await import("../app/lib/payment-review");
-  return { prisma, ...checkout, ...payments, ...access, ...legacy, ...cycles, ...review };
+  const refunds = await import("../app/lib/infinitepay-refund");
+  return { prisma, ...checkout, ...payments, ...access, ...legacy, ...cycles, ...review, ...refunds };
 }
 
 before(async () => {
@@ -628,4 +629,122 @@ test("a paid plan change and unverified reversals go to review without revoking 
   assert.ok(reversal);
   assert.equal((await event(reversal)).status, "REVIEW");
   assert.equal((await payment(avulsa)).routeCredit?.delta, 1);
+});
+
+async function paidRefundFixture(userId: string, product: PaymentProductType, quantity = 1) {
+  const orderNsu = await checkout(userId, product, quantity);
+  const captureReference = randomUUID();
+  const amountCents = products[product] * quantity;
+  overrides.set(orderNsu, { paidAmount: amountCents });
+  await confirm(orderNsu, captureReference);
+  return { orderNsu, captureReference, amountCents, evidence: randomUUID() };
+}
+
+for (const code of ["BASIC", "PRO"] as const) {
+  test(`manual ${code} refund revokes only its cycle and leaves paid renewals on their original dates`, async () => {
+    const [user, admin] = await Promise.all([account(), account()]);
+    const product = code === "BASIC" ? "BASIC_PLAN" : "PRO_PLAN";
+    const orders = [
+      await paidRefundFixture(user.id, product),
+      await paidRefundFixture(user.id, product),
+      await paidRefundFixture(user.id, product),
+    ];
+    const target = code === "BASIC" ? orders[0] : orders[1];
+    const originals = await Promise.all(orders.map(async (item) => (await payment(item.orderNsu)).subscription!));
+    const notification = await services.recordInfinitePaySignal(webhook(target.orderNsu, target.captureReference, "refunded"));
+    assert.ok(notification);
+    const [first, second] = await Promise.all([
+      services.recordInfinitePayRefund(admin.id, target), services.recordInfinitePayRefund(admin.id, target),
+    ]);
+    assert.ok(first?.resolved && second?.resolved);
+    assert.equal(Number(first.alreadyRecorded) + Number(second.alreadyRecorded), 1);
+    assert.equal((await event(notification)).status, "PROCESSED");
+
+    const refunded = await payment(target.orderNsu);
+    assert.equal(refunded.status, "REFUNDED");
+    assert.ok(refunded.fulfilledAt);
+    assert.equal(refunded.subscription?.status, "REVOKED");
+    assert.equal(await services.getInfinitePayOrderStatus(user.id, target.orderNsu), "REFUNDED");
+    await confirm(target.orderNsu, target.captureReference);
+    assert.equal((await payment(target.orderNsu)).status, "REFUNDED");
+    assert.equal((await payment(target.orderNsu)).subscription?.status, "REVOKED");
+
+    for (const [index, item] of orders.entries()) {
+      if (item !== target) assert.deepEqual((await payment(item.orderNsu)).subscription, originals[index]);
+    }
+    const future = originals[2];
+    const snapshot = await services.getUserAccessSnapshot(user.id, future.startsAt);
+    assert.equal(snapshot.activeSubscription?.id, future.id);
+    const extension = await paidRefundFixture(user.id, product);
+    assert.deepEqual((await payment(extension.orderNsu)).subscription?.startsAt, future.expiresAt);
+    const actions = await services.prisma.adminAccessLog.findMany({
+      where: { adminId: admin.id, targetUserId: user.id, action: "RECORD_INFINITEPAY_REFUND" },
+    });
+    assert.equal(actions.length, 1);
+    assert.equal((actions[0].metadata as { evidence: string }).evidence, target.evidence);
+  });
+}
+
+test("manual credit refunds remove only unspent credits from each purchase, including previously allocated debits", async () => {
+  const [user, admin] = await Promise.all([account(), account()]);
+  const first = await paidRefundFixture(user.id, "EXTRA_ROUTE", 3);
+  const second = await paidRefundFixture(user.id, "EXTRA_ROUTE", 2);
+  const job = await services.prisma.importJob.create({ data: { userId: user.id } });
+  await services.consumeRouteAllowance({ userId: user.id, jobId: job.id, role: "USER" });
+  const third = await paidRefundFixture(user.id, "EXTRA_ROUTE", 4);
+
+  const undoSecond = await services.recordInfinitePayRefund(admin.id, second);
+  assert.equal(undoSecond?.alreadyRecorded === false && undoSecond.revokedCredits, 2);
+  const remaining = await Promise.all([
+    services.recordInfinitePayRefund(admin.id, first), services.recordInfinitePayRefund(admin.id, first),
+  ]);
+  assert.ok(remaining.every((refund) => refund?.resolved));
+  const undoFirst = remaining.find((refund) => refund?.alreadyRecorded === false);
+  assert.equal(undoFirst?.revokedCredits, 2);
+  assert.equal(undoFirst?.consumedCredits, 1);
+  assert.equal(await services.getRouteCreditBalance(user.id), 4);
+  assert.equal((await payment(third.orderNsu)).routeCredit?.delta, 4);
+  assert.equal((await payment(third.orderNsu)).status, "APPROVED");
+  assert.equal(await services.prisma.routeUsage.count({ where: { userId: user.id } }), 1);
+  assert.equal(await services.prisma.routeCredit.count({ where: { userId: user.id, reversalOfCreditId: { not: null } } }), 2);
+});
+
+test("refund of fully used credits records the outcome without spending another purchase", async () => {
+  const [user, admin] = await Promise.all([account(), account()]);
+  const used = await paidRefundFixture(user.id, "EXTRA_ROUTE");
+  const job = await services.prisma.importJob.create({ data: { userId: user.id } });
+  await services.consumeRouteAllowance({ userId: user.id, jobId: job.id, role: "USER" });
+  await paidRefundFixture(user.id, "EXTRA_ROUTE", 2);
+  assert.deepEqual(await services.recordInfinitePayRefund(admin.id, used), {
+    resolved: true, alreadyRecorded: false, revokedSubscriptionId: null, revokedCredits: 0, consumedCredits: 1,
+  });
+  assert.equal(await services.getRouteCreditBalance(user.id), 2);
+  assert.equal((await payment(used.orderNsu)).status, "REFUNDED");
+});
+
+test("manual refund rejects mismatched capture and amount, even when a matching webhook is in review", async () => {
+  const [user, admin] = await Promise.all([account(), account()]);
+  const input = await paidRefundFixture(user.id, "EXTRA_ROUTE");
+  await services.recordInfinitePaySignal(webhook(input.orderNsu, input.captureReference, "refunded"));
+  assert.equal(await services.recordInfinitePayRefund(admin.id, { ...input, amountCents: 198 }), null);
+  assert.equal(await services.recordInfinitePayRefund(admin.id, { ...input, captureReference: randomUUID() }), null);
+  assert.equal((await payment(input.orderNsu)).status, "APPROVED");
+  assert.equal(await services.getRouteCreditBalance(user.id), 1);
+  assert.equal(await services.prisma.adminAccessLog.count({ where: { adminId: admin.id } }), 0);
+});
+
+test("concurrent refund and credit consumption do not create a negative balance", async () => {
+  const [user, admin] = await Promise.all([account(), account()]);
+  const input = await paidRefundFixture(user.id, "EXTRA_ROUTE");
+  const job = await services.prisma.importJob.create({ data: { userId: user.id } });
+  const [refund, consume] = await Promise.allSettled([
+    services.recordInfinitePayRefund(admin.id, input),
+    services.consumeRouteAllowance({ userId: user.id, jobId: job.id, role: "USER" }),
+  ]);
+  assert.equal(refund.status === "fulfilled" && refund.value?.resolved, true);
+  if (consume.status === "rejected") assert.equal(consume.reason.code, "NO_ACTIVE_SUBSCRIPTION");
+  const spent = await services.prisma.routeUsage.count({ where: { userId: user.id } });
+  const reversed = await services.prisma.routeCredit.count({ where: { userId: user.id, reversalOfCreditId: { not: null } } });
+  assert.equal(spent + reversed, 1);
+  assert.equal(await services.getRouteCreditBalance(user.id), 0);
 });

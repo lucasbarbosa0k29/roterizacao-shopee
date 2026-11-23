@@ -85,19 +85,7 @@ type SubscriptionUserRow = {
     source: "ADMIN_GRANT" | "TRIAL" | "INFINITEPAY_LINK" | "MANUAL_PAYMENT";
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
   } | null;
-  latestPayment: {
-    id: string;
-    productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
-    quantity: number;
-    amountCents: number;
-    currency: string;
-    status: "PENDING" | "REQUIRES_ACTION" | "APPROVED" | "REJECTED" | "CANCELED" | "REFUNDED" | "EXPIRED" | "FULFILLED";
-    createdAt: string;
-    approvedAt: string | null;
-    fulfilledAt: string | null;
-    fulfilledSourceId: string | null;
-    externalReference: string;
-  } | null;
+  latestPayment: AdminPayment | null;
   planOrigin: PlanOrigin;
   subscriptionStatusLabel: SubscriptionStatusLabel;
   creditsAvailable: number;
@@ -137,22 +125,26 @@ type FinancialSummary = {
   ticketAverageCents: number;
 };
 
+type AdminPayment = {
+  id: string;
+  provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
+  fulfillmentReviewReason: string | null;
+  productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
+  quantity: number;
+  amountCents: number;
+  paidAmountCents: number | null;
+  infinitePayTransactionId: string | null;
+  currency: string;
+  status: string;
+  createdAt: string;
+  approvedAt: string | null;
+  fulfilledAt: string | null;
+  fulfilledSourceId: string | null;
+  externalReference: string;
+};
+
 type SubscriptionHistory = {
-  recentPayments: Array<{
-    id: string;
-    provider: "MERCADOPAGO" | "ASAAS" | "INFINITEPAY";
-    fulfillmentReviewReason: string | null;
-    productType: "EXTRA_ROUTE" | "BASIC_PLAN" | "PRO_PLAN";
-    quantity: number;
-    amountCents: number;
-    currency: string;
-    status: string;
-    createdAt: string;
-    approvedAt: string | null;
-    fulfilledAt: string | null;
-    fulfilledSourceId: string | null;
-    externalReference: string;
-  }>;
+  recentPayments: AdminPayment[];
   recentRouteCredits: Array<{
     id: string;
     delta: number;
@@ -203,7 +195,8 @@ type MenuState = {
 type MenuPosition = Omit<MenuState, "userId">;
 
 type ModalState =
-  | { kind: "history"; user: SubscriptionUserRow; history?: SubscriptionHistory; failed?: boolean }
+  | { kind: "history"; user: SubscriptionUserRow; paymentOrder: string; history?: SubscriptionHistory; failed?: boolean }
+  | { kind: "refund"; user: SubscriptionUserRow; payment: AdminPayment; historyOrder?: string; error?: string }
   | {
       kind: "plan";
       user: SubscriptionUserRow;
@@ -247,6 +240,23 @@ function formatMoney(value?: number | null) {
   return currencyFormatter.format(value / 100);
 }
 
+function canRecordRefund(payment: AdminPayment) {
+  return payment.provider === "INFINITEPAY" && !!payment.infinitePayTransactionId && !!payment.approvedAt &&
+    (payment.status === "APPROVED" || payment.status === "FULFILLED");
+}
+
+function paymentStatusLabel(payment: AdminPayment) {
+  if (payment.status === "REFUNDED") return "Estornado";
+  if (payment.status === "APPROVED" && payment.fulfillmentReviewReason) return "EM ANÁLISE";
+  return payment.status;
+}
+
+function paymentProductLabel(payment: AdminPayment) {
+  if (payment.productType === "BASIC_PLAN") return "Plano Basic";
+  if (payment.productType === "PRO_PLAN") return "Plano Pro";
+  return `${payment.quantity} ${payment.quantity === 1 ? "crédito avulso" : "créditos avulsos"}`;
+}
+
 function formatPlanName(code?: string | null) {
   switch (code) {
     case "BASIC":
@@ -284,6 +294,8 @@ function getAdminActionSummary(action: string, metadata: unknown) {
       return "Reativou a assinatura";
     case "CANCEL_SUBSCRIPTION":
       return "Cancelou a assinatura";
+    case "RECORD_INFINITEPAY_REFUND":
+      return "Registrou um estorno InfinitePay";
     default:
       return action;
   }
@@ -334,6 +346,7 @@ export default function AdminSubscriptionsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [refundNotice, setRefundNotice] = useState("");
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -392,17 +405,60 @@ export default function AdminSubscriptionsPage() {
     };
   }, [load, refresh]);
 
-  async function openHistory(user: SubscriptionUserRow) {
-    const pending = { kind: "history", user } as const;
+  async function openHistory(user: SubscriptionUserRow, paymentOrder = "") {
+    const pending = { kind: "history", user, paymentOrder } as const;
     setModal(pending);
     try {
       const params = new URLSearchParams({ historyFor: user.id });
+      if (paymentOrder) params.set("paymentOrder", paymentOrder);
       const response = await fetch(`/api/admin/subscriptions?${params}`, { cache: "no-store" });
       if (!response.ok) throw new Error("History unavailable");
       const history = await response.json() as SubscriptionHistory;
       setModal((current) => current === pending ? { ...pending, history } : current);
     } catch {
       setModal((current) => current === pending ? { ...pending, failed: true } : current);
+    }
+  }
+
+  async function submitRefundModal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (modal?.kind !== "refund" || !canRecordRefund(modal.payment) || busyId) return;
+    const { payment, user, historyOrder } = modal;
+    const form = new FormData(event.currentTarget);
+    const evidence = String(form.get("refundEvidence") ?? "").trim();
+    const confirmed = form.get("refundConfirmed") === "on";
+    const fail = (message: string) => setModal((current) =>
+      current?.kind === "refund" && current.payment.id === payment.id ? { ...current, error: message } : current,
+    );
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(evidence) || !confirmed) {
+      fail("Informe uma referência com letras, números, hífen ou sublinhado e confirme o estorno integral.");
+      return;
+    }
+    setBusyId(user.id);
+    setRefundNotice("");
+    try {
+      const response = await fetch("/api/admin/payments/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "record-infinitepay-refund", confirmed, evidence,
+          orderNsu: payment.externalReference, captureReference: payment.infinitePayTransactionId,
+          amountCents: payment.paidAmountCents ?? payment.amountCents,
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.resolved) {
+        fail(result?.error ?? "Não foi possível registrar o estorno. Atualize os dados do pedido e tente novamente.");
+        return;
+      }
+      setRefundNotice(result.alreadyRecorded ? "Este pagamento já estava estornado." : "Estorno registrado.");
+      setRefresh((value) => value + 1);
+      if (historyOrder !== undefined) await openHistory(user, historyOrder);
+      else setModal(null);
+    } catch {
+      fail("Não foi possível consultar o resultado. Tente novamente para confirmar o registro.");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -424,7 +480,7 @@ export default function AdminSubscriptionsPage() {
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !(modal?.kind === "refund" && busyId)) {
         setMenu(null);
       }
     }
@@ -457,7 +513,7 @@ export default function AdminSubscriptionsPage() {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [modal]);
+  }, [modal, busyId]);
 
   function getMenuPosition(button: HTMLButtonElement): MenuPosition {
     const rect = button.getBoundingClientRect();
@@ -849,6 +905,14 @@ export default function AdminSubscriptionsPage() {
                                 {formatDateOnly(lastPayment.createdAt)}
                               </div>
                               <div className="text-[11px] text-slate-500">{user.planOrigin}</div>
+                              {lastPayment.status === "REFUNDED" && <div className="text-xs font-semibold text-slate-700">Estornado</div>}
+                              {canRecordRefund(lastPayment) && (
+                                <button type="button" disabled={!!busyId}
+                                  className="text-xs font-semibold text-rose-700 underline disabled:opacity-50"
+                                  onClick={() => setModal({ kind: "refund", user, payment: lastPayment })}>
+                                  Registrar estorno
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="text-slate-400">-</span>
@@ -1148,6 +1212,51 @@ export default function AdminSubscriptionsPage() {
         </div>
       )}
 
+      {refundNotice && <div role="status" className="fixed bottom-4 right-4 z-[80] rounded-xl bg-slate-950 px-4 py-3 text-sm text-white shadow-lg">
+        {refundNotice}
+        <button type="button" className="ml-3 underline" onClick={() => setRefundNotice("")}>Fechar</button>
+      </div>}
+
+      {modal?.kind === "refund" && (
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/55 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="refund-title"
+            className="mx-auto mt-8 max-w-lg rounded-[28px] bg-white p-6 shadow-2xl ring-1 ring-black/10">
+            <h2 id="refund-title" className="text-lg font-black text-slate-950">Registrar estorno</h2>
+            <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm text-slate-700">
+              <dt>Cliente</dt><dd className="break-all">{modal.user.name ? `${modal.user.name} · ` : ""}{modal.user.email}</dd>
+              <dt>Benefício</dt><dd>{paymentProductLabel(modal.payment)}</dd>
+              <dt>Valor integral</dt><dd>{formatMoney(modal.payment.paidAmountCents ?? modal.payment.amountCents)}</dd>
+              <dt>Pedido</dt><dd className="break-all font-mono text-xs">{modal.payment.externalReference}</dd>
+            </dl>
+            <form onSubmit={submitRefundModal} className="mt-5 space-y-4">
+              <label className="block text-sm font-medium text-slate-700">
+                Referência do comprovante na InfinitePay
+                <input autoFocus name="refundEvidence" required maxLength={128} disabled={!!busyId}
+                  pattern={"[A-Za-z0-9_\\-]{1,128}"} title="Use letras, números, hífen ou sublinhado."
+                  className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="refundConfirmed" required disabled={!!busyId} className="mt-1" />
+                Confirmo que o estorno integral já foi concluído na InfinitePay.
+              </label>
+              {modal.payment.productType === "EXTRA_ROUTE" && (
+                <p className="text-sm text-slate-600">O Rotta retira apenas os créditos desta compra que ainda estão disponíveis. O histórico das rotas usadas é preservado.</p>
+              )}
+              {modal.error && <p role="alert" className="text-sm text-rose-700">{modal.error}</p>}
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" disabled={!!busyId} className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  onClick={() => modal.historyOrder === undefined ? setModal(null) : void openHistory(modal.user, modal.historyOrder)}>
+                  Voltar
+                </button>
+                <button type="submit" disabled={!!busyId} className="rounded-xl bg-rose-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                  {busyId ? "Registrando…" : "Confirmar registro"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
       {modal?.kind === "history" && (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/55 p-4">
           <div className="mx-auto mt-8 w-full max-w-6xl rounded-[28px] bg-white p-6 shadow-2xl ring-1 ring-black/10">
@@ -1171,7 +1280,24 @@ export default function AdminSubscriptionsPage() {
               </p>
             )}
             {modal.history && <div className="mt-6 grid gap-4 lg:grid-cols-3">
-              <HistoryPanel title="Pagamentos" emptyLabel="Sem pagamentos recentes">
+              <HistoryPanel title="Pagamentos" emptyLabel={modal.paymentOrder ? "Pedido não encontrado para este cliente" : "Sem pagamentos recentes"}>
+                <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
+                  event.preventDefault();
+                  const data = new FormData(event.currentTarget);
+                  void openHistory(modal.user, String(data.get("paymentOrder") ?? "").trim());
+                }}>
+                  <label className="min-w-0 flex-1 text-xs text-slate-600">
+                    Buscar pelo pedido
+                    <input name="paymentOrder" maxLength={128} defaultValue={modal.paymentOrder}
+                      pattern={"[A-Za-z0-9_\\-]{1,128}"} title="Use a referência exata do pedido."
+                      className="mt-1 block w-full rounded-lg border border-slate-300 px-2 py-1.5" />
+                  </label>
+                  <button type="submit" className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-semibold">Buscar</button>
+                  {modal.paymentOrder && <button type="button" className="text-xs underline" onClick={() => void openHistory(modal.user)}>Limpar</button>}
+                </form>
+                {modal.history.recentPayments.length === 0 && (
+                  <p className="text-sm text-slate-600">{modal.paymentOrder ? "Pedido não encontrado para este cliente." : "Sem pagamentos recentes."}</p>
+                )}
                 {modal.history.recentPayments.map((payment) => (
                   <div key={payment.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -1182,7 +1308,7 @@ export default function AdminSubscriptionsPage() {
                         </div>
                       </div>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                        {payment.status === "APPROVED" && payment.fulfillmentReviewReason ? "EM ANÁLISE" : payment.status}
+                        {paymentStatusLabel(payment)}
                       </span>
                     </div>
                     <div className="mt-3 text-sm text-slate-600">
@@ -1191,6 +1317,11 @@ export default function AdminSubscriptionsPage() {
                     <div className="mt-1 text-xs text-slate-500 font-mono">
                       {payment.externalReference}
                     </div>
+                    {canRecordRefund(payment) && <button type="button" disabled={!!busyId}
+                      className="mt-3 text-xs font-semibold text-rose-700 underline disabled:opacity-50"
+                      onClick={() => setModal({ kind: "refund", user: modal.user, payment, historyOrder: modal.paymentOrder })}>
+                      Registrar estorno
+                    </button>}
                   </div>
                 ))}
               </HistoryPanel>
