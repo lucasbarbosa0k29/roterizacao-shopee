@@ -139,12 +139,55 @@ model User {
   goianiaPoiShadowAudits GoianiaPoiShadowAudit[]
   adminActionLogs     AdminAccessLog[]     @relation("AdminActor")
   targetActionLogs    AdminAccessLog[]     @relation("AdminTarget")
+  notificationRecipients NotificationRecipient[]
 
   @@index([role])
   @@index([active])
   @@index([companyId])
   @@index([createdAt])
   @@index([accessBlockedAt])
+}
+
+model NotificationMessage {
+  id         String   @id @default(cuid())
+  title      String
+  body       String
+  eventKey   String?  @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  recipients NotificationRecipient[]
+
+  @@index([expiresAt])
+}
+
+model NotificationRecipient {
+  userId    String
+  messageId String
+  createdAt DateTime
+  expiresAt DateTime
+  readAt    DateTime?
+  deletedAt DateTime?
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   NotificationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([userId, deletedAt, createdAt, messageId])
+  @@index([userId, deletedAt, readAt, expiresAt])
+  @@index([messageId])
+}
+
+model NotificationCampaign {
+  id             String   @id
+  authorId       String
+  audience       String
+  target         String?
+  title          String
+  body           String
+  recipientCount Int
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt, id])
+  @@index([authorId, createdAt, id])
 }
 
 enum DocumentType {

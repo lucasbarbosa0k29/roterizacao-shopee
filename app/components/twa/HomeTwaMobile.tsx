@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { TwaAccountSheet } from "./TwaAccountSheet";
@@ -80,7 +81,7 @@ async function loadRecentJobs(): Promise<RecentJob[]> {
   return enriched;
 }
 
-export function HomeTwaMobile() {
+export function HomeTwaMobile({ notificationAction }: { notificationAction?: ReactNode }) {
   const router = useRouter();
   const uploadRef = useRef<HTMLDivElement | null>(null);
   const { data: session, status } = useSession();
@@ -224,6 +225,7 @@ export function HomeTwaMobile() {
               <p className="text-xs text-slate-500">Roteirização inteligente para sua operação.</p>
             </div>
           </button>
+          {notificationAction}
         </header>
 
         {showSubscriptionAlert ? (

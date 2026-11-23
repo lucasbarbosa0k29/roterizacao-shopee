@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Sidebar from "./Sidebar";
+import NotificationBell from "./NotificationBell";
 import { useStandaloneDisplayMode } from "../lib/useStandaloneDisplayMode";
 
 function MenuIcon() {
@@ -27,7 +28,7 @@ import { TwaShell } from "./twa/TwaShell";
 import { HomeTwaMobile } from "./twa/HomeTwaMobile";
 
 function AppShellContent({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isAuthed = status === "authenticated";
@@ -57,10 +58,12 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   }
 
   if (isTwaMode) {
+    const home = pathname === "/" && !hasJobParam;
+    const bell = <NotificationBell key={session?.user?.id} />;
     return (
-      <TwaShell>
-        {pathname === "/" && !hasJobParam ? (
-          <HomeTwaMobile />
+      <TwaShell notificationAction={home ? undefined : bell}>
+        {home ? (
+          <HomeTwaMobile notificationAction={bell} />
         ) : (
           children
         )}
@@ -76,15 +79,16 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
         onClose={() => setIsSidebarOpen(false)}
       />
       <main className="app-page px-0 py-0 md:p-6 w-full">
-        <div className="md:hidden mb-2 px-3 pt-[calc(env(safe-area-inset-top)+8px)]">
+        <div className="mb-2 flex items-center justify-between px-3 pt-[calc(env(safe-area-inset-top)+8px)] md:justify-end md:px-0 md:pt-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-black/10 md:hidden"
           >
             <MenuIcon />
             <span>Menu</span>
           </button>
+          <NotificationBell key={session?.user?.id} />
         </div>
         {children}
       </main>
