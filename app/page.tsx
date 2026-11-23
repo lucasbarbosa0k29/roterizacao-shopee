@@ -5289,7 +5289,7 @@ useEffect(() => {
    <table className="min-w-[600px] md:min-w-[1100px] w-full text-sm text-slate-900 table-fixed">
       <thead className="bg-[linear-gradient(180deg,#f9fbfb_0%,#f1f6f7_100%)] text-slate-600">
        <tr className="border-b border-slate-200/80">
-         <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[88px] md:w-[140px]">
+         <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[88px] md:w-[208px]">
     Ação
   </th>
   <th className="px-3 md:px-4 py-4 text-left text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] w-[92px] md:w-[130px]">
@@ -5373,7 +5373,7 @@ onContextMenu={(e) => {
       openManualModalForIdx(baseIdx);
     }}
     data-tour="row-map-button"
-    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
     title="Revisar no mapa"
   >
     <MapPin size={20} aria-hidden="true" />
@@ -5419,7 +5419,7 @@ onContextMenu={(e) => {
   // (seleciona todos do grupo como base)
   setSelectedIdxs(new Set(g.idxs));
 }}
-    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
+    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Adicionar mais linhas neste grupo"
                                   >
  <span className="text-xl leading-none font-medium">+</span>
