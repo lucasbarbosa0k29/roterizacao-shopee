@@ -81,6 +81,7 @@ function normalizeWorkspaceJson(workspaceJson: any, fallbackResultJson?: any) {
         ? source.manualGroups
         : {},
     autoGrouped: !!source?.autoGrouped,
+    importedStopGroups: source?.importedStopGroups ?? null,
     autoBreakIds: Array.isArray(source?.autoBreakIds) ? source.autoBreakIds : [],
     condoGrouped: !!source?.condoGrouped,
     condoBreakIds: Array.isArray(source?.condoBreakIds) ? source.condoBreakIds : [],
@@ -108,6 +109,8 @@ function mergeWorkspaceJson(current: any, incoming: any) {
       incoming?.manualGroups && typeof incoming.manualGroups === "object"
         ? incoming.manualGroups
         : (current?.manualGroups ?? {}),
+    // Os grupos da importação são imutáveis. A revisão salva as exceções separadamente.
+    importedStopGroups: current?.importedStopGroups ?? null,
     autoGrouped:
       typeof incoming?.autoGrouped === "boolean"
         ? incoming.autoGrouped

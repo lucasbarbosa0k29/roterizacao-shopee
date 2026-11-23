@@ -1,3 +1,4 @@
+import { buildAutoStopGroups } from "@/app/lib/auto-stop-groups";
 import { isShopeeGpsCity } from "@/app/lib/shopee-gps-scope";
 import { assessShopeeSheetGps, readShopeeAddressParcel, recoverShopeeSheetGps } from "@/app/lib/shopee-sheet-gps";
 import { selectAparecidaStreetCoordinate } from "@/app/lib/aparecida-here-reuse";
@@ -7912,6 +7913,7 @@ export async function POST(req: Request) {
       cacheSnapshot: getProcessCacheSnapshot(runState),
     });
 
+    const workspace = { autoGrouped: true, importedStopGroups: buildAutoStopGroups(results) };
     let resultPath: string | null = null;
 
     // ✅ no final, marca DONE e salva resultado completo
@@ -7942,6 +7944,7 @@ export async function POST(req: Request) {
           // 🔥 SALVA O RESULTADO FINAL NO BANCO
           resultPath,
           resultJson: results as Prisma.InputJsonValue,
+          workspaceJson: workspace,
           resultSavedAt: new Date(),
         },
       });
@@ -8023,6 +8026,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       total: results.length,
       rows: results,
+      workspace,
       ...(shouldIncludeHereJobMetricsInResponse(debugMemory) ? { hereJobMetrics } : {}),
       ...(debugMemory ? { debugMemorySummary } : {}),
     });

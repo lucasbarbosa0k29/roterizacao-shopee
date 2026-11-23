@@ -31,7 +31,7 @@ const steps = [
     number: "4",
     title: "Agrupe pontos quando necessário",
     description:
-      "Use o Agrupar Paradas para acelerar a consolidação ou faça agrupamentos manuais quando precisar controlar casos específicos da rota.",
+      "Nas novas importações, paradas iguais já aparecem agrupadas. Use os controles manuais para ajustar os grupos ou reunir entregas de um condomínio.",
   },
   {
     number: "5",

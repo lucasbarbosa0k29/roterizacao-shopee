@@ -137,14 +137,9 @@ export function startPostProcessTutorial() {
     createStep(
       '[data-tour="results-panel"]',
       "Resultado Operacional",
-      "Aqui ficam todos os endereços processados. Mesmo quando uma parada estiver Validado, ela ainda deve ser conferida no mapa.",
+      "Nas novas importações, paradas iguais já aparecem agrupadas. Mesmo quando uma parada estiver Validado, ela ainda deve ser conferida no mapa.",
       "bottom",
       "start"
-    ),
-    createStep(
-      '[data-tour="auto-group-button"]',
-      "Agrupar Paradas",
-      "Use para agrupar automaticamente paradas iguais."
     ),
     createStep(
       '[data-tour="manual-group-button"]',

@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
+import { buildAutoStopGroups, normKey, type AutoStopGroup } from "./lib/auto-stop-groups";
 import { MapPin } from "lucide-react";
 import {
   getHistoryDb,
@@ -412,35 +413,6 @@ function escapeHtml(text: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-// normaliza p/ auto agrupamento (remove CEP, pontuação, espaços)
-function normKey(s: string) {
-  let t = String(s || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\bCEP\b/g, "")
-    .replace(/\bGO\b/g, "")
-    .replace(/\d{5}-?\d{3}/g, "") // remove cep
-    .replace(/[.,;#|]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // ✅ normaliza QD/QUADRA e LT/LOTE
-  t = t.replace(/\bQUADRA\b/g, "QD");
-  t = t.replace(/\bQ\.\b/g, "QD");
-  t = t.replace(/\bLOTE\b/g, "LT");
-  t = t.replace(/\bL\.\b/g, "LT");
-
-  // ✅ remove zeros à esquerda em tokens numéricos
-  t = t.replace(/\b0+(\d+)\b/g, "$1");
-
-  return t;
-}
-
-// ✅ AUTO GROUP: endereço + city
-function makeAutoGroupKey(args: { address: string; city: string }) {
-  return [normKey(args.address), normKey(args.city)].join("|");
 }
 
 const CONDO_GROUP_VERTICAL_HINT_RE =
@@ -1398,6 +1370,7 @@ useEffect(() => {
 
   // auto agrupar
   const [autoGrouped, setAutoGrouped] = useState(false);
+  const [importedStopGroups, setImportedStopGroups] = useState<AutoStopGroup[] | null>(null);
   const [autoBreakIds, setAutoBreakIds] = useState<Set<string>>(new Set());
   const [condoGrouped, setCondoGrouped] = useState(false);
   const [condoBreakIds, setCondoBreakIds] = useState<Set<string>>(new Set());
@@ -1436,6 +1409,7 @@ useEffect(() => {
     setManualEdits(p?.manualEdits ?? {});
     setManualGroups(p?.manualGroups ?? {});
     setAutoGrouped(!!p?.autoGrouped);
+    setImportedStopGroups(p?.importedStopGroups ?? null);
     setAutoBreakIds(new Set(p?.autoBreakIds ?? []));
     setCondoGrouped(!!p?.condoGrouped);
     setCondoBreakIds(new Set(p?.condoBreakIds ?? []));
@@ -2227,21 +2201,12 @@ useEffect(() => {
 
     // ✅ AUTO GROUPING
     if (autoGrouped) {
-      const autoBuckets = new Map<string, number[]>();
-
-      for (const idx of notInManual) {
-        const addr = getShownAddress(idx);
-        const city = String(rows[idx]?.city || "");
-        const key = makeAutoGroupKey({ address: addr, city });
-        autoKeyByIdx.set(idx, key);
-
-        const arr = autoBuckets.get(key) || [];
-        arr.push(idx);
-        autoBuckets.set(key, arr);
-      }
-
-      for (const [k, idxs] of autoBuckets.entries()) {
-        const id = `auto_${k}`;
+      // Rotas antigas com agrupamento ativo usavam apenas a flag autoGrouped.
+      const groups = importedStopGroups ?? buildAutoStopGroups(rows);
+      for (const { key, idxs: members } of groups) {
+        const idxs = members.filter((idx) => !idxToManualGroup.has(idx));
+        const id = `auto_${key}`;
+        for (const idx of idxs) autoKeyByIdx.set(idx, key);
         if (autoBreakIds.has(id) || idxs.length <= 1) continue;
         for (let i = 1; i < idxs.length; i += 1) {
           unionRemaining(idxs[0], idxs[i]);
@@ -2541,7 +2506,7 @@ useEffect(() => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, manualEdits, manualGroups, autoGrouped, autoBreakIds, condoGrouped, condoBreakIds]);
+  }, [rows, manualEdits, manualGroups, autoGrouped, importedStopGroups, autoBreakIds, condoGrouped, condoBreakIds]);
 
   const visibleGroupedRows: GroupedRow[] = useMemo(() => {
     function seqNumOf(i: number) {
@@ -3018,28 +2983,10 @@ if (!resProcess.ok) {
 }
 
 
+      setImportedStopGroups(dataProcess.workspace?.importedStopGroups ?? null);
+      setAutoGrouped(!!dataProcess.workspace?.autoGrouped);
       setRows(dataProcess.rows || []);
       setView("results");
-
-if (jobId) {
-  if (!Array.isArray(dataProcess?.rows) || dataProcess.rows.length === 0) {
-  } else {
-    const updatedAtMs = Date.now();
-    lastWorkspaceUpdatedAtRef.current = updatedAtMs;
-    updateHistoryDb(jobId, {
-      version: 1,
-      manualEdits,
-      manualGroups,
-      autoGrouped,
-      autoBreakIds: Array.from(autoBreakIds),
-      condoGrouped,
-      condoBreakIds: Array.from(condoBreakIds),
-      groupItemExclusions,
-      name: file?.name || "Planilha sem nome",
-      updatedAtMs,
-    }).catch(() => {});
-  }
-}
     } finally {
       setLoading(false);
     }
@@ -4748,25 +4695,6 @@ useEffect(() => {
   <div data-rotta-results-top-actions className="flex flex-wrap items-center gap-2.5 xl:max-w-[640px] xl:justify-end">
     <button
       type="button"
-      data-tour="auto-group-button"
-      onClick={() => {
-  if (autoGrouped) {
-    setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
-    clearGroupItemExclusionsByPrefix("auto_");
-  }
-  setAutoGrouped((v) => !v);
-}}
-      className={`inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition sm:flex-none ${
-        autoGrouped
-          ? "border border-[#17313b] bg-[#17313b] text-white shadow-[0_14px_28px_rgba(23,49,59,0.24)]"
-          : "border border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
-      }`}
-    >
-      Agrupar Paradas
-    </button>
-
-    <button
-      type="button"
       data-tour="condo-group-button"
       onClick={() => {
         if (condoGrouped) {
@@ -4947,29 +4875,6 @@ useEffect(() => {
     <div data-rotta-results-actions className="grid grid-cols-2 gap-2.5">
       <button
         type="button"
-        data-tour="auto-group-button"
-        onClick={() => {
-  if (autoGrouped) {
-    setAutoBreakIds(new Set()); // limpa os desagrupamentos manuais
-    clearGroupItemExclusionsByPrefix("auto_");
-  }
-  setAutoGrouped((v) => !v);
-}}
-        className={`inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold leading-tight shadow-sm transition ${
-          autoGrouped
-            ? "border-emerald-200 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
-            : "border-slate-200 text-slate-700 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-        }`}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0">
-          <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-        <span className="text-left">Agrupar Paradas</span>
-      </button>
-
-      <button
-        type="button"
         data-tour="condo-group-button"
         onClick={() => {
           if (condoGrouped) {
@@ -4978,7 +4883,7 @@ useEffect(() => {
           }
           setCondoGrouped((v) => !v);
         }}
-        className={`inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold leading-tight shadow-sm transition ${
+        className={`col-span-full inline-flex min-h-[64px] w-full items-center justify-center gap-3 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold leading-tight shadow-sm transition ${
           condoGrouped
             ? "border-emerald-200 text-emerald-700 shadow-[0_12px_24px_rgba(16,185,129,0.12)]"
             : "border-slate-200 text-slate-700 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
