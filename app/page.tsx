@@ -5152,10 +5152,7 @@ useEffect(() => {
                                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:bg-white text-slate-700"
                                     title="Revisar no mapa"
                                   >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-                                    </svg>
+                                    <MapPin size={20} aria-hidden="true" />
                                   </button>
                                 )}
 
