@@ -126,7 +126,7 @@ export default function NotificationBell() {
         ref={dialog}
         aria-labelledby="notification-inbox-title"
         onClose={() => { setOpen(false); setConfirmDelete(false); }}
-        className="fixed inset-x-0 bottom-0 top-auto m-0 w-full max-w-none rounded-t-[24px] bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-950/35 sm:bottom-auto sm:left-auto sm:right-5 sm:top-16 sm:w-[420px] sm:rounded-[24px]"
+        className="fixed inset-x-3 bottom-auto top-16 m-0 w-auto max-w-none rounded-[18px] border border-slate-200 bg-white p-0 text-slate-900 shadow-[0_10px_22px_rgba(15,23,42,0.10)] backdrop:bg-transparent sm:inset-x-auto sm:bottom-auto sm:left-auto sm:right-5 sm:top-16 sm:w-[420px] sm:rounded-[24px] sm:shadow-xl sm:backdrop:bg-slate-950/35"
       >
         <section className="flex max-h-[min(78dvh,650px)] flex-col pb-[env(safe-area-inset-bottom)]">
           <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
